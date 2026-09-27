@@ -2,10 +2,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
-// Supabase Secret key (sb_secret_U9...)
-const SUPABASE_KEY = sb_secret_U9tBO
+const 
+const SUPABASE_KEY = 'YOUR_SUPABASE_SECRET_KEY'; 
 // BotFather'dan olgan Telegram Bot Tokeningiz
-const BOT_TOKEN = 8987783785:AAEtws0j2xmJez8hrN_UU6tCNR1BlKd8xVo 
+const BOT_TOKEN = '8987783785:AAEtws0j2xmJez8hrN_U...'; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
