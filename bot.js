@@ -9,6 +9,7 @@ const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
+// Render port talabini qondirish uchun oddiy Express server
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -44,17 +45,43 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
+// Yangi mahsulot qo'shishni boshlash
 bot.onText(/\/add/, (msg) => {
   const chatId = msg.chat.id;
   adminState[chatId] = { step: 'TITLE', imageUrls: [] };
   bot.sendMessage(chatId, "Mebel nomini kiriting:");
 });
 
+// Mahsulotni o'chirish uchun ro'yxatni chaqirish
+bot.onText(/\/delete/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Bazadan oxirgi qo'shilgan 10 ta mahsulotni olib kelamiz
+  const { data: products, error } = await supabase
+    .from('products')
+    .select('id, title, price')
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error || !products || products.length === 0) {
+    return bot.sendMessage(chatId, "Hozircha o'chirish uchun mahsulotlar topilmadi.");
+  }
+
+  // Har bir mahsulot uchun o'chirish tugmasini yaratamiz
+  const buttons = products.map(p => [
+    { text: `❌ ${p.title} (${Number(p.price).toLocaleString()} so'm)`, callback_data: `del_${p.id}` }
+  ]);
+
+  bot.sendMessage(chatId, "O'chirmoqchi bo'lgan mahsulotni tanlang:", {
+    reply_markup: { inline_keyboard: buttons }
+  });
+});
+
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const state = adminState[chatId];
 
-  if (!state || msg.text === '/start' || msg.text === '/add') return;
+  if (!state || msg.text === '/start' || msg.text === '/add' || msg.text === '/delete') return;
 
   try {
     if (state.step === 'TITLE') {
@@ -93,7 +120,7 @@ bot.on('message', async (msg) => {
       }
     }
   } catch (err) {
-    bot.sendMessage(chatId, `Xatolik yuz berdi: ${err.message}`);
+    bot.sendMessage(chatId, `Kutilmagan xatolik yuz berdi: ${err.message}`);
     delete adminState[chatId];
   }
 });
@@ -102,6 +129,28 @@ bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
   const state = adminState[chatId];
+
+  // Mahsulotni o'chirish tugmasi bosilganda
+  if (data.startsWith('del_')) {
+    const productId = data.replace('del_', '');
+
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId);
+
+    if (error) {
+      bot.answerCallbackQuery(query.id, { text: "Xatolik yuz berdi!" });
+      return bot.sendMessage(chatId, `O'chirishda xatolik: ${error.message}`);
+    }
+
+    bot.answerCallbackQuery(query.id, { text: "Mahsulot o'chirildi!" });
+    bot.editMessageText("✅ Tanlangan mahsulot Mebelix bazasidan va do'kondan muvaffaqiyatli o'chirildi.", {
+      chat_id: chatId,
+      message_id: query.message.message_id
+    });
+    return;
+  }
 
   if (data === 'done_photos') {
     if (!state || state.imageUrls.length === 0) {
@@ -127,15 +176,15 @@ bot.on('callback_query', async (query) => {
 
     state.category = category;
 
-    // Supabase bazasiga saqlaymiz (image_url ga birinchisini, images ga hammasini yozamiz)
+    // Supabase bazasiga saqlaymiz
     const { error } = await supabase.from('products').insert([
       {
         title: state.title,
         price: state.price,
         description: state.description,
         category: state.category,
-        image_url: state.imageUrls[0], // Asosiy rasm (eski versiyalar ham ishlashi uchun)
-        images: state.imageUrls        // Barcha rasmlar massivi
+        image_url: state.imageUrls[0],
+        images: state.imageUrls
       }
     ]);
 
