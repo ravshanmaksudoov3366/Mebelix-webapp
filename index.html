@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mebelix - Market</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Supabase kutubxonasini ulaymiz -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
@@ -17,6 +16,35 @@
         .title {
             text-align: center;
             color: #2563eb;
+            margin-bottom: 15px;
+        }
+        /* Kategoriyalar tugmalari dizayni */
+        .categories {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            scrollbar-width: none; /* Firefox uchun */
+        }
+        .categories::-webkit-scrollbar {
+            display: none; /* Chrome/Safari uchun */
+        }
+        .cat-btn {
+            background: #e2e8f0;
+            color: #1e293b;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .cat-btn.active {
+            background: #2563eb;
+            color: white;
         }
         #product-list {
             display: flex;
@@ -62,6 +90,12 @@
 
     <h2 class="title">🛋 MEBELIX MARKET</h2>
     
+    <!-- Kategoriyalar paneli -->
+    <div class="categories" id="category-container">
+        <button class="cat-btn active" onclick="filterCategory('Barchasi', this)">Barchasi</button>
+        <!-- Kategoriyalar bazadan avtomatik qo'shiladi -->
+    </div>
+
     <!-- Mahsulotlar chiqadigan joy -->
     <div id="product-list">
         <div class="loading">Mahsulotlar yuklanmoqda...</div>
@@ -71,11 +105,12 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Supabase ulanish ma'lumotlari
         const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let allProducts = [];
 
         async function loadProducts() {
             const container = document.getElementById('product-list');
@@ -91,13 +126,56 @@
                 return;
             }
 
-            if (!data || data.length === 0) {
+            allProducts = data || [];
+            
+            if (allProducts.length === 0) {
                 container.innerHTML = '<div class="empty">Hozircha mahsulotlar yo\'q.</div>';
                 return;
             }
 
+            setupCategories(allProducts);
+            displayProducts(allProducts);
+        }
+
+        // Kategoriyalarni yig'ib tugma hosil qilish
+        function setupCategories(products) {
+            const catContainer = document.getElementById('category-container');
+            const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+            // "Barchasi" tugmasidan keyin qolgan kategoriyalarni qo'shamiz
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'cat-btn';
+                btn.textContent = cat;
+                btn.onclick = (e) => filterCategory(cat, e.target);
+                catContainer.appendChild(btn);
+            });
+        }
+
+        // Kategoriya bo'yicha saralash
+        function filterCategory(category, clickedBtn) {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            clickedBtn.classList.add('active');
+
+            if (category === 'Barchasi') {
+                displayProducts(allProducts);
+            } else {
+                const filtered = allProducts.filter(p => p.category === category);
+                displayProducts(filtered);
+            }
+        }
+
+        // Mahsulotlarni ekranga chiqarish
+        function displayProducts(products) {
+            const container = document.getElementById('product-list');
+            
+            if (products.length === 0) {
+                container.innerHTML = '<div class="empty">Bu kategoriyada mahsulotlar yo\'q.</div>';
+                return;
+            }
+
             container.innerHTML = '';
-            data.forEach(product => {
+            products.forEach(product => {
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
