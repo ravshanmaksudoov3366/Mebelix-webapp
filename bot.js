@@ -11,15 +11,15 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 // Render port talabini qondirish uchun oddiy Express server
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-app.get('/', (req, res) => {
-  res.send('Mebelix Bot is running!');
-});
-
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+
+
+
 
 const adminState = {};
 
