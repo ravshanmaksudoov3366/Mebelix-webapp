@@ -16,7 +16,6 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-// Render URL orqali Webhook'ni avtomatik sozlash
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
 if (RENDER_URL) {
     bot.setWebHook(`${RENDER_URL}/bot${token}`);
@@ -43,7 +42,6 @@ const categories = [
     "Bolalar uchun mebellar", "Stol va stullar", "Ofis uchun mebellar"
 ];
 
-// /start buyrug'i
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     
@@ -63,7 +61,6 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-// Admin buyruqlari va matnli xabarlar
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -103,6 +100,7 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, "Iltimos, narxni faqat raqamlarda kiriting!");
         }
         state.price = price;
+        state.step === 'waiting_for_description';
         state.step = 'waiting_for_description';
         bot.sendMessage(chatId, "Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
     } else if (state.step === 'waiting_for_description') {
@@ -116,7 +114,6 @@ bot.on('message', async (msg) => {
     }
 });
 
-// Callback tugmalar (Kategoriya va mahsulotni o'chirish)
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
@@ -177,13 +174,11 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, "❌ Mahsulotni o'chirishda xatolik yuz berdi.");
         } else {
             bot.sendMessage(chatId, "🗑 Mebel muvaffaqiyatli o'chirildi!");
-            // Xabardagi tugmalarni yangilash yoki o'chirish mumkin
             bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         }
     }
 });
 
-// Rasmlarni qabul qilish
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -205,7 +200,7 @@ bot.on('photo', async (msg) => {
     });
 });
 
-// WebApp orqali kelgan buyurtmalarni qabul qilish (tg.sendData)
+// WebApp orqali kelgan buyurtmalarni qabul qilish
 bot.on('web_app_data', (msg) => {
     const chatId = msg.chat.id;
     try {
