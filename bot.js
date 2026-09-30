@@ -3,7 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt'; // O'zingizning uzun anon public kalitingizni yozing
+const SUPABASE_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
 const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -57,6 +57,10 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, "Tavsifini kiriting:");
     } else if (state.step === 'DESCRIPTION') {
       state.description = msg.text;
+      state.step = 'CATEGORY';
+      bot.sendMessage(chatId, "Kategoriyani kiriting (masalan: shkaf, krovat, tumba):");
+    } else if (state.step === 'CATEGORY') {
+      state.category = msg.text.trim();
       state.step = 'IMAGE';
       bot.sendMessage(chatId, "Rasm havolasini (linkini) yuboring yoki rasm joylang:");
     } else if (state.step === 'IMAGE') {
@@ -73,6 +77,7 @@ bot.on('message', async (msg) => {
           title: state.title,
           price: state.price,
           description: state.description,
+          category: state.category,
           image_url: imageUrl
         }
       ]);
