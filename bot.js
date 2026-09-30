@@ -3,7 +3,8 @@ const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
 
 const token = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
-const bot = new TelegramBot(token, { polling: true });
+// Polling o'chirildi, faqat token berildi
+const bot = new TelegramBot(token);
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
@@ -12,21 +13,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ADMIN_ID = 1027326101;
 const userStates = {};
 
-// Render uchun veb-server (Port band qilish va xizmatni o'chib qolmasligi uchun)
 const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
+
+// Render URL orqali Webhook'ni avtomatik sozlash
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
+if (RENDER_URL) {
+    bot.setWebHook(`${RENDER_URL}/bot${token}`);
+    console.log(`Webhook ulandi: ${RENDER_URL}/bot${token}`);
+}
 
 app.get('/', (req, res) => {
     res.send('Mebelix Bot ishlayapti!');
 });
 
-app.listen(PORT, () => {
-    console.log(`Server ${PORT}-portda ishga tushdi.`);
+// Telegram'dan keladigan xabarlarni qabul qilish nuqtasi
+app.post(`/bot${token}`, (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
 });
 
-// Polling xatolarini to'sib qo'yish (Crash bo'lmasligi uchun)
-bot.on('polling_error', (error) => {
-    console.log(`Polling xatosi:`, error.code);
+app.listen(PORT, () => {
+    console.log(`Server ${PORT}-portda ishga tushdi.`);
 });
 
 const categories = [
@@ -55,7 +64,7 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-// Admin mebel qo'shish va boshqalar
+// Admin mebel qo'shish boshqaruvi
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
@@ -114,7 +123,7 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// Matnli xabarlar
+// Matnli xabarlar (Admin uchun)
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -148,7 +157,7 @@ bot.on('message', async (msg) => {
     }
 });
 
-// Rasmlar
+// Rasmlarni qabul qilish
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -170,7 +179,7 @@ bot.on('photo', async (msg) => {
     });
 });
 
-// WebApp buyurtmalarini qabul qilish
+// WebApp orqali kelgan buyurtmalarni qabul qilish
 bot.on('web_app_data', (msg) => {
     const chatId = msg.chat.id;
     try {
@@ -195,5 +204,3 @@ bot.on('web_app_data', (msg) => {
         bot.sendMessage(chatId, "Buyurtma qabul qilindi.");
     }
 });
-
-console.log('Bot ishga tushdi!');
