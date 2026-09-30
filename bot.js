@@ -3,7 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
 
 const token = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
-// Polling o'chirildi, faqat token berildi
+// Polling o'chirildi, Webhook ishlatiladi
 const bot = new TelegramBot(token);
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
@@ -45,38 +45,74 @@ const categories = [
     "Bolalar uchun mebellar", "Stol va stullar", "Ofis uchun mebellar"
 ];
 
-// /start buyrug'i
+// /start buyrug'i (Reply Keyboard - pastdagi tugma, sendData ishlashi uchun shart)
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     
     let keyboard = {
-        inline_keyboard: [
+        keyboard: [
             [{ text: "Mebelix Do'koni 🛒", web_app: { url: "https://ravshanmaksudoov3366.github.io/Mebelix-webapp/" } }]
-        ]
+        ],
+        resize_keyboard: true
     };
 
     if (chatId === ADMIN_ID) {
-        keyboard.inline_keyboard.push([{ text: "➕ Mebel qo'shish", callback_data: "add_product" }]);
+        keyboard.keyboard.push([{ text: "➕ Mebel qo'shish" }]);
     }
 
-    bot.sendMessage(chatId, "Assalomu alaykum! Mebelix botiga xush kelibsiz. Kerakli tugmani tanlang:", {
+    bot.sendMessage(chatId, "Assalomu alaykum! Mebelix botiga xush kelibsiz. Quyidagi tugmani bosing:", {
         reply_markup: keyboard
     });
 });
 
-// Admin mebel qo'shish boshqaruvi
+// Admin uchun "➕ Mebel qo'shish" matnli tugmasi
+bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = msg.text;
+
+    if (userId !== ADMIN_ID || !text) return;
+
+    if (text === "➕ Mebel qo'shish") {
+        userStates[userId] = { step: 'waiting_for_name', images: [] };
+        return bot.sendMessage(chatId, "Mebel nomini kiriting:");
+    }
+
+    if (text.startsWith('/')) return;
+
+    const state = userStates[userId];
+    if (!state) return;
+
+    if (state.step === 'waiting_for_name') {
+        state.title = text;
+        state.step = 'waiting_for_price';
+        bot.sendMessage(chatId, "Narxini kiriting (faqat raqam):");
+    } else if (state.step === 'waiting_for_price') {
+        const price = parseFloat(text);
+        if (isNaN(price)) {
+            return bot.sendMessage(chatId, "Iltimos, narxni faqat raqamlarda kiriting!");
+        }
+        state.price = price;
+        state.step = 'waiting_for_description';
+        bot.sendMessage(chatId, "Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
+    } else if (state.step === 'waiting_for_description') {
+        state.description = text;
+        state.step = 'waiting_for_images';
+
+        const keyboard = categories.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
+        bot.sendMessage(chatId, "Kategoriyani tanlang:", {
+            reply_markup: { inline_keyboard: keyboard }
+        });
+    }
+});
+
+// Callback tugmalar (Kategoriyalar va rasmlarni yakunlash)
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
     const userId = query.from.id;
 
-    if (data === 'add_product') {
-        if (userId !== ADMIN_ID) return bot.answerCallbackQuery(query.id, { text: "Siz admin emassiz!" });
-        
-        userStates[userId] = { step: 'waiting_for_name', images: [] };
-        bot.sendMessage(chatId, "Mebel nomini kiriting:");
-        bot.answerCallbackQuery(query.id);
-    } else if (data.startsWith('cat_')) {
+    if (data.startsWith('cat_')) {
         if (userId !== ADMIN_ID) return;
         const category = data.replace('cat_', '');
         const state = userStates[userId];
@@ -86,7 +122,7 @@ bot.on('callback_query', async (query) => {
         state.step = 'collecting_photos';
 
         bot.answerCallbackQuery(query.id);
-        bot.sendMessage(chatId, `Kategoriya tanlandi: ${category}\n\nEndi ushbu mebel uchun **1 tadan 5 tagacha rasm** yuboring. Rasmlarni yuborib bo'lib, tugmani bosing.`, {
+        bot.sendMessage(chatId, `Kategoriya tanlandi: ${category}\n\nEndi ushbu mebel uchun **1 tadan 5 tagacha rasm** yuboring. Rasmlarni yuborib bo'lib, pastdagi tugmani bosing.`, {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [[{ text: "✅ Rasmlarni tugatish", callback_data: "finish_photos" }]]
@@ -123,40 +159,6 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// Matnli xabarlar (Admin uchun)
-bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const text = msg.text;
-
-    if (userId !== ADMIN_ID || !text || text.startsWith('/')) return;
-
-    const state = userStates[userId];
-    if (!state) return;
-
-    if (state.step === 'waiting_for_name') {
-        state.title = text;
-        state.step = 'waiting_for_price';
-        bot.sendMessage(chatId, "Narxini kiriting (faqat raqam):");
-    } else if (state.step === 'waiting_for_price') {
-        const price = parseFloat(text);
-        if (isNaN(price)) {
-            return bot.sendMessage(chatId, "Iltimos, narxni faqat raqamlarda kiriting!");
-        }
-        state.price = price;
-        state.step = 'waiting_for_description';
-        bot.sendMessage(chatId, "Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
-    } else if (state.step === 'waiting_for_description') {
-        state.description = text;
-        state.step = 'waiting_for_images';
-
-        const keyboard = categories.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
-        bot.sendMessage(chatId, "Kategoriyani tanlang:", {
-            reply_markup: { inline_keyboard: keyboard }
-        });
-    }
-});
-
 // Rasmlarni qabul qilish
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
@@ -179,7 +181,7 @@ bot.on('photo', async (msg) => {
     });
 });
 
-// WebApp orqali kelgan buyurtmalarni qabul qilish
+// WebApp orqali kelgan buyurtmalarni qabul qilish (tg.sendData)
 bot.on('web_app_data', (msg) => {
     const chatId = msg.chat.id;
     try {
@@ -201,6 +203,6 @@ bot.on('web_app_data', (msg) => {
         bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
 
     } catch (e) {
-        bot.sendMessage(chatId, "Buyurtma qabul qilindi.");
+        bot.sendMessage(chatId, "Buyurtmangiz qabul qilindi.");
     }
 });
