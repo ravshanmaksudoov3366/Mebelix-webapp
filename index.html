@@ -13,22 +13,47 @@
             padding: 12px;
             margin: 0;
         }
-        .title {
-            text-align: center;
-            color: #2563eb;
+        /* Header va Til tanlash paneli */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 15px;
         }
-        /* Kategoriyalar tugmalari dizayni */
+        .title {
+            color: #2563eb;
+            margin: 0;
+            font-size: 20px;
+        }
+        .lang-switcher {
+            display: flex;
+            gap: 5px;
+        }
+        .lang-btn {
+            background: #e2e8f0;
+            color: #1e293b;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .lang-btn.active {
+            background: #2563eb;
+            color: white;
+        }
+        /* Kategoriyalar tugmalari */
         .categories {
             display: flex;
             gap: 8px;
             overflow-x: auto;
             padding-bottom: 10px;
             margin-bottom: 15px;
-            scrollbar-width: none; /* Firefox uchun */
+            scrollbar-width: none;
         }
         .categories::-webkit-scrollbar {
-            display: none; /* Chrome/Safari uchun */
+            display: none;
         }
         .cat-btn {
             background: #e2e8f0;
@@ -88,17 +113,23 @@
 </head>
 <body>
 
-    <h2 class="title">🛋 MEBELIX MARKET</h2>
+    <div class="header">
+        <h2 class="title">🛋 MEBELIX</h2>
+        <!-- Tilni o'zgartirish tugmalari -->
+        <div class="lang-switcher">
+            <button class="lang-btn active" onclick="setLanguage('uz')">UZ</button>
+            <button class="lang-btn" onclick="setLanguage('ru')">RU</button>
+        </div>
+    </div>
     
     <!-- Kategoriyalar paneli -->
     <div class="categories" id="category-container">
-        <button class="cat-btn active" onclick="filterCategory('Barchasi', this)">Barchasi</button>
-        <!-- Kategoriyalar bazadan avtomatik qo'shiladi -->
+        <button class="cat-btn active" onclick="filterCategory('all', this)" id="all-cat-btn">Barchasi</button>
     </div>
 
     <!-- Mahsulotlar chiqadigan joy -->
     <div id="product-list">
-        <div class="loading">Mahsulotlar yuklanmoqda...</div>
+        <div class="loading" id="loading-text">Mahsulotlar yuklanmoqda...</div>
     </div>
 
     <script>
@@ -111,6 +142,28 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let allProducts = [];
+        let currentLang = 'uz'; // Standart til - o'zbekcha
+        let currentCategory = 'all';
+
+        // Lug'at (Tarjimalar)
+        const translations = {
+            uz: {
+                all: "Barchasi",
+                loading: "Mahsulotlar yuklanmoqda...",
+                error: "Mahsulotlarni yuklashda xatolik yuz berdi.",
+                empty: "Hozircha mahsulotlar yo'q.",
+                emptyCat: "Bu kategoriyada mahsulotlar yo'q.",
+                orderBtn: "Buyurtma berish"
+            },
+            ru: {
+                all: "Все",
+                loading: "Загрузка товаров...",
+                error: "Ошибка при загрузке товаров.",
+                empty: "Пока нет товаров.",
+                emptyCat: "В этой категории нет товаров.",
+                orderBtn: "Заказать"
+            }
+        };
 
         async function loadProducts() {
             const container = document.getElementById('product-list');
@@ -122,14 +175,14 @@
 
             if (error) {
                 console.error('Xatolik:', error);
-                container.innerHTML = '<div class="empty">Mahsulotlarni yuklashda xatolik yuz berdi.</div>';
+                container.innerHTML = `<div class="empty">${translations[currentLang].error}</div>`;
                 return;
             }
 
             allProducts = data || [];
             
             if (allProducts.length === 0) {
-                container.innerHTML = '<div class="empty">Hozircha mahsulotlar yo\'q.</div>';
+                container.innerHTML = `<div class="empty">${translations[currentLang].empty}</div>`;
                 return;
             }
 
@@ -137,12 +190,29 @@
             displayProducts(allProducts);
         }
 
-        // Kategoriyalarni yig'ib tugma hosil qilish
+        // Tilni o'zgartirish funksiyasi
+        function setLanguage(lang) {
+            currentLang = lang;
+            
+            // Tugmalarning aktiv holatini o'zgartirish
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // "Barchasi" / "Все" tugmasi nomini yangilash
+            document.getElementById('all-cat-btn').textContent = translations[currentLang].all;
+
+            // Ro'yxatni yangidan chiqarish
+            filterCategory(currentCategory, document.querySelector('.cat-btn.active'));
+        }
+
+        // Kategoriyalarni yig'ish
         function setupCategories(products) {
             const catContainer = document.getElementById('category-container');
             const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
 
-            // "Barchasi" tugmasidan keyin qolgan kategoriyalarni qo'shamiz
+            // Eskilarini tozalab faqat "Barchasi"ni qoldiramiz
+            catContainer.innerHTML = `<button class="cat-btn active" onclick="filterCategory('all', this)" id="all-cat-btn">${translations[currentLang].all}</button>`;
+
             categories.forEach(cat => {
                 const btn = document.createElement('button');
                 btn.className = 'cat-btn';
@@ -152,12 +222,13 @@
             });
         }
 
-        // Kategoriya bo'yicha saralash
+        // Kategoriya bo'yicha filter
         function filterCategory(category, clickedBtn) {
+            currentCategory = category;
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-            clickedBtn.classList.add('active');
+            if(clickedBtn) clickedBtn.classList.add('active');
 
-            if (category === 'Barchasi') {
+            if (category === 'all') {
                 displayProducts(allProducts);
             } else {
                 const filtered = allProducts.filter(p => p.category === category);
@@ -170,7 +241,7 @@
             const container = document.getElementById('product-list');
             
             if (products.length === 0) {
-                container.innerHTML = '<div class="empty">Bu kategoriyada mahsulotlar yo\'q.</div>';
+                container.innerHTML = `<div class="empty">${translations[currentLang].emptyCat}</div>`;
                 return;
             }
 
@@ -183,7 +254,7 @@
                     <h3>${product.title}</h3>
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
-                    <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>Buyurtma berish</button>
+                    <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>${translations[currentLang].orderBtn}</button>
                 `;
                 container.appendChild(card);
             });
