@@ -85,6 +85,11 @@
             height: 200px;
             object-fit: cover;
             border-radius: 8px;
+            cursor: pointer; /* Rasmni bosish mumkinligini bildiradi */
+            transition: opacity 0.2s;
+        }
+        .card img:hover {
+            opacity: 0.9;
         }
         .price {
             font-weight: bold;
@@ -107,6 +112,42 @@
             color: #64748b;
             margin-top: 20px;
         }
+
+        /* Rasmni to'liq ekran qilish oynasi (Modal) */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .modal img {
+            max-width: 90%;
+            max-height: 80%;
+            border-radius: 8px;
+            object-fit: contain;
+        }
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+            color: white;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .modal-hint {
+            color: #cbd5e1;
+            margin-top: 15px;
+            font-size: 14px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -120,13 +161,18 @@
     </div>
     
     <!-- Kategoriyalar paneli -->
-    <div class="categories" id="category-container">
-        <!-- Dinamik ravishda to'ldiriladi -->
-    </div>
+    <div class="categories" id="category-container"></div>
 
     <!-- Mahsulotlar chiqadigan joy -->
     <div id="product-list">
         <div class="loading" id="loading-text">Mahsulotlar yuklanmoqda...</div>
+    </div>
+
+    <!-- Rasmni to'liq ko'rsatish uchun Modal oyna -->
+    <div id="imageModal" class="modal" onclick="closeModal()">
+        <span class="close-btn">&times;</span>
+        <img id="modalImg" src="" alt="To'liq rasm">
+        <div class="modal-hint" id="modalHintUz">Rasmni saqlab olish uchun ustiga bosib turing</div>
     </div>
 
     <script>
@@ -142,7 +188,6 @@
         let currentLang = 'uz';
         let currentCategory = 'all';
 
-        // Kategoriyalarning tarjimalari (Bazada qanday yozilgan bo'lsa, kalit so'z sifatida yoziladi)
         const categoryMap = {
             'all': { uz: 'Barchasi', ru: 'Все' },
             'Shkaflar': { uz: 'Shkaflar', ru: 'Шкафы' },
@@ -164,13 +209,15 @@
                 error: "Mahsulotlarni yuklashda xatolik yuz berdi.",
                 empty: "Hozircha mahsulotlar yo'q.",
                 emptyCat: "Bu kategoriyada mahsulotlar yo'q.",
-                orderBtn: "Buyurtma berish"
+                orderBtn: "Buyurtma berish",
+                hint: "Rasmni saqlab olish uchun ustiga bosib turing"
             },
             ru: {
                 error: "Ошибка при загрузке товаров.",
                 empty: "Пока нет товаров.",
                 emptyCat: "В этой категории нет товаров.",
-                orderBtn: "Заказать"
+                orderBtn: "Заказать",
+                hint: "Нажмите и удерживайте картинку, чтобы сохранить её"
             }
         };
 
@@ -204,6 +251,8 @@
             document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
             event.target.classList.add('active');
 
+            document.getElementById('modalHintUz').textContent = uiTexts[currentLang].hint;
+
             setupCategories();
             filterCategory(currentCategory, document.querySelector(`.cat-btn[data-cat="${currentCategory}"]`));
         }
@@ -212,7 +261,6 @@
             const catContainer = document.getElementById('category-container');
             catContainer.innerHTML = '';
 
-            // Avval "Barchasi" tugmasini qo'shamiz
             const allBtn = document.createElement('button');
             allBtn.className = `cat-btn ${currentCategory === 'all' ? 'active' : ''}`;
             allBtn.dataset.cat = 'all';
@@ -220,14 +268,12 @@
             allBtn.onclick = (e) => filterCategory('all', e.target);
             catContainer.appendChild(allBtn);
 
-            // Bazadagi mahsulotlardan qaysi kategoriyalar borligini aniqlaymiz
             const existingCategories = [...new Set(allProducts.map(p => p.category).filter(Boolean))];
 
             existingCategories.forEach(cat => {
                 const btn = document.createElement('button');
                 btn.className = `cat-btn ${currentCategory === cat ? 'active' : ''}`;
                 btn.dataset.cat = cat;
-                // Agar lug'atda bo'lsa tarjimasini yozamiz, bo'lmasa o'zini
                 btn.textContent = categoryMap[cat] ? categoryMap[cat][currentLang] : cat;
                 btn.onclick = (e) => filterCategory(cat, e.target);
                 catContainer.appendChild(btn);
@@ -257,10 +303,11 @@
 
             container.innerHTML = '';
             products.forEach(product => {
+                const imgSrc = product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500';
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <img src="${product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500'}" alt="${product.title}">
+                    <img src="${imgSrc}" alt="${product.title}" onclick="openModal('${imgSrc}')">
                     <h3>${product.title}</h3>
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
@@ -268,6 +315,18 @@
                 `;
                 container.appendChild(card);
             });
+        }
+
+        // Rasmni kattalashtirib ko'rsatish funksiyalari
+        function openModal(imgSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImg');
+            modal.style.display = 'flex';
+            modalImg.src = imgSrc;
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
         }
 
         function buy(name, price) {
