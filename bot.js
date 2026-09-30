@@ -1,167 +1,165 @@
-const { Telegraf, Markup } = require('telegraf');
+const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
 
-// Bot va Supabase sozlamalari
-const bot = new Telegraf('8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM');
+const token = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
+const bot = new TelegramBot(token, { polling: true });
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ADMIN_ID = 1027326101; // Sizning Telegram ID raqamingiz
-
-// Foydalanuvchilarning qo'shish jarayonini saqlash uchun vaqtinchalik xotira
+const ADMIN_ID = 1027326101;
 const userStates = {};
 
 const categories = [
-    "Shkaflar",
-    "Oyoq kiyim javoni",
-    "Kitoblar javoni",
-    "Krovatlar",
-    "Yotoqxona to'plami",
-    "Yumshoq mebellar",
-    "Tumbalar",
-    "Mexmonxona uchun mebellar",
-    "Oshxona uchun mebellar",
-    "Bolalar uchun mebellar",
-    "Stol va stullar",
-    "Ofis uchun mebellar"
+    "Shkaflar", "Oyoq kiyim javoni", "Kitoblar javoni", "Krovatlar",
+    "Yotoqxona to'plami", "Yumshoq mebellar", "Tumbalar",
+    "Mexmonxona uchun mebellar", "Oshxona uchun mebellar",
+    "Bolalar uchun mebellar", "Stol va stullar", "Ofis uchun mebellar"
 ];
 
 // /start buyrug'i
-bot.start((ctx) => {
-    const chatId = ctx.from.id;
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
     
-    let keyboard = [
-        [{ text: "Mebelix Do'koni 🛒", web_app: { url: "https://ravshanmaksudoov3366.github.io/Mebelix-webapp/?v=2" } }]
-    ];
+    let keyboard = {
+        inline_keyboard: [
+            [{ text: "Mebelix Do'koni 🛒", web_app: { url: "https://ravshanmaksudoov3366.github.io/Mebelix-webapp/?v=2" } }]
+        ]
+    };
 
     if (chatId === ADMIN_ID) {
-        keyboard.push([{ text: "➕ Mebel qo'shish", callback_data: "add_product" }]);
+        keyboard.inline_keyboard.push([{ text: "➕ Mebel qo'shish", callback_data: "add_product" }]);
     }
 
-    ctx.reply("Assalomu alaykum! Mebelix botiga xush kelibsiz. Kerakli tugmani tanlang:", Markup.inlineKeyboard(keyboard));
+    bot.sendMessage(chatId, "Assalomu alaykum! Mebelix botiga xush kelibsiz. Kerakli tugmani tanlang:", {
+        reply_markup: keyboard
+    });
 });
 
 // Admin mebel qo'shishni boshlaganda
-bot.action('add_product', (ctx) => {
-    if (ctx.from.id !== ADMIN_ID) return ctx.answerCbQuery("Siz admin emassiz!");
-    
-    userStates[ctx.from.id] = { step: 'waiting_for_name', images: [] };
-    ctx.reply("Mebel nomini kiriting:");
-    ctx.answerCbQuery();
+bot.on('callback_query', async (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+    const userId = query.from.id;
+
+    if (data === 'add_product') {
+        if (userId !== ADMIN_ID) return bot.answerCallbackQuery(query.id, { text: "Siz admin emassiz!" });
+        
+        userStates[userId] = { step: 'waiting_for_name', images: [] };
+        bot.sendMessage(chatId, "Mebel nomini kiriting:");
+        bot.answerCallbackQuery(query.id);
+    } else if (data.startsWith('cat_')) {
+        if (userId !== ADMIN_ID) return;
+        const category = data.replace('cat_', '');
+        const state = userStates[userId];
+        if (!state) return;
+
+        state.category = category;
+        state.step = 'collecting_photos';
+
+        bot.answerCallbackQuery(query.id);
+        bot.sendMessage(chatId, `Kategoriya tanlandi: ${category}\n\nEndi ushbu mebel uchun **1 tadan 5 tagacha rasm** yuboring. Rasmlarni yuborib bo'lib, tugmani bosing.`, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: [[{ text: "✅ Rasmlarni tugatish", callback_data: "finish_photos" }]]
+            }
+        });
+    } else if (data === 'finish_photos') {
+        if (userId !== ADMIN_ID) return;
+        const state = userStates[userId];
+        if (!state || state.images.length === 0) {
+            return bot.answerCallbackQuery(query.id, { text: "Kamida 1 ta rasm yuborishingiz kerak!" });
+        }
+
+        bot.answerCallbackQuery(query.id);
+
+        const { error } = await supabase.from('products').insert([
+            {
+                title: state.title,
+                price: state.price,
+                description: state.description,
+                category: state.category,
+                images: state.images,
+                image_url: state.images[0]
+            }
+        ]);
+
+        if (error) {
+            console.error(error);
+            bot.sendMessage(chatId, "❌ Bazaga saqlashda xatolik yuz berdi!");
+        } else {
+            bot.sendMessage(chatId, `✅ Mebel muvaffaqiyatli qo'shildi!\n\n📷 Rasmlar soni: ${state.images.length} ta\n📁 Kategoriya: ${state.category}`);
+        }
+
+        delete userStates[userId];
+    }
 });
 
-// Matnli xabarlarni qabul qilish (Admin kiritayotgan ma'lumotlar)
-bot.on('text', async (ctx) => {
-    const userId = ctx.from.id;
-    if (userId !== ADMIN_ID) return;
+// Matnli xabarlarni qabul qilish
+bot.on('message', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const text = msg.text;
+
+    if (userId !== ADMIN_ID || !text || text.startsWith('/')) return;
 
     const state = userStates[userId];
     if (!state) return;
 
-    const text = ctx.message.text;
-
     if (state.step === 'waiting_for_name') {
         state.title = text;
         state.step = 'waiting_for_price';
-        ctx.reply("Narxini kiriting (faqat raqam):");
+        bot.sendMessage(chatId, "Narxini kiriting (faqat raqam):");
     } else if (state.step === 'waiting_for_price') {
         const price = parseFloat(text);
         if (isNaN(price)) {
-            return ctx.reply("Iltimos, narxni faqat raqamlarda kiriting!");
+            return bot.sendMessage(chatId, "Iltimos, narxni faqat raqamlarda kiriting!");
         }
         state.price = price;
         state.step = 'waiting_for_description';
-        ctx.reply("Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
+        bot.sendMessage(chatId, "Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
     } else if (state.step === 'waiting_for_description') {
         state.description = text;
         state.step = 'waiting_for_images';
 
-        // Kategoriyalarni tugma ko'rinishida chiqarish
-        const keyboard = categories.map(cat => [Markup.button.callback(cat, `cat_${cat}`)]);
-        ctx.reply("Kategoriyani tanlang:", Markup.inlineKeyboard(keyboard));
+        const keyboard = categories.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
+        bot.sendMessage(chatId, "Kategoriyani tanlang:", {
+            reply_markup: { inline_keyboard: keyboard }
+        });
     }
 });
 
-// Kategoriyani tanlash
-bot.action(/^cat_(.+)$/, async (ctx) => {
-    const userId = ctx.from.id;
-    if (userId !== ADMIN_ID) return;
-
-    const state = userStates[userId];
-    if (!state || state.step !== 'waiting_for_images') return;
-
-    state.category = ctx.match[1];
-    state.step = 'collecting_photos';
-
-    ctx.answerCbQuery();
-    ctx.reply(`Kategoriya tanlandi: ${state.category}\n\nEndi ushbu mebel uchun **1 tadan 5 tagacha rasm** yuboring. Rasmlarni yuborib bo'lib, **"Tamom"** deb yozing yoki tugmani bosing.`,
-        Markup.inlineKeyboard([[Markup.button.callback("✅ Rasmlarni tugatish", "finish_photos")]])
-    );
-});
-
 // Rasmlarni qabul qilish
-bot.on('photo', async (ctx) => {
-    const userId = ctx.from.id;
+bot.on('photo', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
     if (userId !== ADMIN_ID) return;
 
     const state = userStates[userId];
     if (!state || state.step !== 'collecting_photos') return;
 
-    const photo = ctx.message.photo;
+    const photo = msg.photo;
     const fileId = photo[photo.length - 1].file_id;
 
-    const fileLink = await ctx.telegram.getFileLink(fileId);
-    state.images.push(fileLink.href);
+    const fileLink = await bot.getFileLink(fileId);
+    state.images.push(fileLink);
 
-    ctx.reply(`Rasm qabul qilindi! Jami rasmlar: ${state.images.length} ta. Yana rasm yuborishingiz yoki tugmani bosishingiz mumkin.`,
-        Markup.inlineKeyboard([[Markup.button.callback("✅ Rasmlarni tugatish", "finish_photos")]])
-    );
-});
-
-// Rasmlarni yig'ishni yakunlash va bazaga saqlash
-bot.action('finish_photos', async (ctx) => {
-    const userId = ctx.from.id;
-    if (userId !== ADMIN_ID) return;
-
-    const state = userStates[userId];
-    if (!state || state.images.length === 0) {
-        return ctx.reply("Kamida 1 ta rasm yuborishingiz kerak!");
-    }
-
-    ctx.answerCbQuery();
-
-    const { error } = await supabase.from('products').insert([
-        {
-            title: state.title,
-            price: state.price,
-            description: state.description,
-            category: state.category,
-            images: state.images,
-            image_url: state.images[0]
+    bot.sendMessage(chatId, `Rasm qabul qilindi! Jami rasmlar: ${state.images.length} ta. Yana rasm yuborishingiz yoki tugmani bosishingiz mumkin.`, {
+        reply_markup: {
+            inline_keyboard: [[{ text: "✅ Rasmlarni tugatish", callback_data: "finish_photos" }]]
         }
-    ]);
-
-    if (error) {
-        console.error(error);
-        ctx.reply("❌ Bazaga saqlashda xatolik yuz berdi!");
-    } else {
-        ctx.reply(`✅ Mebel muvaffaqiyatli qo'shildi!\n\n📷 Rasmlar soni: ${state.images.length} ta\n📁 Kategoriya: ${state.category}`);
-    }
-
-    delete userStates[userId];
+    });
 });
 
-// Veb-ilovadan kelgan mijoz buyurtmalarini va xarita havolasini qabul qilish
-bot.on('web_app_data', (ctx) => {
+// WebApp buyurtmalarini qabul qilish
+bot.on('web_app_data', (msg) => {
+    const chatId = msg.chat.id;
     try {
-        const data = JSON.parse(ctx.webAppData.data);
+        const data = JSON.parse(msg.web_app_data.data);
         
-        // Mijozga tasdiq xabari
-        ctx.reply("✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
+        bot.sendMessage(chatId, "✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
 
-        // Adminga yuboriladigan xabar
         let adminMessage = `🎉 <b>Yangi buyurtma tushdi!</b>\n\n` +
                            `🛋 <b>Mebel:</b> ${data.product}\n` +
                            `💰 <b>Narxi:</b> ${Number(data.price).toLocaleString()} so'm\n\n` +
@@ -169,17 +167,15 @@ bot.on('web_app_data', (ctx) => {
                            `📞 <b>Telefon:</b> ${data.clientPhone}\n` +
                            `📍 <b>Manzil:</b> ${data.clientAddress}`;
 
-        // Agar mijoz Google Maps havolasini yuborgan bo'lsa, xabarga qo'shamiz
         if (data.geoLink && data.geoLink.trim() !== '') {
             adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
         }
 
-        bot.telegram.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
+        bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
 
     } catch (e) {
-        ctx.reply("Buyurtma qabul qilindi.");
+        bot.sendMessage(chatId, "Buyurtma qabul qilindi.");
     }
 });
 
-bot.launch();
 console.log('Bot ishga tushdi!');
