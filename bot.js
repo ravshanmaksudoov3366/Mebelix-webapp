@@ -43,7 +43,7 @@ const categories = [
     "Bolalar uchun mebellar", "Stol va stullar", "Ofis uchun mebellar"
 ];
 
-// /start buyrug'i (Reply Keyboard - sendData ishlashi uchun shart)
+// /start buyrug'i
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     
@@ -77,13 +77,12 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "🗑 Mebelni o'chirish") {
-        // Bazadagi mahsulotlarni olib kelib admin uchun tanlash ro'yxatini tuzish
-        const { data: products, error } = await supabase.from('products').select('id, title, price');
+        const { data: products, error } = await supabase.from('products').select('id, title, price').order('created_at', { ascending: false });
         if (error || !products || products.length === 0) {
             return bot.sendMessage(chatId, "O'chirish uchun mahsulotlar topilmadi.");
         }
 
-        let keyboard = products.map(p => [{ text: `❌ ${p.title} (${p.price} so'm)`, callback_data: `del_${p.id}` }]);
+        let keyboard = products.map(p => [{ text: `❌ ${p.title} (${Number(p.price).toLocaleString()} so'm)`, callback_data: `del_${p.id}` }]);
         return bot.sendMessage(chatId, "O'chirmoqchi bo'lgan mebelingizni tanlang:", {
             reply_markup: { inline_keyboard: keyboard }
         });
@@ -117,7 +116,7 @@ bot.on('message', async (msg) => {
     }
 });
 
-// Callback tugmalar (Kategoriya, rasmni tugatish va mahsulotni o'chirish)
+// Callback tugmalar (Kategoriya va mahsulotni o'chirish)
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
@@ -178,6 +177,8 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, "❌ Mahsulotni o'chirishda xatolik yuz berdi.");
         } else {
             bot.sendMessage(chatId, "🗑 Mebel muvaffaqiyatli o'chirildi!");
+            // Xabardagi tugmalarni yangilash yoki o'chirish mumkin
+            bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
         }
     }
 });
