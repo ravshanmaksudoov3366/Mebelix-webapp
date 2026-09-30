@@ -27,7 +27,6 @@
             margin: 0;
             font-size: 20px;
         }
-        /* Tilni o'zgartirish tugmasi */
         .lang-select {
             padding: 6px 10px;
             border-radius: 8px;
@@ -37,32 +36,6 @@
             font-weight: bold;
             color: #1e293b;
             cursor: pointer;
-        }
-        .categories {
-            display: flex;
-            gap: 8px;
-            overflow-x: auto;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-            scrollbar-width: none;
-        }
-        .categories::-webkit-scrollbar {
-            display: none;
-        }
-        .cat-btn {
-            background: #e2e8f0;
-            color: #1e293b;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            white-space: nowrap;
-            cursor: pointer;
-        }
-        .cat-btn.active {
-            background: #2563eb;
-            color: white;
         }
         #product-list {
             display: flex;
@@ -88,6 +61,11 @@
             object-fit: cover;
             border-radius: 8px;
             flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .card img:hover {
+            transform: scale(1.03);
         }
         .price {
             font-weight: bold;
@@ -153,12 +131,23 @@
             font-size: 14px;
             box-sizing: border-box;
         }
-        /* Xarita konteyneri */
+        /* GPS tugmasi */
+        .gps-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
         #map {
             width: 100%;
-            height: 200px;
+            height: 180px;
             border-radius: 8px;
-            margin-top: 5px;
             margin-bottom: 10px;
         }
         .form-actions {
@@ -188,6 +177,33 @@
             cursor: pointer;
             font-size: 15px;
         }
+        /* Rasmni katta ko'rsatish (Lightbox) modal */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+        }
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+        }
+        .image-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 25px;
+            color: white;
+            font-size: 35px;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -202,8 +218,6 @@
         </select>
     </div>
     
-    <div class="categories" id="category-container"></div>
-
     <div id="product-list">
         <div class="loading" id="loading-text">Mahsulotlar yuklanmoqda...</div>
     </div>
@@ -226,7 +240,8 @@
                     <input type="text" id="clientAddress" required placeholder="Masalan: Chilonzor 5-kvartal, 12-uy">
                 </div>
                 <div class="form-group">
-                    <label id="labelGeo">Xaritadan joylashuvni belgilang:</label>
+                    <label id="labelGeo">Joylashuvingizni belgilang:</label>
+                    <button type="button" class="gps-btn" onclick="getMyLocation()" id="gpsBtn">📍 Mening turgan joyimni aniqlash</button>
                     <div id="map"></div>
                     <input type="hidden" id="clientGeoLink" required>
                 </div>
@@ -236,6 +251,12 @@
                 </div>
             </form>
         </div>
+    </div>
+
+    <!-- Rasmni to'liq ko'rsatish uchun Modal -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <span class="image-modal-close">&times;</span>
+        <img id="fullImage" src="" alt="Katta rasm">
     </div>
 
     <script>
@@ -262,7 +283,8 @@
                 labelName: "Ismingiz:",
                 labelPhone: "Telefon raqamingiz:",
                 labelAddress: "Yetkazib berish manzili (ko'cha, uy):",
-                labelGeo: "Xaritadan joylashuvni belgilang (qizil nishonni suring):",
+                labelGeo: "Joylashuvingizni belgilang:",
+                gpsBtn: "📍 Mening turgan joyimni aniqlash",
                 cancelBtn: "Bekor qilish",
                 submitBtn: "Yuborish"
             },
@@ -275,7 +297,8 @@
                 labelName: "Ваше имя:",
                 labelPhone: "Номер телефона:",
                 labelAddress: "Адрес доставки (улица, дом):",
-                labelGeo: "Укажите место на карте (передвиньте маркер):",
+                labelGeo: "Укажите ваше местоположение:",
+                gpsBtn: "📍 Определить мое местоположение",
                 cancelBtn: "Отмена",
                 submitBtn: "Отправить"
             }
@@ -291,6 +314,7 @@
             document.getElementById('labelPhone').innerText = t.labelPhone;
             document.getElementById('labelAddress').innerText = t.labelAddress;
             document.getElementById('labelGeo').innerText = t.labelGeo;
+            document.getElementById('gpsBtn').innerText = t.gpsBtn;
             document.getElementById('cancelBtn').innerText = t.cancelBtn;
             document.getElementById('submitBtn').innerText = t.submitBtn;
 
@@ -327,7 +351,7 @@
                 let imagesList = product.images || [product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500'];
                 let imagesHTML = '';
                 imagesList.forEach(imgUrl => {
-                    imagesHTML += `<img src="${imgUrl}" alt="${product.title}">`;
+                    imagesHTML += `<img src="${imgUrl}" alt="${product.title}" onclick="openImageModal('${imgUrl}')">`;
                 });
 
                 const card = document.createElement('div');
@@ -343,6 +367,16 @@
             });
         }
 
+        // Rasmni katta ochish funksiyasi
+        function openImageModal(url) {
+            document.getElementById('fullImage').src = url;
+            document.getElementById('imageModal').style.display = 'flex';
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
         function openOrderModal(name, price) {
             selectedProduct = { name, price };
             document.getElementById('clientName').value = '';
@@ -351,7 +385,7 @@
             document.getElementById('orderModal').style.display = 'flex';
 
             setTimeout(() => {
-                initMap();
+                initMap(41.2995, 69.2401); // Toshkent boshlang'ich
             }, 300);
         }
 
@@ -359,21 +393,18 @@
             document.getElementById('orderModal').style.display = 'none';
         }
 
-        function initMap() {
-            const defaultLat = 41.2995;
-            const defaultLng = 69.2401;
-
+        function initMap(lat, lng) {
             if (!map) {
-                map = L.map('map').setView([defaultLat, defaultLng], 13);
+                map = L.map('map').setView([lat, lng], 14);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors'
+                    attribution: '&copy; OpenStreetMap'
                 }).addTo(map);
 
-                marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+                marker = L.marker([lat, lng], { draggable: true }).addTo(map);
 
                 marker.on('dragend', function (event) {
-                    const position = marker.getLatLng();
-                    updateGeoInput(position.lat, position.lng);
+                    const pos = marker.getLatLng();
+                    updateGeoInput(pos.lat, pos.lng);
                 });
 
                 map.on('click', function (event) {
@@ -382,10 +413,32 @@
                 });
             } else {
                 map.invalidateSize();
-                marker.setLatLng([defaultLat, defaultLng]);
-                map.setView([defaultLat, defaultLng], 13);
+                marker.setLatLng([lat, lng]);
+                map.setView([lat, lng], 14);
             }
-            updateGeoInput(defaultLat, defaultLng);
+            updateGeoInput(lat, lng);
+        }
+
+        // GPS orqali mijozning turgan joyini avtomatik topish
+        function getMyLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        if (map && marker) {
+                            marker.setLatLng([lat, lng]);
+                            map.setView([lat, lng], 16);
+                            updateGeoInput(lat, lng);
+                        }
+                    },
+                    (error) => {
+                        alert("Joylashuvni aniqlab bo'lmadi. Iltimos, xaritadan o'zingiz belgilang.");
+                    }
+                );
+            } else {
+                alert("Brauzeringiz geolyatsiyani qo'llab-quvvatlamaydi.");
+            }
         }
 
         function updateGeoInput(lat, lng) {
@@ -409,7 +462,14 @@
                 geoLink: geoLink
             };
 
-            tg.sendData(JSON.stringify(orderData));
+            // Telegram orqali yuborish
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                tg.sendData(JSON.stringify(orderData));
+            } else {
+                // Brauzerda test qilganda ishlaydigan zaxira xabar
+                alert("Buyurtmangiz qabul qilindi! (Telegramda to'g'ridan-to'g'ri botga yuboriladi)");
+                closeOrderModal();
+            }
         }
 
         loadProducts();
