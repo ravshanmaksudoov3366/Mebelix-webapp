@@ -6,7 +6,6 @@
     <title>Mebelix - Market</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
@@ -27,14 +26,15 @@
             margin: 0;
             font-size: 20px;
         }
-        .lang-select {
-            padding: 6px 10px;
+        /* RU / UZ tugmasi */
+        .lang-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 6px 12px;
             border-radius: 8px;
-            border: 1px solid #cbd5e1;
-            background: white;
             font-size: 13px;
             font-weight: bold;
-            color: #1e293b;
             cursor: pointer;
         }
         #product-list {
@@ -62,10 +62,6 @@
             border-radius: 8px;
             flex-shrink: 0;
             cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .card img:hover {
-            transform: scale(1.03);
         }
         .price {
             font-weight: bold;
@@ -89,7 +85,6 @@
             color: #64748b;
             margin-top: 20px;
         }
-        /* Buyurtma Formasi Modali */
         .order-modal {
             display: none;
             position: fixed;
@@ -131,7 +126,6 @@
             font-size: 14px;
             box-sizing: border-box;
         }
-        /* GPS tugmasi */
         .gps-btn {
             background: #10b981;
             color: white;
@@ -177,7 +171,6 @@
             cursor: pointer;
             font-size: 15px;
         }
-        /* Rasmni katta ko'rsatish (Lightbox) modal */
         .image-modal {
             display: none;
             position: fixed;
@@ -205,24 +198,19 @@
             cursor: pointer;
         }
     </style>
-    <!-- Leaflet Map JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
     <div class="header">
         <h2 class="title">🛋 MEBELIX</h2>
-        <select id="langSelect" class="lang-select" onchange="changeLanguage()">
-            <option value="uz">O'zbekcha</option>
-            <option value="ru">Русский</option>
-        </select>
+        <button id="langBtn" class="lang-btn" onclick="toggleLanguage()">RU / O'Z</button>
     </div>
     
     <div id="product-list">
         <div class="loading" id="loading-text">Mahsulotlar yuklanmoqda...</div>
     </div>
 
-    <!-- Buyurtma berish Formasi uchun Modal -->
     <div id="orderModal" class="order-modal">
         <div class="order-content">
             <h3 id="modalTitle">Buyurtmani rasmiylashtirish</h3>
@@ -253,7 +241,6 @@
         </div>
     </div>
 
-    <!-- Rasmni to'liq ko'rsatish uchun Modal -->
     <div id="imageModal" class="image-modal" onclick="closeImageModal()">
         <span class="image-modal-close">&times;</span>
         <img id="fullImage" src="" alt="Katta rasm">
@@ -304,8 +291,9 @@
             }
         };
 
-        function changeLanguage() {
-            currentLang = document.getElementById('langSelect').value;
+        function toggleLanguage() {
+            currentLang = currentLang === 'uz' ? 'ru' : 'uz';
+            document.getElementById('langBtn').innerText = currentLang === 'uz' ? 'RU / O\'Z' : 'O\'Z / RU';
             const t = translations[currentLang];
 
             document.getElementById('loading-text').innerText = t.loading;
@@ -367,7 +355,6 @@
             });
         }
 
-        // Rasmni katta ochish funksiyasi
         function openImageModal(url) {
             document.getElementById('fullImage').src = url;
             document.getElementById('imageModal').style.display = 'flex';
@@ -385,7 +372,7 @@
             document.getElementById('orderModal').style.display = 'flex';
 
             setTimeout(() => {
-                initMap(41.2995, 69.2401); // Toshkent boshlang'ich
+                initMap(41.2995, 69.2401);
             }, 300);
         }
 
@@ -419,7 +406,6 @@
             updateGeoInput(lat, lng);
         }
 
-        // GPS orqali mijozning turgan joyini avtomatik topish
         function getMyLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -462,12 +448,12 @@
                 geoLink: geoLink
             };
 
-            // Telegram orqali yuborish
+            // Ma'lumotni Telegram botga yuborish
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 tg.sendData(JSON.stringify(orderData));
             } else {
-                // Brauzerda test qilganda ishlaydigan zaxira xabar
-                alert("Buyurtmangiz qabul qilindi! (Telegramda to'g'ridan-to'g'ri botga yuboriladi)");
+                // Agar bot orqali ochilmagan bo'lsa, xabar ko'rsatish
+                alert(currentLang === 'uz' ? "Buyurtmangiz muvaffaqiyatli yuborildi!" : "Ваш заказ успешно отправлен!");
                 closeOrderModal();
             }
         }
