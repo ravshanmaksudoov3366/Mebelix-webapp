@@ -27,6 +27,17 @@
             margin: 0;
             font-size: 20px;
         }
+        /* Tilni o'zgartirish tugmasi */
+        .lang-select {
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            font-size: 13px;
+            font-weight: bold;
+            color: #1e293b;
+            cursor: pointer;
+        }
         .categories {
             display: flex;
             gap: 8px;
@@ -185,6 +196,10 @@
 
     <div class="header">
         <h2 class="title">🛋 MEBELIX</h2>
+        <select id="langSelect" class="lang-select" onchange="changeLanguage()">
+            <option value="uz">O'zbekcha</option>
+            <option value="ru">Русский</option>
+        </select>
     </div>
     
     <div class="categories" id="category-container"></div>
@@ -196,28 +211,28 @@
     <!-- Buyurtma berish Formasi uchun Modal -->
     <div id="orderModal" class="order-modal">
         <div class="order-content">
-            <h3>Buyurtmani rasmiylashtirish</h3>
+            <h3 id="modalTitle">Buyurtmani rasmiylashtirish</h3>
             <form id="orderForm" onsubmit="submitOrder(event)">
                 <div class="form-group">
-                    <label>Ismingiz:</label>
+                    <label id="labelName">Ismingiz:</label>
                     <input type="text" id="clientName" required placeholder="Ismingizni kiriting">
                 </div>
                 <div class="form-group">
-                    <label>Telefon raqamingiz:</label>
+                    <label id="labelPhone">Telefon raqamingiz:</label>
                     <input type="tel" id="clientPhone" required placeholder="+998 90 123 45 67">
                 </div>
                 <div class="form-group">
-                    <label>Yetkazib berish manzili (ko'cha, uy):</label>
+                    <label id="labelAddress">Yetkazib berish manzili (ko'cha, uy):</label>
                     <input type="text" id="clientAddress" required placeholder="Masalan: Chilonzor 5-kvartal, 12-uy">
                 </div>
                 <div class="form-group">
-                    <label>Xaritadan joylashuvni belgilang (qizil nishonni suring):</label>
+                    <label id="labelGeo">Xaritadan joylashuvni belgilang:</label>
                     <div id="map"></div>
                     <input type="hidden" id="clientGeoLink" required>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="cancel-btn" onclick="closeOrderModal()">Bekor qilish</button>
-                    <button type="submit" class="submit-btn">Yuborish</button>
+                    <button type="button" class="cancel-btn" id="cancelBtn" onclick="closeOrderModal()">Bekor qilish</button>
+                    <button type="submit" class="submit-btn" id="submitBtn">Yuborish</button>
                 </div>
             </form>
         </div>
@@ -235,6 +250,52 @@
         let selectedProduct = null;
         let map = null;
         let marker = null;
+        let currentLang = 'uz';
+
+        const translations = {
+            uz: {
+                loading: "Mahsulotlar yuklanmoqda...",
+                empty: "Hozircha mahsulotlar yo'q.",
+                error: "Xatolik yuz berdi.",
+                orderBtn: "Buyurtma berish",
+                modalTitle: "Buyurtmani rasmiylashtirish",
+                labelName: "Ismingiz:",
+                labelPhone: "Telefon raqamingiz:",
+                labelAddress: "Yetkazib berish manzili (ko'cha, uy):",
+                labelGeo: "Xaritadan joylashuvni belgilang (qizil nishonni suring):",
+                cancelBtn: "Bekor qilish",
+                submitBtn: "Yuborish"
+            },
+            ru: {
+                loading: "Загрузка товаров...",
+                empty: "Пока нет товаров.",
+                error: "Произошла ошибка.",
+                orderBtn: "Заказать",
+                modalTitle: "Оформление заказа",
+                labelName: "Ваше имя:",
+                labelPhone: "Номер телефона:",
+                labelAddress: "Адрес доставки (улица, дом):",
+                labelGeo: "Укажите место на карте (передвиньте маркер):",
+                cancelBtn: "Отмена",
+                submitBtn: "Отправить"
+            }
+        };
+
+        function changeLanguage() {
+            currentLang = document.getElementById('langSelect').value;
+            const t = translations[currentLang];
+
+            document.getElementById('loading-text').innerText = t.loading;
+            document.getElementById('modalTitle').innerText = t.modalTitle;
+            document.getElementById('labelName').innerText = t.labelName;
+            document.getElementById('labelPhone').innerText = t.labelPhone;
+            document.getElementById('labelAddress').innerText = t.labelAddress;
+            document.getElementById('labelGeo').innerText = t.labelGeo;
+            document.getElementById('cancelBtn').innerText = t.cancelBtn;
+            document.getElementById('submitBtn').innerText = t.submitBtn;
+
+            displayProducts(allProducts);
+        }
 
         async function loadProducts() {
             const container = document.getElementById('product-list');
@@ -243,14 +304,15 @@
                 .select('*')
                 .order('created_at', { ascending: false });
 
+            const t = translations[currentLang];
             if (error) {
-                container.innerHTML = `<div class="empty">Xatolik yuz berdi.</div>`;
+                container.innerHTML = `<div class="empty">${t.error}</div>`;
                 return;
             }
 
             allProducts = data || [];
             if (allProducts.length === 0) {
-                container.innerHTML = `<div class="empty">Hozircha mahsulotlar yo'q.</div>`;
+                container.innerHTML = `<div class="empty">${t.empty}</div>`;
                 return;
             }
             displayProducts(allProducts);
@@ -259,6 +321,7 @@
         function displayProducts(products) {
             const container = document.getElementById('product-list');
             container.innerHTML = '';
+            const t = translations[currentLang];
             
             products.forEach(product => {
                 let imagesList = product.images || [product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500'];
@@ -274,7 +337,7 @@
                     <h3>${product.title}</h3>
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
-                    <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price})'>Buyurtma berish</button>
+                    <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price})'>${t.orderBtn}</button>
                 `;
                 container.appendChild(card);
             });
@@ -287,7 +350,6 @@
             document.getElementById('clientAddress').value = '';
             document.getElementById('orderModal').style.display = 'flex';
 
-            // Xaritani yuklash yoki yangilash
             setTimeout(() => {
                 initMap();
             }, 300);
@@ -298,7 +360,6 @@
         }
 
         function initMap() {
-            // Toshkent markazi boshlang'ich nuqta sifatida
             const defaultLat = 41.2995;
             const defaultLng = 69.2401;
 
