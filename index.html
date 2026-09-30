@@ -102,10 +102,6 @@
             border-radius: 8px;
             cursor: pointer;
             flex-shrink: 0;
-            transition: opacity 0.2s;
-        }
-        .card img:hover {
-            opacity: 0.9;
         }
         .price {
             font-weight: bold;
@@ -122,6 +118,18 @@
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
+            margin-top: 5px;
+        }
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
         }
         .loading, .empty {
             text-align: center;
@@ -195,6 +203,9 @@
         
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // Admin Telegram ID
+        const ADMIN_ID = 1027326101;
+
         let allProducts = [];
         let currentLang = 'uz';
         let currentCategory = 'all';
@@ -221,6 +232,7 @@
                 empty: "Hozircha mahsulotlar yo'q.",
                 emptyCat: "Bu kategoriyada mahsulotlar yo'q.",
                 orderBtn: "Buyurtma berish",
+                deleteBtn: "🗑 Mebelix'dan o'chirish",
                 hint: "Rasmni saqlab olish uchun ustiga bosib turing"
             },
             ru: {
@@ -228,6 +240,7 @@
                 empty: "Пока нет товаров.",
                 emptyCat: "В этой категории нет товаров.",
                 orderBtn: "Заказать",
+                deleteBtn: "🗑 Удалить из Mebelix",
                 hint: "Нажмите и удерживайте картинку, чтобы сохранить её"
             }
         };
@@ -312,6 +325,9 @@
                 return;
             }
 
+            const currentUserId = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
+            const isAdmin = (currentUserId && Number(currentUserId) === Number(ADMIN_ID));
+
             container.innerHTML = '';
             products.forEach(product => {
                 let imagesList = product.images;
@@ -324,6 +340,11 @@
                     imagesHTML += `<img src="${imgUrl}" alt="${product.title}" onclick="openModal('${imgUrl}')">`;
                 });
 
+                let deleteButtonHTML = '';
+                if (isAdmin) {
+                    deleteButtonHTML = `<button class="delete-btn" onclick="deleteProduct('${product.id}')">${uiTexts[currentLang].deleteBtn}</button>`;
+                }
+
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
@@ -334,9 +355,29 @@
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
                     <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>${uiTexts[currentLang].orderBtn}</button>
+                    ${deleteButtonHTML}
                 `;
                 container.appendChild(card);
             });
+        }
+
+        async function deleteProduct(productId) {
+            if (!confirm("Haqiqatan ham bu mebelni Mebelix'dan o'chirib tashlamoqchimisiz?")) {
+                return;
+            }
+
+            const { error } = await supabaseClient
+                .from('products')
+                .delete()
+                .eq('id', productId);
+
+            if (error) {
+                alert("O'chirishda xatolik yuz berdi: " + error.message);
+                return;
+            }
+
+            alert("Mahsulot muvaffaqiyatli o'chirildi!");
+            loadProducts();
         }
 
         function openModal(imgSrc) {
