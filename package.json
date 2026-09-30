@@ -1,14 +1,13 @@
 {
-  "name": "mebelix-webapp",
+  "name": "mebelix-bot",
   "version": "1.0.0",
-  "description": "Mebelix Telegram WebApp Bot",
+  "description": "Mebelix Telegram Bot",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.66.0",
     "@supabase/supabase-js": "^2.39.0",
-    "express": "^4.19.2"
+    "telegraf": "^4.16.3"
   }
 }
