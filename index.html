@@ -247,6 +247,7 @@
 
         async function loadProducts() {
             const container = document.getElementById('product-list');
+            const catContainer = document.getElementById('category-container');
             
             const { data, error } = await supabaseClient
                 .from('products')
@@ -263,6 +264,7 @@
             
             if (allProducts.length === 0) {
                 container.innerHTML = `<div class="empty">${uiTexts[currentLang].empty}</div>`;
+                catContainer.innerHTML = ''; // Mahsulotlar qolmaganda eski kategoriyalarni ham tozalaymiz
                 return;
             }
 
