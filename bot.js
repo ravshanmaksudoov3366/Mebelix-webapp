@@ -9,7 +9,6 @@ const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Render port talabini qondirish uchun oddiy Express server
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -19,7 +18,6 @@ app.listen(PORT, '0.0.0.0', () => {
 
 const adminState = {};
 
-// Mavjud kategoriyalar ro'yxati
 const CATEGORIES = [
   'Shkaflar',
   'Oyoq kiyim javoni',
@@ -48,7 +46,7 @@ bot.onText(/\/start/, (msg) => {
 
 bot.onText(/\/add/, (msg) => {
   const chatId = msg.chat.id;
-  adminState[chatId] = { step: 'TITLE' };
+  adminState[chatId] = { step: 'TITLE', imageUrls: [] };
   bot.sendMessage(chatId, "Mebel nomini kiriting:");
 });
 
@@ -69,40 +67,58 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, "Tavsifini kiriting:");
     } else if (state.step === 'DESCRIPTION') {
       state.description = msg.text;
-      state.step = 'IMAGE';
-      bot.sendMessage(chatId, "Rasm havolasini (linkini) yuboring yoki rasm yuboring:");
-    } else if (state.step === 'IMAGE') {
+      state.step = 'IMAGES';
+      
+      bot.sendMessage(chatId, "📸 Mahsulot rasmlarini birma-bir yuboring (yoki havolasini tashlang).\n\nBarcha rasmlarni yuborib bo'lgach, pastdagi tugmani bosing:", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ Rasmlarni kiritib bo'ldim", callback_data: 'done_photos' }]
+          ]
+        }
+      });
+    } else if (state.step === 'IMAGES') {
       let imageUrl = '';
       if (msg.photo) {
         const fileId = msg.photo[msg.photo.length - 1].file_id;
         imageUrl = await bot.getFileLink(fileId);
-      } else {
+      } else if (msg.text && msg.text.startsWith('http')) {
         imageUrl = msg.text;
       }
-      state.imageUrl = imageUrl;
-      state.step = 'CATEGORY';
 
-      // Kategoriyalarni tugma shaklida chiqaramiz
-      const keyboard = CATEGORIES.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
-      
-      bot.sendMessage(chatId, "Quyidagi kategoriyalardan birini tanlang:", {
-        reply_markup: { inline_keyboard: keyboard }
-      });
+      if (imageUrl) {
+        state.imageUrls.push(imageUrl);
+        bot.sendMessage(chatId, `✅ Rasm qo'shildi (${state.imageUrls.length} ta). Yana rasm yuborishingiz yoki tugmani bosishingiz mumkin.`);
+      } else {
+        bot.sendMessage(chatId, "Iltimos, rasm yoki to'g'ri rasm havolasini yuboring!");
+      }
     }
   } catch (err) {
-    bot.sendMessage(chatId, `Kutilmagan xatolik yuz berdi: ${err.message}`);
+    bot.sendMessage(chatId, `Xatolik yuz berdi: ${err.message}`);
     delete adminState[chatId];
   }
 });
 
-// Tugma bosilganda kategoriyani qabul qilib bazaga saqlash
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
+  const state = adminState[chatId];
 
-  if (data.startsWith('cat_')) {
+  if (data === 'done_photos') {
+    if (!state || state.imageUrls.length === 0) {
+      bot.answerCallbackQuery(query.id, { text: "Kamida bitta rasm yuborishingiz kerak!" });
+      return;
+    }
+
+    state.step = 'CATEGORY';
+    const keyboard = CATEGORIES.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
+    
+    bot.sendMessage(chatId, "Quyidagi kategoriyalardan birini tanlang:", {
+      reply_markup: { inline_keyboard: keyboard }
+    });
+    bot.answerCallbackQuery(query.id);
+  } 
+  else if (data.startsWith('cat_')) {
     const category = data.replace('cat_', '');
-    const state = adminState[chatId];
 
     if (!state) {
       bot.answerCallbackQuery(query.id, { text: "Xatolik! Qaytadan /add buyrug'ini bering." });
@@ -111,21 +127,22 @@ bot.on('callback_query', async (query) => {
 
     state.category = category;
 
-    // Supabase bazasiga saqlaymiz
+    // Supabase bazasiga saqlaymiz (image_url ga birinchisini, images ga hammasini yozamiz)
     const { error } = await supabase.from('products').insert([
       {
         title: state.title,
         price: state.price,
         description: state.description,
         category: state.category,
-        image_url: state.imageUrl
+        image_url: state.imageUrls[0], // Asosiy rasm (eski versiyalar ham ishlashi uchun)
+        images: state.imageUrls        // Barcha rasmlar massivi
       }
     ]);
 
     if (error) {
       bot.sendMessage(chatId, `Xatolik yuz berdi: ${error.message}`);
     } else {
-      bot.sendMessage(chatId, `✅ Mebel muvaffaqiyatli qo'shildi!\n\n🛋 Kategoriya: *${state.category}*`, { parse_mode: 'Markdown' });
+      bot.sendMessage(chatId, `✅ Mebel muvaffaqiyatli qo'shildi!\n\n📸 Rasmlar soni: ${state.imageUrls.length} ta\n🛋 Kategoriya: *${state.category}*`, { parse_mode: 'Markdown' });
     }
 
     delete adminState[chatId];
