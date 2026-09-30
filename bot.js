@@ -3,7 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
 const SUPABASE_KEY = 'YOUR_SUPABASE_SECRET_KEY'; // Supabase maxfiy kalitingizni yozing
-const BOT_TOKEN = '8987783785:AAEtws0j2xmJez8hrN_U...'; // BotTokeningiz
+const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM'; // BotTokeningiz
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
