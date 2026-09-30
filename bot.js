@@ -17,11 +17,23 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-
-
-
-
 const adminState = {};
+
+// Mavjud kategoriyalar ro'yxati
+const CATEGORIES = [
+  'Shkaflar',
+  'Oyoq kiyim javoni',
+  'Kitoblar javoni',
+  'Krovatlar',
+  'Yotoqxona to\'plami',
+  'Yumshoq mebellar',
+  'Tumbalar',
+  'Mexmonxona uchun mebellar',
+  'Oshxona uchun mebellar',
+  'Bolalar uchun mebellar',
+  'Stol va stullar',
+  'Ofis uchun mebellar'
+];
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -57,12 +69,8 @@ bot.on('message', async (msg) => {
       bot.sendMessage(chatId, "Tavsifini kiriting:");
     } else if (state.step === 'DESCRIPTION') {
       state.description = msg.text;
-      state.step = 'CATEGORY';
-      bot.sendMessage(chatId, "Kategoriyani kiriting (masalan: shkaf, krovat, tumba):");
-    } else if (state.step === 'CATEGORY') {
-      state.category = msg.text.trim();
       state.step = 'IMAGE';
-      bot.sendMessage(chatId, "Rasm havolasini (linkini) yuboring yoki rasm joylang:");
+      bot.sendMessage(chatId, "Rasm havolasini (linkini) yuboring yoki rasm yuboring:");
     } else if (state.step === 'IMAGE') {
       let imageUrl = '';
       if (msg.photo) {
@@ -71,27 +79,56 @@ bot.on('message', async (msg) => {
       } else {
         imageUrl = msg.text;
       }
+      state.imageUrl = imageUrl;
+      state.step = 'CATEGORY';
 
-      const { data, error } = await supabase.from('products').insert([
-        {
-          title: state.title,
-          price: state.price,
-          description: state.description,
-          category: state.category,
-          image_url: imageUrl
-        }
-      ]);
-
-      if (error) {
-        bot.sendMessage(chatId, `Xatolik yuz berdi: ${error.message}`);
-      } else {
-        bot.sendMessage(chatId, "✅ Mebel do'konga muvaffaqiyatli qo'shildi!");
-      }
-
-      delete adminState[chatId];
+      // Kategoriyalarni tugma shaklida chiqaramiz
+      const keyboard = CATEGORIES.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
+      
+      bot.sendMessage(chatId, "Quyidagi kategoriyalardan birini tanlang:", {
+        reply_markup: { inline_keyboard: keyboard }
+      });
     }
   } catch (err) {
     bot.sendMessage(chatId, `Kutilmagan xatolik yuz berdi: ${err.message}`);
     delete adminState[chatId];
+  }
+});
+
+// Tugma bosilganda kategoriyani qabul qilib bazaga saqlash
+bot.on('callback_query', async (query) => {
+  const chatId = query.message.chat.id;
+  const data = query.data;
+
+  if (data.startsWith('cat_')) {
+    const category = data.replace('cat_', '');
+    const state = adminState[chatId];
+
+    if (!state) {
+      bot.answerCallbackQuery(query.id, { text: "Xatolik! Qaytadan /add buyrug'ini bering." });
+      return;
+    }
+
+    state.category = category;
+
+    // Supabase bazasiga saqlaymiz
+    const { error } = await supabase.from('products').insert([
+      {
+        title: state.title,
+        price: state.price,
+        description: state.description,
+        category: state.category,
+        image_url: state.imageUrl
+      }
+    ]);
+
+    if (error) {
+      bot.sendMessage(chatId, `Xatolik yuz berdi: ${error.message}`);
+    } else {
+      bot.sendMessage(chatId, `✅ Mebel muvaffaqiyatli qo'shildi!\n\n🛋 Kategoriya: *${state.category}*`, { parse_mode: 'Markdown' });
+    }
+
+    delete adminState[chatId];
+    bot.answerCallbackQuery(query.id);
   }
 });
