@@ -2,7 +2,7 @@ const { Telegraf, Markup } = require('telegraf');
 const { createClient } = require('@supabase/supabase-js');
 
 // Bot va Supabase sozlamalari
-const bot = new Telegraf('SIZNING_BOT_TOKENINGIZ'); // O'z bot tokeningizni yozing
+const bot = new Telegraf('8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM');
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
