@@ -56,7 +56,6 @@ bot.onText(/\/add/, (msg) => {
 bot.onText(/\/delete/, async (msg) => {
   const chatId = msg.chat.id;
 
-  // Bazadan oxirgi qo'shilgan 10 ta mahsulotni olib kelamiz
   const { data: products, error } = await supabase
     .from('products')
     .select('id, title, price')
@@ -67,7 +66,6 @@ bot.onText(/\/delete/, async (msg) => {
     return bot.sendMessage(chatId, "Hozircha o'chirish uchun mahsulotlar topilmadi.");
   }
 
-  // Har bir mahsulot uchun o'chirish tugmasini yaratamiz
   const buttons = products.map(p => [
     { text: `❌ ${p.title} (${Number(p.price).toLocaleString()} so'm)`, callback_data: `del_${p.id}` }
   ]);
@@ -130,7 +128,6 @@ bot.on('callback_query', async (query) => {
   const data = query.data;
   const state = adminState[chatId];
 
-  // Mahsulotni o'chirish tugmasi bosilganda
   if (data.startsWith('del_')) {
     const productId = data.replace('del_', '');
 
@@ -176,7 +173,6 @@ bot.on('callback_query', async (query) => {
 
     state.category = category;
 
-    // Supabase bazasiga saqlaymiz
     const { error } = await supabase.from('products').insert([
       {
         title: state.title,
