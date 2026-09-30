@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mebelix - Shkaflar</title>
+    <title>Mebelix - Market</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Supabase kutubxonasini ulaymiz -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -16,15 +18,21 @@
             text-align: center;
             color: #2563eb;
         }
+        #product-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
         .card {
             background: #ffffff;
             border-radius: 12px;
             padding: 12px;
-            margin-bottom: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .card img {
             width: 100%;
+            height: 200px;
+            object-fit: cover;
             border-radius: 8px;
         }
         .price {
@@ -41,28 +49,73 @@
             padding: 10px;
             border-radius: 8px;
             font-weight: bold;
+            cursor: pointer;
+        }
+        .loading, .empty {
+            text-align: center;
+            color: #64748b;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
 
     <h2 class="title">🛋 MEBELIX MARKET</h2>
-
-    <div class="card">
-        <img src="https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500" alt="Shkaf">
-        <h3>Luks Garderob Shkaf</h3>
-        <p>O'lchami: 250 x 220 x 60 sm<br>Material: MDF / Shpon</p>
-        <div class="price">4 800 000 so'm</div>
-        <button class="btn" onclick="buy('Luks Garderob Shkaf', '4800000')">Buyurtma berish</button>
+    
+    <!-- Mahsulotlar chiqadigan joy -->
+    <div id="product-list">
+        <div class="loading">Mahsulotlar yuklanmoqda...</div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
+        // Supabase ulanish ma'lumotlari
+        const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
+        
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function loadProducts() {
+            const container = document.getElementById('product-list');
+            
+            const { data, error } = await supabaseClient
+                .from('products')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('Xatolik:', error);
+                container.innerHTML = '<div class="empty">Mahsulotlarni yuklashda xatolik yuz berdi.</div>';
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="empty">Hozircha mahsulotlar yo\'q.</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            data.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <img src="${product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500'}" alt="${product.title}">
+                    <h3>${product.title}</h3>
+                    <p>${product.description || ''}</p>
+                    <div class="price">${Number(product.price).toLocaleString()} so'm</div>
+                    <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>Buyurtma berish</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
         function buy(name, price) {
             tg.sendData(JSON.stringify({ product: name, price: price }));
         }
+
+        loadProducts();
     </script>
 </body>
 </html>
