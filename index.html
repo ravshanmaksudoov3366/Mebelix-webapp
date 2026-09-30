@@ -13,7 +13,6 @@
             padding: 12px;
             margin: 0;
         }
-        /* Header va Til tanlash paneli */
         .header {
             display: flex;
             justify-content: space-between;
@@ -43,7 +42,6 @@
             background: #2563eb;
             color: white;
         }
-        /* Kategoriyalar tugmalari */
         .categories {
             display: flex;
             gap: 8px;
@@ -115,7 +113,6 @@
 
     <div class="header">
         <h2 class="title">🛋 MEBELIX</h2>
-        <!-- Tilni o'zgartirish tugmalari -->
         <div class="lang-switcher">
             <button class="lang-btn active" onclick="setLanguage('uz')">UZ</button>
             <button class="lang-btn" onclick="setLanguage('ru')">RU</button>
@@ -124,7 +121,7 @@
     
     <!-- Kategoriyalar paneli -->
     <div class="categories" id="category-container">
-        <button class="cat-btn active" onclick="filterCategory('all', this)" id="all-cat-btn">Barchasi</button>
+        <!-- Dinamik ravishda to'ldiriladi -->
     </div>
 
     <!-- Mahsulotlar chiqadigan joy -->
@@ -142,22 +139,34 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         let allProducts = [];
-        let currentLang = 'uz'; // Standart til - o'zbekcha
+        let currentLang = 'uz';
         let currentCategory = 'all';
 
-        // Lug'at (Tarjimalar)
-        const translations = {
+        // Kategoriyalarning tarjimalari (Bazada qanday yozilgan bo'lsa, kalit so'z sifatida yoziladi)
+        const categoryMap = {
+            'all': { uz: 'Barchasi', ru: 'Все' },
+            'Shkaflar': { uz: 'Shkaflar', ru: 'Шкафы' },
+            'Oyoq kiyim javoni': { uz: 'Oyoq kiyim javoni', ru: 'Обувницы' },
+            'Kitoblar javoni': { uz: 'Kitoblar javoni', ru: 'Книжные полки' },
+            'Krovatlar': { uz: 'Krovatlar', ru: 'Кровати' },
+            'Yotoqxona to\'plami': { uz: 'Yotoqxona to\'plami', ru: 'Спальные гарнитуры' },
+            'Yumshoq mebellar': { uz: 'Yumshoq mebellar', ru: 'Мягкая мебель' },
+            'Tumbalar': { uz: 'Tumbalar', ru: 'Тумбы' },
+            'Mexmonxona uchun mebellar': { uz: 'Mehmonxona uchun mebellar', ru: 'Мебель для гостиной' },
+            'Oshxona uchun mebellar': { uz: 'Oshxona uchun mebellar', ru: 'Кухонная мебель' },
+            'Bolalar uchun mebellar': { uz: 'Bolalar uchun mebellar', ru: 'Детская мебель' },
+            'Stol va stullar': { uz: 'Stol va stullar', ru: 'Столы и стулья' },
+            'Ofis uchun mebellar': { uz: 'Ofis uchun mebellar', ru: 'Офисная мебель' }
+        };
+
+        const uiTexts = {
             uz: {
-                all: "Barchasi",
-                loading: "Mahsulotlar yuklanmoqda...",
                 error: "Mahsulotlarni yuklashda xatolik yuz berdi.",
                 empty: "Hozircha mahsulotlar yo'q.",
                 emptyCat: "Bu kategoriyada mahsulotlar yo'q.",
                 orderBtn: "Buyurtma berish"
             },
             ru: {
-                all: "Все",
-                loading: "Загрузка товаров...",
                 error: "Ошибка при загрузке товаров.",
                 empty: "Пока нет товаров.",
                 emptyCat: "В этой категории нет товаров.",
@@ -175,54 +184,56 @@
 
             if (error) {
                 console.error('Xatolik:', error);
-                container.innerHTML = `<div class="empty">${translations[currentLang].error}</div>`;
+                container.innerHTML = `<div class="empty">${uiTexts[currentLang].error}</div>`;
                 return;
             }
 
             allProducts = data || [];
             
             if (allProducts.length === 0) {
-                container.innerHTML = `<div class="empty">${translations[currentLang].empty}</div>`;
+                container.innerHTML = `<div class="empty">${uiTexts[currentLang].empty}</div>`;
                 return;
             }
 
-            setupCategories(allProducts);
+            setupCategories();
             displayProducts(allProducts);
         }
 
-        // Tilni o'zgartirish funksiyasi
         function setLanguage(lang) {
             currentLang = lang;
-            
-            // Tugmalarning aktiv holatini o'zgartirish
             document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
             event.target.classList.add('active');
 
-            // "Barchasi" / "Все" tugmasi nomini yangilash
-            document.getElementById('all-cat-btn').textContent = translations[currentLang].all;
-
-            // Ro'yxatni yangidan chiqarish
-            filterCategory(currentCategory, document.querySelector('.cat-btn.active'));
+            setupCategories();
+            filterCategory(currentCategory, document.querySelector(`.cat-btn[data-cat="${currentCategory}"]`));
         }
 
-        // Kategoriyalarni yig'ish
-        function setupCategories(products) {
+        function setupCategories() {
             const catContainer = document.getElementById('category-container');
-            const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+            catContainer.innerHTML = '';
 
-            // Eskilarini tozalab faqat "Barchasi"ni qoldiramiz
-            catContainer.innerHTML = `<button class="cat-btn active" onclick="filterCategory('all', this)" id="all-cat-btn">${translations[currentLang].all}</button>`;
+            // Avval "Barchasi" tugmasini qo'shamiz
+            const allBtn = document.createElement('button');
+            allBtn.className = `cat-btn ${currentCategory === 'all' ? 'active' : ''}`;
+            allBtn.dataset.cat = 'all';
+            allBtn.textContent = categoryMap['all'][currentLang];
+            allBtn.onclick = (e) => filterCategory('all', e.target);
+            catContainer.appendChild(allBtn);
 
-            categories.forEach(cat => {
+            // Bazadagi mahsulotlardan qaysi kategoriyalar borligini aniqlaymiz
+            const existingCategories = [...new Set(allProducts.map(p => p.category).filter(Boolean))];
+
+            existingCategories.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.className = 'cat-btn';
-                btn.textContent = cat;
+                btn.className = `cat-btn ${currentCategory === cat ? 'active' : ''}`;
+                btn.dataset.cat = cat;
+                // Agar lug'atda bo'lsa tarjimasini yozamiz, bo'lmasa o'zini
+                btn.textContent = categoryMap[cat] ? categoryMap[cat][currentLang] : cat;
                 btn.onclick = (e) => filterCategory(cat, e.target);
                 catContainer.appendChild(btn);
             });
         }
 
-        // Kategoriya bo'yicha filter
         function filterCategory(category, clickedBtn) {
             currentCategory = category;
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
@@ -236,12 +247,11 @@
             }
         }
 
-        // Mahsulotlarni ekranga chiqarish
         function displayProducts(products) {
             const container = document.getElementById('product-list');
             
             if (products.length === 0) {
-                container.innerHTML = `<div class="empty">${translations[currentLang].emptyCat}</div>`;
+                container.innerHTML = `<div class="empty">${uiTexts[currentLang].emptyCat}</div>`;
                 return;
             }
 
@@ -254,7 +264,7 @@
                     <h3>${product.title}</h3>
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
-                    <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>${translations[currentLang].orderBtn}</button>
+                    <button class="btn" onclick='buy(${JSON.stringify(product.title)}, ${product.price})'>${uiTexts[currentLang].orderBtn}</button>
                 `;
                 container.appendChild(card);
             });
