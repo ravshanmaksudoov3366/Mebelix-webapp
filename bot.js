@@ -153,7 +153,7 @@ bot.action('finish_photos', async (ctx) => {
     delete userStates[userId];
 });
 
-// Veb-ilovadan kelgan mijoz buyurtmalarini va geolokatsiyani qabul qilish
+// Veb-ilovadan kelgan mijoz buyurtmalarini va xarita havolasini qabul qilish
 bot.on('web_app_data', (ctx) => {
     try {
         const data = JSON.parse(ctx.webAppData.data);
@@ -161,25 +161,20 @@ bot.on('web_app_data', (ctx) => {
         // Mijozga tasdiq xabari
         ctx.reply("✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
 
-        // Adminga yuboriladigan asosiy matnli xabar
+        // Adminga yuboriladigan xabar
         let adminMessage = `🎉 <b>Yangi buyurtma tushdi!</b>\n\n` +
                            `🛋 <b>Mebel:</b> ${data.product}\n` +
                            `💰 <b>Narxi:</b> ${Number(data.price).toLocaleString()} so'm\n\n` +
                            `👤 <b>Mijoz:</b> ${data.clientName}\n` +
                            `📞 <b>Telefon:</b> ${data.clientPhone}\n` +
-                           `📍 <b>Manzil (matn):</b> ${data.clientAddress}`;
+                           `📍 <b>Manzil:</b> ${data.clientAddress}`;
 
-        // Agar mijoz lokatsiya yuborgan bo'lsa, xabarga Google Maps havolasini qo'shamiz
-        if (data.location) {
-            adminMessage += `\n\n🗺 <b>Geolokatsiya:</b> <a href="https://maps.google.com/?q=${data.location.latitude},${data.location.longitude}">Xaritada ochish</a>`;
+        // Agar mijoz Google Maps havolasini yuborgan bo'lsa, xabarga qo'shamiz
+        if (data.geoLink && data.geoLink.trim() !== '') {
+            adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
         }
 
         bot.telegram.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
-
-        // Agar aniq GPS lokatsiya mavjud bo'lsa, Telegram orqali to'g'ridan-to'g'ri xarita (lokatsiya) yuboramiz
-        if (data.location) {
-            bot.telegram.sendLocation(ADMIN_ID, data.location.latitude, data.location.longitude);
-        }
 
     } catch (e) {
         ctx.reply("Buyurtma qabul qilindi.");
