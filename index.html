@@ -217,27 +217,11 @@
             font-size: 14px;
             box-sizing: border-box;
         }
-        .geo-btn {
-            background: #10b981;
-            color: white;
-            border: none;
-            width: 100%;
-            padding: 9px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-        .geo-status {
-            font-size: 12px;
-            color: #10b981;
+        .map-help-text {
+            font-size: 11px;
+            color: #64748b;
             margin-top: 4px;
-            font-weight: 500;
+            line-height: 1.3;
         }
         .form-actions {
             display: flex;
@@ -303,13 +287,13 @@
                     <input type="tel" id="clientPhone" required placeholder="+998 90 123 45 67">
                 </div>
                 <div class="form-group">
-                    <label id="labelAddress">Yetkazib berish manzili (matn):</label>
+                    <label id="labelAddress">Yetkazib berish manzili:</label>
                     <input type="text" id="clientAddress" required placeholder="Shahar, ko'cha, uy raqami">
                 </div>
                 <div class="form-group">
-                    <label id="labelGeo">Geolokatsiya (ixtiyoriy):</label>
-                    <button type="button" class="geo-btn" onclick="getLocation()" id="geoBtnText">📍 Lokatsiyani yuborish</button>
-                    <div id="geoStatus" class="geo-status"></div>
+                    <label id="labelGeo">Google Maps lokatsiya havolasi (ixtiyoriy):</label>
+                    <input type="text" id="clientGeoLink" placeholder="Google Maps'dan havolani nusxalab qo'ying">
+                    <div class="map-help-text" id="mapHelpText">💡 Google Maps'ni ochib, uyingiz ustiga bosing va chiqqan lokatsiya havolasini (linkini) shu yerga tashlang.</div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="cancel-btn" onclick="closeOrderModal()" id="cancelBtnText">Bekor qilish</button>
@@ -334,7 +318,6 @@
         let currentLang = 'uz';
         let currentCategory = 'all';
         let selectedProduct = null;
-        let clientLocation = null;
 
         const categoryMap = {
             'all': { uz: 'Barchasi', ru: 'Все' },
@@ -363,11 +346,9 @@
                 modalTitle: "Buyurtmani rasmiylashtirish",
                 labelName: "Ismingiz:",
                 labelPhone: "Telefon raqamingiz:",
-                labelAddress: "Yetkazib berish manzili (matn):",
-                labelGeo: "Geolokatsiya (ixtiyoriy):",
-                geoBtn: "📍 Lokatsiyani yuborish",
-                geoSuccess: "✅ Lokatsiya muvaffaqiyatli olindi!",
-                geoError: "❌ Lokatsiyani aniqlab bo'lmadi.",
+                labelAddress: "Yetkazib berish manzili:",
+                labelGeo: "Google Maps lokatsiya havolasi (ixtiyoriy):",
+                mapHelp: "💡 Google Maps'ni ochib, uyingiz ustiga bosing va chiqqan lokatsiya havolasini (linkini) shu yerga tashlang.",
                 cancelBtn: "Bekor qilish",
                 submitBtn: "Yuborish"
             },
@@ -381,11 +362,9 @@
                 modalTitle: "Оформление заказа",
                 labelName: "Ваше имя:",
                 labelPhone: "Номер телефона:",
-                labelAddress: "Адрес доставки (текст):",
-                labelGeo: "Геолокация (необязательно):",
-                geoBtn: "📍 Отправить локацию",
-                geoSuccess: "✅ Локация успешно получена!",
-                geoError: "❌ Не удалось определить локацию.",
+                labelAddress: "Адрес доставки:",
+                labelGeo: "Ссылка на геолакацию Google Maps (необязательно):",
+                mapHelp: "💡 Откройте Google Maps, нажмите на точку вашего дома и вставьте сюда скопированную ссылку.",
                 cancelBtn: "Отмена",
                 submitBtn: "Отправить"
             }
@@ -429,7 +408,7 @@
             document.getElementById('labelPhone').textContent = uiTexts[currentLang].labelPhone;
             document.getElementById('labelAddress').textContent = uiTexts[currentLang].labelAddress;
             document.getElementById('labelGeo').textContent = uiTexts[currentLang].labelGeo;
-            document.getElementById('geoBtnText').textContent = uiTexts[currentLang].geoBtn;
+            document.getElementById('mapHelpText').textContent = uiTexts[currentLang].mapHelp;
             document.getElementById('cancelBtnText').textContent = uiTexts[currentLang].cancelBtn;
             document.getElementById('submitBtnText').textContent = uiTexts[currentLang].submitBtn;
 
@@ -549,11 +528,10 @@
 
         function openOrderModal(name, price) {
             selectedProduct = { name, price };
-            clientLocation = null;
-            document.getElementById('geoStatus').textContent = '';
             document.getElementById('clientName').value = '';
             document.getElementById('clientPhone').value = '';
             document.getElementById('clientAddress').value = '';
+            document.getElementById('clientGeoLink').value = '';
             document.getElementById('orderModal').style.display = 'flex';
         }
 
@@ -561,35 +539,12 @@
             document.getElementById('orderModal').style.display = 'none';
         }
 
-        function getLocation() {
-            const status = document.getElementById('geoStatus');
-            if (!navigator.geolocation) {
-                status.textContent = uiTexts[currentLang].geoError;
-                return;
-            }
-
-            status.textContent = currentLang === 'uz' ? "Lokatsiya aniqlanmoqda..." : "Определение локации...";
-            
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    clientLocation = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    };
-                    status.textContent = uiTexts[currentLang].geoSuccess;
-                },
-                () => {
-                    status.textContent = uiTexts[currentLang].geoError;
-                },
-                { enableHighAccuracy: true }
-            );
-        }
-
         function submitOrder(event) {
             event.preventDefault();
             const name = document.getElementById('clientName').value;
             const phone = document.getElementById('clientPhone').value;
             const address = document.getElementById('clientAddress').value;
+            const geoLink = document.getElementById('clientGeoLink').value;
 
             const orderData = {
                 product: selectedProduct.name,
@@ -597,7 +552,7 @@
                 clientName: name,
                 clientPhone: phone,
                 clientAddress: address,
-                location: clientLocation
+                geoLink: geoLink
             };
 
             tg.sendData(JSON.stringify(orderData));
