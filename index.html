@@ -3,159 +3,355 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mebelix - Onlayn Do'kon</title>
-    <!-- Telegram Web App SDK -->
+    <title>Mebelix - Market</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        :root {
-            --bg-color: var(--tg-theme-bg-color, #ffffff);
-            --text-color: var(--tg-theme-text-color, #222222);
-            --hint-color: var(--tg-theme-hint-color, #999999);
-            --button-color: var(--tg-theme-button-color, #2481cc);
-            --button-text-color: var(--tg-theme-button-text-color, #ffffff);
-            --card-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: sans-serif;
+            background-color: #f8fafc;
+            padding: 12px;
             margin: 0;
-            padding: 16px;
-            box-sizing: border-box;
+            padding-bottom: 70px;
         }
-
-        h2 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .product-list {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-            margin-bottom: 80px;
-        }
-
-        .product-card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 12px 16px;
+        .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 15px;
         }
-
-        .product-info h3 {
-            margin: 0 0 6px 0;
-            font-size: 16px;
-        }
-
-        .product-info p {
+        .title {
+            color: #2563eb;
             margin: 0;
-            font-size: 14px;
-            color: var(--hint-color);
+            font-size: 20px;
         }
-
-        .counter {
+        .categories {
             display: flex;
-            align-items: center;
-            gap: 10px;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            scrollbar-width: none;
         }
-
-        .counter button {
-            background-color: var(--button-color);
-            color: var(--button-text-color);
+        .categories::-webkit-scrollbar {
+            display: none;
+        }
+        .cat-btn {
+            background: #e2e8f0;
+            color: #1e293b;
             border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            font-size: 16px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
             cursor: pointer;
-            font-weight: bold;
         }
-
-        .counter span {
-            font-size: 16px;
+        .cat-btn.active {
+            background: #2563eb;
+            color: white;
+        }
+        #product-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .image-gallery {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .card img {
+            width: 140px;
+            height: 140px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .price {
             font-weight: bold;
-            min-width: 20px;
+            color: #2563eb;
+            font-size: 16px;
+            margin: 8px 0;
+        }
+        .btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .loading, .empty {
             text-align: center;
+            color: #64748b;
+            margin-top: 20px;
+        }
+        /* Buyurtma Formasi Modali */
+        .order-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .order-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        /* Xarita konteyneri */
+        #map {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .cancel-btn {
+            background: #e2e8f0;
+            color: #1e293b;
+            border: none;
+            width: 50%;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        .submit-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            width: 50%;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 15px;
         }
     </style>
+    <!-- Leaflet Map JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
-    <h2>Mebelix Katalogi</h2>
+    <div class="header">
+        <h2 class="title">🛋 MEBELIX</h2>
+    </div>
+    
+    <div class="categories" id="category-container"></div>
 
-    <div class="product-list" id="product-list">
-        <!-- Mahsulotlar dinamik ravishda qo'shiladi -->
+    <div id="product-list">
+        <div class="loading" id="loading-text">Mahsulotlar yuklanmoqda...</div>
+    </div>
+
+    <!-- Buyurtma berish Formasi uchun Modal -->
+    <div id="orderModal" class="order-modal">
+        <div class="order-content">
+            <h3>Buyurtmani rasmiylashtirish</h3>
+            <form id="orderForm" onsubmit="submitOrder(event)">
+                <div class="form-group">
+                    <label>Ismingiz:</label>
+                    <input type="text" id="clientName" required placeholder="Ismingizni kiriting">
+                </div>
+                <div class="form-group">
+                    <label>Telefon raqamingiz:</label>
+                    <input type="tel" id="clientPhone" required placeholder="+998 90 123 45 67">
+                </div>
+                <div class="form-group">
+                    <label>Yetkazib berish manzili (ko'cha, uy):</label>
+                    <input type="text" id="clientAddress" required placeholder="Masalan: Chilonzor 5-kvartal, 12-uy">
+                </div>
+                <div class="form-group">
+                    <label>Xaritadan joylashuvni belgilang (qizil nishonni suring):</label>
+                    <div id="map"></div>
+                    <input type="hidden" id="clientGeoLink" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" onclick="closeOrderModal()">Bekor qilish</button>
+                    <button type="submit" class="submit-btn">Yuborish</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
-        // Telegram Web App obyektini chaqirib olish
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Oynani to'liq ochish
+        tg.expand();
 
-        // Mahsulotlar ro'yxati
-        const products = [
-            { id: 1, name: "Ofis Stoli", price: 450000, quantity: 0 },
-            { id: 2, name: "Yotoq To'plami", price: 2800000, quantity: 0 },
-            { id: 3, name: "Mehmonxona Divani", price: 1900000, quantity: 0 },
-            { id: 4, name: "Kiyim Shkafi", price: 1500000, quantity: 0 }
-        ];
+        const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        const productListEl = document.getElementById('product-list');
+        let allProducts = [];
+        let selectedProduct = null;
+        let map = null;
+        let marker = null;
 
-        function renderProducts() {
-            productListEl.innerHTML = '';
+        async function loadProducts() {
+            const container = document.getElementById('product-list');
+            const { data, error } = await supabaseClient
+                .from('products')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `<div class="empty">Xatolik yuz berdi.</div>`;
+                return;
+            }
+
+            allProducts = data || [];
+            if (allProducts.length === 0) {
+                container.innerHTML = `<div class="empty">Hozircha mahsulotlar yo'q.</div>`;
+                return;
+            }
+            displayProducts(allProducts);
+        }
+
+        function displayProducts(products) {
+            const container = document.getElementById('product-list');
+            container.innerHTML = '';
+            
             products.forEach(product => {
+                let imagesList = product.images || [product.image_url || 'https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=500'];
+                let imagesHTML = '';
+                imagesList.forEach(imgUrl => {
+                    imagesHTML += `<img src="${imgUrl}" alt="${product.title}">`;
+                });
+
                 const card = document.createElement('div');
-                card.className = 'product-card';
+                card.className = 'card';
                 card.innerHTML = `
-                    <div class="product-info">
-                        <h3>${product.name}</h3>
-                        <p>${product.price.toLocaleString()} so'm</p>
-                    </div>
-                    <div class="counter">
-                        <button onclick="updateQuantity(${product.id}, -1)">-</button>
-                        <span>${product.quantity}</span>
-                        <button onclick="updateQuantity(${product.id}, 1)">+</button>
-                    </div>
+                    <div class="image-gallery">${imagesHTML}</div>
+                    <h3>${product.title}</h3>
+                    <p>${product.description || ''}</p>
+                    <div class="price">${Number(product.price).toLocaleString()} so'm</div>
+                    <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price})'>Buyurtma berish</button>
                 `;
-                productListEl.appendChild(card);
+                container.appendChild(card);
             });
-            updateMainButton();
         }
 
-        function updateQuantity(id, delta) {
-            const product = products.find(p => p.id === id);
-            if (product) {
-                product.quantity = Math.max(0, product.quantity + delta);
-                renderProducts();
-            }
+        function openOrderModal(name, price) {
+            selectedProduct = { name, price };
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientPhone').value = '';
+            document.getElementById('clientAddress').value = '';
+            document.getElementById('orderModal').style.display = 'flex';
+
+            // Xaritani yuklash yoki yangilash
+            setTimeout(() => {
+                initMap();
+            }, 300);
         }
 
-        function updateMainButton() {
-            const totalItems = products.reduce((sum, p) => sum + p.quantity, 0);
-            const totalPrice = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+        function closeOrderModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
 
-            if (totalItems > 0) {
-                tg.MainButton.text = `Buyurtma berish: ${totalPrice.toLocaleString()} so'm`;
-                tg.MainButton.show();
+        function initMap() {
+            // Toshkent markazi boshlang'ich nuqta sifatida
+            const defaultLat = 41.2995;
+            const defaultLng = 69.2401;
+
+            if (!map) {
+                map = L.map('map').setView([defaultLat, defaultLng], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                marker = L.marker([defaultLat, defaultLng], { draggable: true }).addTo(map);
+
+                marker.on('dragend', function (event) {
+                    const position = marker.getLatLng();
+                    updateGeoInput(position.lat, position.lng);
+                });
+
+                map.on('click', function (event) {
+                    marker.setLatLng(event.latlng);
+                    updateGeoInput(event.latlng.lat, event.latlng.lng);
+                });
             } else {
-                tg.MainButton.hide();
+                map.invalidateSize();
+                marker.setLatLng([defaultLat, defaultLng]);
+                map.setView([defaultLat, defaultLng], 13);
             }
+            updateGeoInput(defaultLat, defaultLng);
         }
 
-        // Asosiy tugma bosilganda ishlaydigan funksiya
-        Telegram.WebApp.onEvent('mainButtonClicked', function() {
-            const orderData = products.filter(p => p.quantity > 0);
-            // Ma'lumotlarni JSON formatida botga yuborish
-            tg.sendData(JSON.stringify(orderData));
-        });
+        function updateGeoInput(lat, lng) {
+            const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+            document.getElementById('clientGeoLink').value = mapsUrl;
+        }
 
-        // Dastlabki yuklanish
-        renderProducts();
+        function submitOrder(event) {
+            event.preventDefault();
+            const name = document.getElementById('clientName').value;
+            const phone = document.getElementById('clientPhone').value;
+            const address = document.getElementById('clientAddress').value;
+            const geoLink = document.getElementById('clientGeoLink').value;
+
+            const orderData = {
+                product: selectedProduct.name,
+                price: selectedProduct.price,
+                clientName: name,
+                clientPhone: phone,
+                clientAddress: address,
+                geoLink: geoLink
+            };
+
+            tg.sendData(JSON.stringify(orderData));
+        }
+
+        loadProducts();
     </script>
 </body>
 </html>
