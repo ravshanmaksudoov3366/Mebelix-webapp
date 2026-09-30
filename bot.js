@@ -1,5 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
+const express = require('express');
 
 const token = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
 const bot = new TelegramBot(token, { polling: true });
@@ -10,6 +11,23 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ADMIN_ID = 1027326101;
 const userStates = {};
+
+// Render uchun veb-server (Port band qilish va xizmatni o'chib qolmasligi uchun)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('Mebelix Bot ishlayapti!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Server ${PORT}-portda ishga tushdi.`);
+});
+
+// Polling xatolarini to'sib qo'yish (Crash bo'lmasligi uchun)
+bot.on('polling_error', (error) => {
+    console.log(`Polling xatosi:`, error.code);
+});
 
 const categories = [
     "Shkaflar", "Oyoq kiyim javoni", "Kitoblar javoni", "Krovatlar",
@@ -24,7 +42,7 @@ bot.onText(/\/start/, (msg) => {
     
     let keyboard = {
         inline_keyboard: [
-            [{ text: "Mebelix Do'koni 🛒", web_app: { url: "https://ravshanmaksudoov3366.github.io/Mebelix-webapp/?v=2" } }]
+            [{ text: "Mebelix Do'koni 🛒", web_app: { url: "https://ravshanmaksudoov3366.github.io/Mebelix-webapp/" } }]
         ]
     };
 
@@ -37,7 +55,7 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-// Admin mebel qo'shishni boshlaganda
+// Admin mebel qo'shish va boshqalar
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
@@ -96,7 +114,7 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// Matnli xabarlarni qabul qilish
+// Matnli xabarlar
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
@@ -130,7 +148,7 @@ bot.on('message', async (msg) => {
     }
 });
 
-// Rasmlarni qabul qilish
+// Rasmlar
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
