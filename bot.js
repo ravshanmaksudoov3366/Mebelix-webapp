@@ -1,12 +1,25 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
+const express = require('express');
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt'; // Supabase maxfiy kalitingizni yozing
-const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM'; // BotTokeningiz
+const SUPABASE_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt'; // O'zingizning uzun anon public kalitingizni yozing
+const BOT_TOKEN = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
+// Render port talabini qondirish uchun oddiy Express server
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Mebelix Bot is running!');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 const adminState = {};
 
