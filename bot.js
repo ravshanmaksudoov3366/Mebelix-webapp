@@ -16,11 +16,10 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
-if (RENDER_URL) {
-    bot.setWebHook(`${RENDER_URL}/bot${token}`);
-    console.log(`Webhook ulandi: ${RENDER_URL}/bot${token}`);
-}
+// ANASHU YERINI O'ZGARTIRDIK:
+const RENDER_URL = 'https://mebelix-webapp.onrender.com';
+bot.setWebHook(`${RENDER_URL}/bot${token}`);
+console.log(`Webhook ulandi: ${RENDER_URL}/bot${token}`);
 
 app.get('/', (req, res) => {
     res.send('Mebelix Bot ishlayapti!');
