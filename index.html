@@ -122,6 +122,18 @@
             max-height: 90vh;
             overflow-y: auto;
         }
+        .payment-info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
+        .payment-info p {
+            margin: 4px 0;
+        }
         .form-group {
             margin-bottom: 12px;
         }
@@ -227,6 +239,14 @@
     <div id="orderModal" class="order-modal">
         <div class="order-content">
             <h3 id="modalTitle">Buyurtmani rasmiylashtirish</h3>
+            
+            <!-- To'lov shartlari haqida ma'lumot -->
+            <div class="payment-info" id="paymentInfoBox">
+                <p><b>Umumiy narx:</b> <span id="modalTotalPrice">0</span> so'm</p>
+                <p><b>💳 20% Oldindan to'lov:</b> <span id="modalPrepayment" style="color: #2563eb; font-weight: bold;">0</span> so'm</p>
+                <p><b>📦 80% (Mahsulot borganda):</b> <span id="modalRemaining">0</span> so'm</p>
+            </div>
+
             <form id="orderForm" onsubmit="submitOrder(event)">
                 <div class="form-group">
                     <label id="labelName">Ismingiz:</label>
@@ -267,7 +287,6 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Admin Telegram ID raqami
         const ADMIN_ID = 1027326101;
         let isAdmin = false;
 
@@ -367,7 +386,6 @@
                     imagesHTML += `<img src="${imgUrl}" alt="${product.title}" onclick="openImageModal('${imgUrl}')">`;
                 });
 
-                // Agar admin bo'lsa, o'chirish tugmasini qo'shish
                 let deleteButtonHTML = '';
                 if (isAdmin) {
                     deleteButtonHTML = `<button class="delete-btn" onclick="deleteProduct('${product.id}')">${t.deleteBtn}</button>`;
@@ -399,7 +417,7 @@
                     alert("Xatolik yuz berdi: " + error.message);
                 } else {
                     alert(currentLang === 'uz' ? "Mahsulot muvaffaqiyatli o'chirildi!" : "Товар успешно удален!");
-                    loadProducts(); // Ro'yxatni yangilash
+                    loadProducts();
                 }
             }
         }
@@ -415,6 +433,16 @@
 
         function openOrderModal(name, price, imageUrl) {
             selectedProduct = { name, price, imageUrl };
+            
+            // 20% va 80% summalarni hisoblab modal oynaga yozish
+            const totalPrice = Number(price) || 0;
+            const prepayment = Math.round(totalPrice * 0.20);
+            const remaining = totalPrice - prepayment;
+
+            document.getElementById('modalTotalPrice').innerText = totalPrice.toLocaleString();
+            document.getElementById('modalPrepayment').innerText = prepayment.toLocaleString();
+            document.getElementById('modalRemaining').innerText = remaining.toLocaleString();
+
             document.getElementById('clientName').value = '';
             document.getElementById('clientPhone').value = '';
             document.getElementById('clientAddress').value = '';
@@ -498,12 +526,10 @@
                 geoLink: geoLink
             };
 
-            // Ma'lumotni Telegram botga yuborish
             if (tg && tg.sendData) {
                 tg.sendData(JSON.stringify(orderData));
                 tg.close();
             } else {
-                // Agar bot orqali ochilmagan bo'lsa
                 alert(currentLang === 'uz' ? "Buyurtmangiz muvaffaqiyatli yuborildi!" : "Ваш заказ успешно отправлен!");
                 closeOrderModal();
             }
