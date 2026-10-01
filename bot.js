@@ -70,11 +70,29 @@ bot.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.web_app_data.data);
             
-            bot.sendMessage(chatId, "✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
+            // To'lov summalarini hisoblash (20% oldindan, 80% yetkazilganda)
+            const totalPrice = Number(data.price) || 0;
+            const prepayment = Math.round(totalPrice * 0.20);
+            const remainingPayment = totalPrice - prepayment;
 
+            // Mijozga yuboriladigan xabar
+            const clientMessage = `✅ <b>Buyurtmangiz qabul qilindi!</b>\n\n` +
+                                  `🛋 <b>Mahsulot:</b> ${data.product}\n` +
+                                  `💰 <b>Umumiy narx:</b> ${totalPrice.toLocaleString()} so'm\n\n` +
+                                  `💳 <b>To'lov shartlari:</b>\n` +
+                                  `• 20% oldindan to'lov: <b>${prepayment.toLocaleString()} so'm</b>\n` +
+                                  `• Qolgan 80% (mahsulot borganda): <b>${remainingPayment.toLocaleString()} so'm</b>\n\n` +
+                                  `Tez orada operatorlarimiz to'lov uchun karta raqamini yuborishadi va siz bilan bog'lanishadi.`;
+
+            bot.sendMessage(chatId, clientMessage, { parse_mode: 'HTML' });
+
+            // Adminga yuboriladigan xabar
             let adminMessage = `🎉 <b>Yangi buyurtma tushdi!</b>\n\n` +
                                `🛋 <b>Mebel:</b> ${data.product}\n` +
-                               `💰 <b>Narxi:</b> ${Number(data.price).toLocaleString()} so'm\n\n` +
+                               `💰 <b>Umumiy narx:</b> ${totalPrice.toLocaleString()} so'm\n\n` +
+                               `💳 <b>To'lov holati:</b>\n` +
+                               `• 20% oldindan to'lov: <b>${prepayment.toLocaleString()} so'm</b> (Talab qilinadi)\n` +
+                               `• Qolgan 80%: <b>${remainingPayment.toLocaleString()} so'm</b> (Mahsulot borganda)\n\n` +
                                `👤 <b>Mijoz:</b> ${data.clientName}\n` +
                                `📞 <b>Telefon:</b> ${data.clientPhone}\n` +
                                `📍 <b>Manzil:</b> ${data.clientAddress}`;
