@@ -16,15 +16,11 @@ const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-// Render uchun tashqi URL
-const RENDER_URL = process.env.RENDER_EXTERNAL_URL || 'https://mebelix-webapp.onrender.com';
-
-// Webhookni to'g'ri ulash
-bot.setWebHook(`${RENDER_URL}/bot${token}`).then(() => {
-    console.log(`Webhook muvaffaqiyatli ulandi: ${RENDER_URL}/bot${token}`);
-}).catch(err => {
-    console.error("Webhook ulanishda xato:", err);
-});
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL;
+if (RENDER_URL) {
+    bot.setWebHook(`${RENDER_URL}/bot${token}`);
+    console.log(`Webhook ulandi: ${RENDER_URL}/bot${token}`);
+}
 
 app.get('/', (req, res) => {
     res.send('Mebelix Bot ishlayapti!');
@@ -65,7 +61,7 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-// WebApp orqali yuborilgan buyurtmalarni qabul qilish
+// WebApp orqali yuborilgan buyurtmalarni qabul qilish (Mijozlar uchun)
 bot.on('message', (msg) => {
     if (msg.web_app_data) {
         const chatId = msg.chat.id;
@@ -87,18 +83,7 @@ bot.on('message', (msg) => {
                 adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
             }
 
-            // MAHSULOT RASMI BILAN ADMINGA YUBORISH
-            if (data.imageUrl) {
-                bot.sendPhoto(ADMIN_ID, data.imageUrl, {
-                    caption: adminMessage,
-                    parse_mode: 'HTML'
-                }).catch(err => console.error("Adminga rasm yuborishda xatolik:", err.message));
-            } else {
-                bot.sendMessage(ADMIN_ID, adminMessage, { 
-                    parse_mode: 'HTML', 
-                    disable_web_page_preview: true 
-                }).catch(err => console.error("Adminga xabar yuborishda xatolik:", err.message));
-            }
+            bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
 
         } catch (e) {
             console.error("JSON o'qishda xatolik:", e);
