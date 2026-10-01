@@ -61,7 +61,38 @@ bot.onText(/\/start/, (msg) => {
     });
 });
 
-bot.on('message', async (msg) => {
+// WebApp orqali yuborilgan buyurtmalarni qabul qilish (Mijozlar uchun)
+bot.on('message', (msg) => {
+    if (msg.web_app_data) {
+        const chatId = msg.chat.id;
+        console.log("🟢 WebApp dan buyurtma keldi:", msg.web_app_data.data);
+
+        try {
+            const data = JSON.parse(msg.web_app_data.data);
+            
+            bot.sendMessage(chatId, "✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
+
+            let adminMessage = `🎉 <b>Yangi buyurtma tushdi!</b>\n\n` +
+                               `🛋 <b>Mebel:</b> ${data.product}\n` +
+                               `💰 <b>Narxi:</b> ${Number(data.price).toLocaleString()} so'm\n\n` +
+                               `👤 <b>Mijoz:</b> ${data.clientName}\n` +
+                               `📞 <b>Telefon:</b> ${data.clientPhone}\n` +
+                               `📍 <b>Manzil:</b> ${data.clientAddress}`;
+
+            if (data.geoLink && data.geoLink.trim() !== '') {
+                adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
+            }
+
+            bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
+
+        } catch (e) {
+            console.error("JSON o'qishda xatolik:", e);
+            bot.sendMessage(chatId, "Buyurtmangiz qabul qilindi.");
+        }
+        return;
+    }
+
+    // Admin amallari uchun qism
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const text = msg.text;
@@ -74,15 +105,17 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "🗑 Mebelni o'chirish") {
-        const { data: products, error } = await supabase.from('products').select('id, title, price').order('created_at', { ascending: false });
-        if (error || !products || products.length === 0) {
-            return bot.sendMessage(chatId, "O'chirish uchun mahsulotlar topilmadi.");
-        }
+        supabase.from('products').select('id, title, price').order('created_at', { ascending: false }).then(({ data: products, error }) => {
+            if (error || !products || products.length === 0) {
+                return bot.sendMessage(chatId, "O'chirish uchun mahsulotlar topilmadi.");
+            }
 
-        let keyboard = products.map(p => [{ text: `❌ ${p.title} (${Number(p.price).toLocaleString()} so'm)`, callback_data: `del_${p.id}` }]);
-        return bot.sendMessage(chatId, "O'chirmoqchi bo'lgan mebelingizni tanlang:", {
-            reply_markup: { inline_keyboard: keyboard }
+            let keyboard = products.map(p => [{ text: `❌ ${p.title} (${Number(p.price).toLocaleString()} so'm)`, callback_data: `del_${p.id}` }]);
+            bot.sendMessage(chatId, "O'chirmoqchi bo'lgan mebelingizni tanlang:", {
+                reply_markup: { inline_keyboard: keyboard }
+            });
         });
+        return;
     }
 
     if (text.startsWith('/')) return;
@@ -100,7 +133,6 @@ bot.on('message', async (msg) => {
             return bot.sendMessage(chatId, "Iltimos, narxni faqat raqamlarda kiriting!");
         }
         state.price = price;
-        state.step === 'waiting_for_description';
         state.step = 'waiting_for_description';
         bot.sendMessage(chatId, "Mebel haqida qisqacha ma'lumot (tavsif) kiriting:");
     } else if (state.step === 'waiting_for_description') {
@@ -198,30 +230,4 @@ bot.on('photo', async (msg) => {
             inline_keyboard: [[{ text: "✅ Rasmlarni tugatish", callback_data: "finish_photos" }]]
         }
     });
-});
-
-// WebApp orqali kelgan buyurtmalarni qabul qilish
-bot.on('web_app_data', (msg) => {
-    const chatId = msg.chat.id;
-    try {
-        const data = JSON.parse(msg.web_app_data.data);
-        
-        bot.sendMessage(chatId, "✅ Buyurtmangiz qabul qilindi! Tez orada operatorlarimiz siz bilan bog'lanishadi.");
-
-        let adminMessage = `🎉 <b>Yangi buyurtma tushdi!</b>\n\n` +
-                           `🛋 <b>Mebel:</b> ${data.product}\n` +
-                           `💰 <b>Narxi:</b> ${Number(data.price).toLocaleString()} so'm\n\n` +
-                           `👤 <b>Mijoz:</b> ${data.clientName}\n` +
-                           `📞 <b>Telefon:</b> ${data.clientPhone}\n` +
-                           `📍 <b>Manzil:</b> ${data.clientAddress}`;
-
-        if (data.geoLink && data.geoLink.trim() !== '') {
-            adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
-        }
-
-        bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
-
-    } catch (e) {
-        bot.sendMessage(chatId, "Buyurtmangiz qabul qilindi.");
-    }
 });
