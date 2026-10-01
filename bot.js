@@ -83,7 +83,18 @@ bot.on('message', (msg) => {
                 adminMessage += `\n\n🗺 <b>Lokatsiya:</b> <a href="${data.geoLink}">Xaritada ko'rish</a>`;
             }
 
-            bot.sendMessage(ADMIN_ID, adminMessage, { parse_mode: 'HTML', disable_web_page_preview: true });
+            // MAHSULOT RASMI BILAN ADMINGA YUBORISH
+            if (data.imageUrl) {
+                bot.sendPhoto(ADMIN_ID, data.imageUrl, {
+                    caption: adminMessage,
+                    parse_mode: 'HTML'
+                });
+            } else {
+                bot.sendMessage(ADMIN_ID, adminMessage, { 
+                    parse_mode: 'HTML', 
+                    disable_web_page_preview: true 
+                });
+            }
 
         } catch (e) {
             console.error("JSON o'qishda xatolik:", e);
