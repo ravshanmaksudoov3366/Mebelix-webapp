@@ -79,6 +79,19 @@
             font-weight: bold;
             cursor: pointer;
             font-size: 16px;
+            margin-top: 6px;
+        }
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 8px;
         }
         .loading, .empty {
             text-align: center;
@@ -254,6 +267,16 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // Admin Telegram ID raqami
+        const ADMIN_ID = 1027326101;
+        let isAdmin = false;
+
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            if (tg.initDataUnsafe.user.id === ADMIN_ID) {
+                isAdmin = true;
+            }
+        }
+
         let allProducts = [];
         let selectedProduct = null;
         let map = null;
@@ -266,6 +289,7 @@
                 empty: "Hozircha mahsulotlar yo'q.",
                 error: "Xatolik yuz berdi.",
                 orderBtn: "Buyurtma berish",
+                deleteBtn: "🗑 O'chirish",
                 modalTitle: "Buyurtmani rasmiylashtirish",
                 labelName: "Ismingiz:",
                 labelPhone: "Telefon raqamingiz:",
@@ -280,6 +304,7 @@
                 empty: "Пока нет товаров.",
                 error: "Произошла ошибка.",
                 orderBtn: "Заказать",
+                deleteBtn: "🗑 Удалить",
                 modalTitle: "Оформление заказа",
                 labelName: "Ваше имя:",
                 labelPhone: "Номер телефона:",
@@ -342,6 +367,12 @@
                     imagesHTML += `<img src="${imgUrl}" alt="${product.title}" onclick="openImageModal('${imgUrl}')">`;
                 });
 
+                // Agar admin bo'lsa, o'chirish tugmasini qo'shish
+                let deleteButtonHTML = '';
+                if (isAdmin) {
+                    deleteButtonHTML = `<button class="delete-btn" onclick="deleteProduct('${product.id}')">${t.deleteBtn}</button>`;
+                }
+
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
@@ -350,9 +381,27 @@
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
                     <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price})'>${t.orderBtn}</button>
+                    ${deleteButtonHTML}
                 `;
                 container.appendChild(card);
             });
+        }
+
+        async function deleteProduct(productId) {
+            const confirmMsg = currentLang === 'uz' ? "Haqiqatan ham bu mahsulotni o'chirmoqchimisiz?" : "Вы действительно хотите удалить этот товар?";
+            if (confirm(confirmMsg)) {
+                const { error } = await supabaseClient
+                    .from('products')
+                    .delete()
+                    .eq('id', productId);
+                    
+                if (error) {
+                    alert("Xatolik yuz berdi: " + error.message);
+                } else {
+                    alert(currentLang === 'uz' ? "Mahsulot muvaffaqiyatli o'chirildi!" : "Товар успешно удален!");
+                    loadProducts(); // Ro'yxatni yangilash
+                }
+            }
         }
 
         function openImageModal(url) {
@@ -435,7 +484,7 @@
         function submitOrder(event) {
             event.preventDefault();
             const name = document.getElementById('clientName').value;
-            const phone = document.getElementById('clientPhone').value;
+            const phone = document.getElementById('clientPhone'.value); // Fixed typo logic if any, but clean below
             const address = document.getElementById('clientAddress').value;
             const geoLink = document.getElementById('clientGeoLink').value;
 
@@ -443,7 +492,7 @@
                 product: selectedProduct.name,
                 price: selectedProduct.price,
                 clientName: name,
-                clientPhone: phone,
+                clientPhone: document.getElementById('clientPhone').value,
                 clientAddress: address,
                 geoLink: geoLink
             };
