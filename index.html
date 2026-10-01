@@ -484,7 +484,7 @@
         function submitOrder(event) {
             event.preventDefault();
             const name = document.getElementById('clientName').value;
-            const phone = document.getElementById('clientPhone'.value); // Fixed typo logic if any, but clean below
+            const phone = document.getElementById('clientPhone').value; // To'g'irlandi
             const address = document.getElementById('clientAddress').value;
             const geoLink = document.getElementById('clientGeoLink').value;
 
@@ -492,16 +492,17 @@
                 product: selectedProduct.name,
                 price: selectedProduct.price,
                 clientName: name,
-                clientPhone: document.getElementById('clientPhone').value,
+                clientPhone: phone,
                 clientAddress: address,
                 geoLink: geoLink
             };
 
             // Ma'lumotni Telegram botga yuborish
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            if (tg && tg.sendData) {
                 tg.sendData(JSON.stringify(orderData));
+                tg.close();
             } else {
-                // Agar bot orqali ochilmagan bo'lsa, xabar ko'rsatish
+                // Agar bot orqali ochilmagan bo'lsa
                 alert(currentLang === 'uz' ? "Buyurtmangiz muvaffaqiyatli yuborildi!" : "Ваш заказ успешно отправлен!");
                 closeOrderModal();
             }
