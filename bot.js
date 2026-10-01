@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const express = require('express');
 
 const token = '8987783785:AAH3rHQJm8NxApCENm73iQgPOpY7GFVQeTM';
+const bot = new TelegramBot(token);
 
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2AqCt';
@@ -17,8 +18,6 @@ const PORT = process.env.PORT || 3000;
 
 // Render uchun tashqi URL
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL || 'https://mebelix-webapp.onrender.com';
-
-const bot = new TelegramBot(token, { webHook: { port: PORT } });
 
 // Webhookni to'g'ri ulash
 bot.setWebHook(`${RENDER_URL}/bot${token}`).then(() => {
