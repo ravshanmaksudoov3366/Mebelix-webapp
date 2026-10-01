@@ -380,7 +380,7 @@
                     <h3>${product.title}</h3>
                     <p>${product.description || ''}</p>
                     <div class="price">${Number(product.price).toLocaleString()} so'm</div>
-                    <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price})'>${t.orderBtn}</button>
+                    <button class="btn" onclick='openOrderModal(${JSON.stringify(product.title)}, ${product.price}, "${imagesList[0]}")'>${t.orderBtn}</button>
                     ${deleteButtonHTML}
                 `;
                 container.appendChild(card);
@@ -413,8 +413,8 @@
             document.getElementById('imageModal').style.display = 'none';
         }
 
-        function openOrderModal(name, price) {
-            selectedProduct = { name, price };
+        function openOrderModal(name, price, imageUrl) {
+            selectedProduct = { name, price, imageUrl };
             document.getElementById('clientName').value = '';
             document.getElementById('clientPhone').value = '';
             document.getElementById('clientAddress').value = '';
@@ -484,13 +484,14 @@
         function submitOrder(event) {
             event.preventDefault();
             const name = document.getElementById('clientName').value;
-            const phone = document.getElementById('clientPhone').value; // To'g'irlandi
+            const phone = document.getElementById('clientPhone').value;
             const address = document.getElementById('clientAddress').value;
             const geoLink = document.getElementById('clientGeoLink').value;
 
             const orderData = {
                 product: selectedProduct.name,
                 price: selectedProduct.price,
+                imageUrl: selectedProduct.imageUrl,
                 clientName: name,
                 clientPhone: phone,
                 clientAddress: address,
