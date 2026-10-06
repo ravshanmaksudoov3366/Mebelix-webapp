@@ -34,6 +34,17 @@ bot.start((ctx) => {
   });
 });
 
+// Helper: Textlarni HTML xatolaridan tozalash
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // 2. Buyurtma va 10% To'lovni adminga yuborish (API Endpoint)
 app.post('/api/order', async (req, res) => {
   try {
@@ -43,27 +54,27 @@ app.post('/api/order', async (req, res) => {
       return res.status(400).json({ success: false, message: "Savat bo'sh!" });
     }
 
-    let message = `📥 **YANGI BUYURTMA + 10% TO'LOV | MEBELIX**\n\n`;
-    message += `👤 **Mijoz:** ${customerName}\n`;
-    message += `💬 **Telegram:** ${username}\n`;
-    message += `📞 **Tel:** ${phone}\n`;
-    message += `📍 **Manzil:** ${address}\n\n`;
+    let message = `📥 <b>YANGI BUYURTMA + 10% TO'LOV | MEBELIX</b>\n\n`;
+    message += `👤 <b>Mijoz:</b> ${escapeHtml(customerName)}\n`;
+    message += `💬 <b>Telegram:</b> ${escapeHtml(username)}\n`;
+    message += `📞 <b>Tel:</b> ${escapeHtml(phone)}\n`;
+    message += `📍 <b>Manzil:</b> ${escapeHtml(address)}\n\n`;
     
-    message += `💳 **TO'LOV MA'LUMOTI (10% Avans):**\n`;
-    message += `└ **10% Avans summasi:** ${advancePrice.toLocaleString('uz-UZ')} so'm\n`;
-    message += `└ **Chek / Tranzaksiya:** ${transaction}\n\n`;
+    message += `💳 <b>TO'LOV MA'LUMOTI (10% Avans):</b>\n`;
+    message += `└ <b>10% Avans summasi:</b> ${advancePrice.toLocaleString('uz-UZ')} so'm\n`;
+    message += `└ <b>Chek / Tranzaksiya:</b> ${escapeHtml(transaction)}\n\n`;
 
-    message += `📦 **Buyurtma qilingan mebellar:**\n`;
+    message += `📦 <b>Buyurtma qilingan mebellar:</b>\n`;
     cartItems.forEach((item, index) => {
       const itemTotal = (item.price * item.quantity).toLocaleString('uz-UZ');
-      message += `${index + 1}. **${item.name}** (${item.quantity} ta) - ${itemTotal} so'm\n`;
+      message += `${index + 1}. <b>${escapeHtml(item.name)}</b> (${item.quantity} ta) - ${itemTotal} so'm\n`;
     });
 
-    message += `\n💵 **UMUMIY SHARTNOMA SUMMASI:** ${totalPrice.toLocaleString('uz-UZ')} so'm`;
+    message += `\n💵 <b>UMUMIY SHARTNOMA SUMMASI:</b> ${totalPrice.toLocaleString('uz-UZ')} so'm`;
 
     // Admin Telegramiga xabar yuborish
     if (ADMIN_CHAT_ID) {
-      await bot.telegram.sendMessage(ADMIN_CHAT_ID, message, { parse_mode: 'Markdown' });
+      await bot.telegram.sendMessage(ADMIN_CHAT_ID, message, { parse_mode: 'HTML' });
     } else {
       console.warn("ADMIN_CHAT_ID o'rnatilmagan!");
     }
