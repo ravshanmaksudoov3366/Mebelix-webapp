@@ -6,64 +6,188 @@
   <title>Mebelix - Mebel Do'koni</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #ffffff);
+      --text: var(--tg-theme-text-color, #222222);
+      --btn-bg: var(--tg-theme-button-color, #2481cc);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --hint: var(--tg-theme-hint-color, #888888);
+    }
     body {
-      font-family: Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       margin: 0;
       padding: 16px;
-      background-color: var(--tg-theme-bg-color, #ffffff);
-      color: var(--tg-theme-text-color, #000000);
+      background-color: var(--bg);
+      color: var(--text);
+      padding-bottom: 110px;
     }
-    .card {
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
+    h2, h3 { margin-top: 0; }
+    .product-card {
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      background: rgba(0,0,0,0.02);
     }
+    .price { font-weight: bold; color: var(--btn-bg); font-size: 1.1em; }
     .btn {
-      background-color: var(--tg-theme-button-color, #2481cc);
-      color: var(--tg-theme-button-text-color, #ffffff);
+      background-color: var(--btn-bg);
+      color: var(--btn-text);
       border: none;
-      padding: 10px 16px;
-      border-radius: 6px;
+      padding: 12px 16px;
+      border-radius: 8px;
       width: 100%;
-      font-size: 16px;
+      font-size: 15px;
+      font-weight: 600;
       cursor: pointer;
+      margin-top: 8px;
+    }
+    .payment-card {
+      background: #f0f7ff;
+      border: 1px dashed var(--btn-bg);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .card-number {
+      font-size: 1.2em;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #1a568c;
+      margin: 6px 0;
+    }
+    .cart-summary {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bg);
+      border-top: 1px solid #ddd;
+      padding: 12px 16px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 4px; font-size: 14px; color: var(--hint); }
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
     }
   </style>
 </head>
 <body>
 
   <h2>Mebelix Katalogi</h2>
-  
-  <div class="card">
+
+  <!-- Mahsulotlar Ro'yxati -->
+  <div class="product-card">
     <h3>Burchak Oshxona Mebeli</h3>
-    <p>Narxi: 12,000,000 so'm</p>
-    <button class="btn" onclick="orderItem('Burchak Oshxona Mebeli', 12000000)">Buyurtma berish</button>
+    <p>O'lchami: 4 metr, Akril qoplama</p>
+    <div class="price">12,000,000 so'm</div>
+    <button class="btn" onclick="addToCart('Burchak Oshxona Mebeli', 12000000)">Savatga qo'shish</button>
   </div>
 
-  <div class="card">
-    <h3>Yotoqxona Shkafi</h3>
-    <p>Narxi: 6,500,000 so'm</p>
-    <button class="btn" onclick="orderItem('Yotoqxona Shkafi', 6500000)">Buyurtma berish</button>
+  <div class="product-card">
+    <h3>Modern Yotoqxona Shkafi</h3>
+    <p>O'lchami: 2.5m x 2.4m, MDF va Akril</p>
+    <div class="price">6,500,000 so'm</div>
+    <button class="btn" onclick="addToCart('Modern Yotoqxona Shkafi', 6500000)">Savatga qo'shish</button>
+  </div>
+
+  <hr style="margin: 24px 0; border: 0; border-top: 1px solid #ddd;">
+  
+  <h3>1. Buyurtmachi Ma'lumotlari</h3>
+  <div class="form-group">
+    <label for="phone">Telefon raqamingiz:*</label>
+    <input type="tel" id="phone" placeholder="+998 90 123 45 67">
+  </div>
+
+  <div class="form-group">
+    <label for="address">Yetkazib berish manzili:*</label>
+    <textarea id="address" rows="2" placeholder="Toshkent sh., Chilonzor t..."></textarea>
+  </div>
+
+  <h3>2. Oldindan To'lov (10% Avans)</h3>
+  <div class="payment-card">
+    <div>Oldindan to'lov summasi (10%): <b id="advance-amount" style="color: #d9534f;">0 so'm</b></div>
+    <p style="font-size: 13px; color: #555; margin: 6px 0;">Iltimos, ko'rsatilgan 10% avans summasini quyidagi kartaga o'tkazing va chek/tranzaksiya raqamini kiriting:</p>
+    
+    <!-- PLASTIK KARTA MA'LUMOTLARI -->
+    <div class="card-number">💳 8600 0000 0000 0000</div>
+    <div style="font-size: 13px; color: #333;">Karta egasi: <b>MEBELIX / M. RAVSHAN</b></div>
+  </div>
+
+  <div class="form-group" style="margin-top: 12px;">
+    <label for="transaction">Chek raqami / Tranzaksiya izohi:*</label>
+    <input type="text" id="transaction" placeholder="Masalan: Payme / Click orqali o'tkazildi #123456">
+  </div>
+
+  <!-- Savat va Yuborish -->
+  <div class="cart-summary">
+    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+      <span>Jami: <b id="cart-total">0</b> so'm</span>
+      <span>10% Avans: <b id="cart-advance" style="color: #d9534f;">0</b> so'm</span>
+    </div>
+    <button class="btn" onclick="submitOrder()">Buyurtma va To'lovni Tasdiqlash</button>
   </div>
 
   <script>
     const tg = window.Telegram.WebApp;
-    tg.expand(); // Oynani to'liq ekranga yozish
+    tg.expand();
 
-    async function orderItem(name, price) {
+    let cart = [];
+
+    function addToCart(name, price) {
+      const existing = cart.find(item => item.name === name);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        cart.push({ name, price, quantity: 1 });
+      }
+      updateCartUI();
+      tg.HapticFeedback?.impactOccurred('light');
+    }
+
+    function updateCartUI() {
+      const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const advancePrice = totalPrice * 0.10;
+
+      document.getElementById('cart-total').innerText = totalPrice.toLocaleString('uz-UZ');
+      document.getElementById('cart-advance').innerText = advancePrice.toLocaleString('uz-UZ');
+      document.getElementById('advance-amount').innerText = advancePrice.toLocaleString('uz-UZ') + " so'm";
+    }
+
+    async function submitOrder() {
+      const phone = document.getElementById('phone').value.trim();
+      const address = document.getElementById('address').value.trim();
+      const transaction = document.getElementById('transaction').value.trim();
+
+      if (cart.length === 0) {
+        tg.showAlert("Iltimos, avval mahsulot tanlang!");
+        return;
+      }
+      if (!phone || !address || !transaction) {
+        tg.showAlert("Iltimos, barcha maydonlarni (telefon, manzil va to'lov izohini) to'ldiring!");
+        return;
+      }
+
       const user = tg.initDataUnsafe?.user;
-      
-      const payload = {
-        customerName: user ? `${user.first_name} ${user.last_name || ''}` : 'Test Mijoz',
-        phone: user?.username ? `@${user.username}` : 'Ko\'rsatilmagan',
-        cartItems: [
-          { name: name, quantity: 1, price: price }
-        ],
-        totalPrice: price
-      };
+      const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const advancePrice = totalPrice * 0.10;
 
-      tg.MainButton.setText("Yuborilmoqda...").show();
+      const payload = {
+        customerName: user ? `${user.first_name} ${user.last_name || ''}` : 'Noma\'lum',
+        username: user?.username ? `@${user.username}` : 'Mavjud emas',
+        phone: phone,
+        address: address,
+        transaction: transaction,
+        cartItems: cart,
+        totalPrice: totalPrice,
+        advancePrice: advancePrice
+      };
 
       try {
         const response = await fetch('/api/order', {
@@ -75,16 +199,14 @@
         const result = await response.json();
 
         if (result.success) {
-          tg.showAlert("Buyurtmangiz qabul qilindi! Admin tez orada bog'lanadi.");
-          tg.close(); // WebApp oynasini yopish
+          tg.showAlert("Buyurtmangiz va to'lov ma'lumotlari qabul qilindi! Admin to'lovni tekshirib aloqaga chiqadi.");
+          tg.close();
         } else {
           tg.showAlert("Xatolik: " + result.message);
         }
       } catch (err) {
         console.error(err);
         tg.showAlert("Server bilan ulanishda xatolik yuz berdi!");
-      } finally {
-        tg.MainButton.hide();
       }
     }
   </script>
