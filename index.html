@@ -3,116 +3,150 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mebelix Do'koni</title>
+  <title>Mebelix - Mebellar Do'koni</title>
+  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { padding: 15px; background-color: #f4f4f9; color: #333; }
-    h1 { text-align: center; margin-bottom: 15px; color: #222; }
-    .warning-banner { background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; text-align: center; border: 1px solid #ffeeba; }
-    .categories { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; }
-    .cat-btn { background: #e0e0e0; border: none; padding: 8px 14px; border-radius: 20px; whitespace: nowrap; cursor: pointer; font-size: 13px; }
-    .cat-btn.active { background: #0088cc; color: #fff; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-    .card { background: #fff; border-radius: 10px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; }
-    .card img { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; }
-    .card h3 { font-size: 14px; margin: 8px 0 4px; }
-    .card p { font-size: 12px; color: #666; font-weight: bold; }
-    .btn-add { background: #28a745; color: #fff; border: none; padding: 6px; border-radius: 6px; margin-top: 8px; cursor: pointer; width: 100%; }
-    .cart-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 12px 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
-    .checkout-btn { background: #0088cc; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background-color: #f4f4f9;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      font-size: 22px;
+    }
+    .product-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .product-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .product-info h3 {
+      margin: 0 0 5px 0;
+      font-size: 16px;
+    }
+    .product-info p {
+      margin: 0;
+      color: #27ae60;
+      font-weight: bold;
+    }
+    .btn-add {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .cart-summary {
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .btn-submit {
+      width: 100%;
+      background: #27ae60;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 10px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Mebelix</h1>
-  <div class="warning-banner">
-    ⚠️ <b>Diqqat:</b> Buyurtmani tasdiqlash uchun <b>10% oldindan to'lov</b> amalga oshiriladi.
-  </div>
+  <h1>Mebelix Katalogi</h1>
 
-  <div class="categories" id="categories">
-    <button class="cat-btn active" onclick="filterCategory('all')">Barchasi</button>
-    <button class="cat-btn" onclick="filterCategory('Shkaflar')">Shkaflar</button>
-    <button class="cat-btn" onclick="filterCategory('Krovatlar')">Krovatlar</button>
-    <button class="cat-btn" onclick="filterCategory('yotoqxona to\'plami')">Yotoqxona</button>
-    <button class="cat-btn" onclick="filterCategory('yumshoq mebellar')">Yumshoq mebel</button>
-    <button class="cat-btn" onclick="filterCategory('mexmonxona mebeli')">Mexmonxona</button>
-    <button class="cat-btn" onclick="filterCategory('oshxona mebeli')">Oshxona</button>
-  </div>
+  <div id="products" class="product-list"></div>
 
-  <div class="grid" id="products-grid"></div>
-
-  <div class="cart-bar">
-    <div>Savat: <b id="cart-count">0</b> ta mahsulot</div>
-    <button class="checkout-btn" onclick="sendOrder()">Rasmiylashtirish</button>
+  <div class="cart-summary">
+    <h3>Savat</h3>
+    <div id="cart-items">Savat bo'sh</div>
+    <p><strong>Jami: </strong><span id="total-price">0 $</span></p>
+    <button class="btn-submit" onclick="submitOrder()">Rasmiylashtirish</button>
   </div>
 
   <script>
     const tg = window.Telegram.WebApp;
-    tg.expand();
+    tg.expand(); // Oynani to'liq ekranga yozish
 
-    let products = [];
-    let cart = {};
+    let cart = [];
 
-    async function loadProducts() {
-      try {
-        const res = await fetch('products.json');
-        products = await res.json();
-        renderProducts(products);
-      } catch (e) {
-        console.error("Xatolik:", e);
-      }
+    // JSON ma'lumotlarini yuklash
+    fetch('products.json')
+      .then(res => res.json())
+      .then(data => {
+        const container = document.getElementById('products');
+        container.innerHTML = '';
+        data.forEach(p => {
+          container.innerHTML += `
+            <div class="product-card">
+              <div class="product-info">
+                <h3>${p.name}</h3>
+                <p>${p.price} $</p>
+              </div>
+              <button class="btn-add" onclick="addToCart('${p.name}', ${p.price})">Qo'shish</button>
+            </div>
+          `;
+        });
+      })
+      .catch(err => console.error("Xatolik:", err));
+
+    function addToCart(name, price) {
+      cart.push({ name, price, quantity: 1 });
+      renderCart();
     }
 
-    function renderProducts(items) {
-      const container = document.getElementById('products-grid');
-      container.innerHTML = '';
-      items.forEach(p => {
-        container.innerHTML += `
-          <div class="card">
-            <img src="${p.images[0]}" alt="${p.title}">
-            <h3>${p.title}</h3>
-            <p>${p.price.toLocaleString()} so'm</p>
-            <button class="btn-add" onclick="addToCart(${p.id})">Savatga qo'shish</button>
-          </div>
-        `;
-      });
-    }
-
-    function filterCategory(cat) {
-      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
-      if (cat === 'all') {
-        renderProducts(products);
-      } else {
-        renderProducts(products.filter(p => p.category.toLowerCase() === cat.toLowerCase()));
-      }
-    }
-
-    function addToCart(id) {
-      cart[id] = (cart[id] || 0) + 1;
-      updateCartUI();
-    }
-
-    function updateCartUI() {
-      const total = Object.values(cart).reduce((a, b) => a + b, 0);
-      document.getElementById('cart-count').innerText = total;
-    }
-
-    function sendOrder() {
-      if (Object.keys(cart).length === 0) {
-        alert("Savatingiz bo'sh!");
+    function renderCart() {
+      const cartDiv = document.getElementById('cart-items');
+      const totalSpan = document.getElementById('total-price');
+      if (cart.length === 0) {
+        cartDiv.innerHTML = "Savat bo'sh";
+        totalSpan.innerText = "0 $";
         return;
       }
-      const orderData = [];
-      for (let id in cart) {
-        const item = products.find(p => p.id == id);
-        orderData.push({ title: item.title, count: cart[id], price: item.price });
-      }
-      tg.sendData(JSON.stringify(orderData));
+      cartDiv.innerHTML = cart.map(i => `• ${i.name} (${i.price} $)`).join('<br>');
+      const total = cart.reduce((sum, item) => sum + item.price, 0);
+      totalSpan.innerText = total + " $";
     }
 
-    loadProducts();
+    function submitOrder() {
+      if (cart.length === 0) {
+        alert("Iltimos, avval mahsulot tanlang!");
+        return;
+      }
+      
+      const totalPrice = cart.reduce((sum, item) => sum + item.price, 0) + " $";
+      const orderData = {
+        items: cart,
+        totalPrice: totalPrice
+      };
+
+      // Telegram Bot'ga ma'lumotni yuborish
+      if (tg && tg.sendData) {
+        tg.sendData(JSON.stringify(orderData));
+      } else {
+        alert("Telegram WebApp topilmadi. Botingiz orqali kiring.");
+      }
+    }
   </script>
 </body>
 </html>
