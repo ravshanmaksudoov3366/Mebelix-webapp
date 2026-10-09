@@ -55,9 +55,13 @@
     let cart = {};
 
     async function loadProducts() {
-      const res = await fetch('products.json');
-      products = await res.json();
-      renderProducts(products);
+      try {
+        const res = await fetch('products.json');
+        products = await res.json();
+        renderProducts(products);
+      } catch (e) {
+        console.error("Xatolik:", e);
+      }
     }
 
     function renderProducts(items) {
