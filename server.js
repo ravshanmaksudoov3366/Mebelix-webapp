@@ -10,46 +10,80 @@ const app = express();
 
 app.use(express.json());
 
+// Main keyboard menu button sozlash
+bot.setChatMenuButton({
+  menu_button: JSON.stringify({
+    type: "web_app",
+    text: "🛍 Do'konni ochish",
+    web_app: { url: webAppUrl }
+  })
+});
+
 // /start komandasi
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, "Mebelix mebellar do'koniga xush kelibsiz! Katalog va buyurtma berish uchun quyidagi tugmani bosing:", {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "🛍 Do'konni ochish", web_app: { url: webAppUrl } }]
-      ]
-    }
+  const isAdmin = msg.from.id.toString() === adminId;
+
+  let replyMarkup = {
+    keyboard: [
+      [{ text: "🛍 Do'konni ochish", web_app: { url: webAppUrl } }]
+    ],
+    resize_keyboard: true
+  };
+
+  // Admin bo'lsa boshqaruv tugmalarini qo'shamiz
+  if (isAdmin) {
+    replyMarkup.keyboard.push(
+      [{ text: "➕ Mahsulot qo'shish" }, { text: "🗑 Mahsulot o'chirish" }]
+    );
+  }
+
+  bot.sendMessage(chatId, "Mebelix mebellar do'koniga xush kelibsiz!\n\nPastdagi tugma orqali katalog bilan tanishishingiz mumkin:", {
+    reply_markup: replyMarkup
   });
 });
 
-// WebApp'dan buyurtma kelganda
+// Admin tugmalariga javob
 bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+  const isAdmin = msg.from.id.toString() === adminId;
+
+  if (isAdmin && text === "➕ Mahsulot qo'shish") {
+    bot.sendMessage(chatId, "Yangi mahsulot qo'shish bo'limi:\nIltimos, mahsulot nomini va narxini kiriting.");
+    return;
+  }
+
+  if (isAdmin && text === "🗑 Mahsulot o'chirish") {
+    bot.sendMessage(chatId, "Mahsulotni o'chirish uchun `products.json` faylidan mahsulot ID'sini tanlang yoki o'chiriladigan nomni kiriting.");
+    return;
+  }
+
+  // WebApp'dan buyurtma kelganda
   if (msg.web_app_data) {
     try {
       const data = JSON.parse(msg.web_app_data.data);
       
-      let text = `🛒 **Yangi buyurtma!**\n\n`;
-      text += `👤 **Mijoz:** ${msg.from.first_name} (@${msg.from.username || 'username yo\'q'})\n`;
-      text += `🆔 **ID:** ${msg.from.id}\n\n`;
-      text += `📦 **Mahsulotlar:**\n`;
+      let orderText = `🛒 **Yangi buyurtma!**\n\n`;
+      orderText += `👤 **Mijoz:** ${msg.from.first_name} (@${msg.from.username || 'username yo\'q'})\n`;
+      orderText += `🆔 **ID:** ${msg.from.id}\n\n`;
+      orderText += `📦 **Mahsulotlar:**\n`;
 
       if (Array.isArray(data.items)) {
         data.items.forEach((item, index) => {
-          text += `${index + 1}. ${item.name} - ${item.price} x ${item.quantity || 1}\n`;
+          orderText += `${index + 1}. ${item.name} - ${item.price} $ x ${item.quantity || 1}\n`;
         });
-      } else {
-        text += `${JSON.stringify(data)}\n`;
       }
 
       if (data.totalPrice) {
-        text += `\n💰 **Jami summa:** ${data.totalPrice}`;
+        orderText += `\n💰 **Jami summa:** ${data.totalPrice}`;
       }
 
       // 1. Mijozga tasdiq
-      await bot.sendMessage(msg.chat.id, `Rahmat! Buyurtmangiz qabul qilindi. Tez orada siz bilan bog'lanamiz.`);
+      await bot.sendMessage(msg.chat.id, `✅ Rahmat! Buyurtmangiz qabul qilindi. Tez orada siz bilan bog'lanamiz.`);
 
       // 2. Adminga xabar
-      await bot.sendMessage(adminId, text, { parse_mode: 'Markdown' });
+      await bot.sendMessage(adminId, orderText, { parse_mode: 'Markdown' });
 
     } catch (e) {
       console.error('Xatolik:', e);
