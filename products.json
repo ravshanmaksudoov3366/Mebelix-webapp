@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "title": "Zamonaviy Yotoqxona To'plami",
+    "category": "yotoqxona to'plami",
+    "price": 12000000,
+    "images": [
+      "https://images.unsplash.com/photo-1540518614846-7eded433c457?w=500"
+    ],
+    "description": "Shkaf, krovat, tryumo va 2 ta tumba o'z ichiga oladi."
+  },
+  {
+    "id": 2,
+    "title": "Oshxona Mebeli (Akrill)",
+    "category": "oshxona mebeli",
+    "price": 8500000,
+    "images": [
+      "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=500"
+    ],
+    "description": "Yuqori sifatli akrill qoplamali burchakli oshxona mebeli."
+  },
+  {
+    "id": 3,
+    "title": "Yumshoq Divan va Kreslo",
+    "category": "yumshoq mebellar",
+    "price": 6500000,
+    "images": [
+      "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=500"
+    ],
+    "description": "Mexmonxona uchun qulay va zamonaviy yumshoq mebel."
+  }
+]
