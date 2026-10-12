@@ -10,17 +10,17 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Kategoriyalar va mebellarni saqlash ro'yxati
+// Kategoriyalar va xotira
 const categories = ["🛋 Mehmonxona", "🛏 Yotoqxona", "🍽 Oshxona", "🖥 Offis", "✨ Boshqa"];
 const products = [];
 const adminStates = {};
 
-// Web App uchun mahsulotlar API
+// Web App API
 app.get('/api/products', (req, res) => {
   res.json(products);
 });
 
-// Web App sahifasi
+// Web App sahifasi (To'liq xavfsiz yuklanish)
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -31,47 +31,49 @@ app.get('/', (req, res) => {
       <title>Mebelix Do'koni</title>
       <script src="https://telegram.org/js/telegram-web-app.js"></script>
       <style>
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f9; margin: 0; padding: 15px; color: #333; }
-        h1 { text-align: center; font-size: 20px; color: #2c3e50; margin-bottom: 20px; }
-        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        .card { background: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .category-tag { display: inline-block; background: #e3f2fd; color: #1976d2; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 8px; }
-        .card-title { font-size: 18px; font-weight: bold; margin-bottom: 6px; }
-        .price { color: #27ae60; font-weight: bold; font-size: 16px; margin-bottom: 10px; }
-        .badge { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-        .empty { text-align: center; color: #7f8c8d; margin-top: 50px; font-size: 16px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; padding: 15px; color: #212529; }
+        h1 { text-align: center; font-size: 20px; color: #2c3e50; margin-bottom: 15px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .card { background: #ffffff; border-radius: 12px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e9ecef; }
+        .category-tag { display: inline-block; background: #e7f5ff; color: #1c7ed6; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-bottom: 6px; }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .price { color: #2b8a3e; font-weight: bold; font-size: 15px; margin-bottom: 8px; }
+        .badge { display: inline-block; background: #f1f3f5; color: #495057; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+        .empty { text-align: center; color: #868e96; margin-top: 40px; font-size: 15px; line-height: 1.5; }
       </style>
     </head>
     <body>
       <h1>🛋 Mebelix Katalogi</h1>
-      <div id="product-list" class="grid"></div>
+      <div id="product-list" class="grid">
+        <div class="empty">Yuklanmoqda...</div>
+      </div>
 
       <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
         async function loadProducts() {
+          const list = document.getElementById('product-list');
           try {
             const res = await fetch('/api/products');
             const data = await res.json();
-            const list = document.getElementById('product-list');
 
             if (!data || data.length === 0) {
-              list.innerHTML = '<div class="empty">Hozircha katalogda mebellar yo\'q.<br><br><i>Admin panel orqali yangi mebel qo\'shing!</i></div>';
+              list.innerHTML = '<div class="empty">🛋 Hozircha katalogda mebellar yo\'q.<br><br><small>Admin panel orqali yangi mebel qo\'shing!</small></div>';
               return;
             }
 
             list.innerHTML = data.map(p => \`
               <div class="card">
-                <span class="category-tag">\${p.category || 'Kategoriya ko\\'rsatilmagan'}</span>
+                <span class="category-tag">\${p.category || 'Boshqa'}</span>
                 <div class="card-title">\${p.title}</div>
                 <div class="price">💰 \${p.price}</div>
-                <div class="badge">📸 \${p.images ? p.images.length : 0} ta rasm</div>
+                <div class="badge">📸 \${p.images ? p.images.length : 0} ta rasm (Chatda ko'rish mumkin)</div>
               </div>
             \`).join('');
           } catch (e) {
-            console.error(e);
+            list.innerHTML = '<div class="empty">⚠️ Ma\'lumotlarni yuklashda xatolik yuz berdi.</div>';
           }
         }
 
@@ -114,17 +116,15 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// Callback Query hodisalari (Inline tugmalar)
+// Inline tugmalar bilan ishlash
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
   if (chatId.toString() !== adminId.toString() && !data.startsWith("show_cat_")) return;
 
-  // 1. Yangi mahsulot qo'shish jarayoni - Kategoriya tanlash
   if (data === "add_product") {
     adminStates[chatId] = { step: 'select_category', images: [] };
-
     const categoryButtons = categories.map(cat => [{ text: cat, callback_data: `cat_${cat}` }]);
 
     bot.sendMessage(chatId, "📁 **Yangi mebel uchun kategoriyani tanlang:**", {
@@ -132,7 +132,6 @@ bot.on('callback_query', async (query) => {
       reply_markup: { inline_keyboard: categoryButtons }
     });
   }
-  // Kategoriyani saqlash
   else if (data.startsWith("cat_")) {
     const selectedCategory = data.replace("cat_", "");
     if (adminStates[chatId] && adminStates[chatId].step === 'select_category') {
@@ -144,7 +143,6 @@ bot.on('callback_query', async (query) => {
       });
     }
   }
-  // Rasmlarni yuklashni tugatish
   else if (data === "finish_images") {
     const state = adminStates[chatId];
     if (state && state.step === 'awaiting_images') {
@@ -167,7 +165,6 @@ bot.on('callback_query', async (query) => {
       });
     }
   }
-  // O'chirish ro'yxati
   else if (data === "delete_list") {
     if (products.length === 0) {
       bot.sendMessage(chatId, "O'chirish uchun mahsulot yo'q.");
@@ -183,7 +180,6 @@ bot.on('callback_query', async (query) => {
       reply_markup: { inline_keyboard: buttons }
     });
   }
-  // Mahsulotni o'chirish
   else if (data.startsWith("del_")) {
     const productId = parseInt(data.replace("del_", ""));
     const index = products.findIndex(p => p.id === productId);
@@ -195,7 +191,6 @@ bot.on('callback_query', async (query) => {
     }
   }
 
-  // Tanlangan kategoriya bo'yicha mebellarni chatda ko'rsatish
   if (data.startsWith("show_cat_")) {
     const selectedCat = data.replace("show_cat_", "");
     let filteredProducts = products;
@@ -229,12 +224,11 @@ bot.on('callback_query', async (query) => {
   bot.answerCallbackQuery(query.id);
 });
 
-// Xabarlarni ushlash
+// Xabarlar
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // Katalog tugmasi bosilganda kategoriyalarni chiqarish
   if (text === "🛋 Mebellar katalogi") {
     if (products.length === 0) {
       bot.sendMessage(chatId, "🛋 Hozircha katalogda mebellar yo'q.");
@@ -269,7 +263,6 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Admin tomonidan ma'lumot kiritish ketma-ketligi
   const state = adminStates[chatId];
   if (state) {
     if (state.step === 'awaiting_title' && text) {
@@ -301,4 +294,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-console.log('Mebelix Bot va Web App kategoriyalar bilan tayyor...');
+console.log('Mebelix Bot va Web App yangilandi...');
