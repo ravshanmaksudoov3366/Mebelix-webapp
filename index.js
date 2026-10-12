@@ -10,8 +10,68 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+// Mebellarni saqlash uchun xotira
+const products = [];
+const adminStates = {};
+
+// Web App uchun mahsulotlar API'si
+app.get('/api/products', (req, res) => {
+  res.json(products);
+});
+
+// Web App do'konining HTML sahifasi
 app.get('/', (req, res) => {
-  res.send('Mebelix Bot serveri ishlamoqda!');
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="uz">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Mebelix Do'koni</title>
+      <script src="https://telegram.org/js/telegram-web-app.js"></script>
+      <style>
+        body { font-family: sans-serif; background: #f4f4f9; margin: 0; padding: 15px; color: #333; }
+        h1 { text-align: center; font-size: 20px; color: #2c3e50; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px; }
+        .card { background: #fff; border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; }
+        .card h3 { margin: 10px 0 5px 0; font-size: 16px; }
+        .price { color: #27ae60; font-weight: bold; font-size: 15px; }
+        .empty { text-align: center; color: #7f8c8d; margin-top: 40px; }
+      </style>
+    </head>
+    <body>
+      <h1>🛋 Mebelix Katalogi</h1>
+      <div id="product-list" class="grid"></div>
+
+      <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        async function loadProducts() {
+          const res = await fetch('/api/products');
+          const data = await res.json();
+          const list = document.getElementById('product-list');
+
+          if (data.length === 0) {
+            list.innerHTML = '<div class="empty">Hozircha katalogda mebellar yo\'q.</div>';
+            return;
+          }
+
+          list.innerHTML = data.map(p => \`
+            <div class="card">
+              <img src="https://api.telegram.org/file/bot${token}/\${p.images[0]}" alt="\${p.title}" onerror="this.src='https://via.placeholder.com/300x200?text=Mebel'"/>
+              <h3>\${p.title}</h3>
+              <div class="price">\${p.price}</div>
+            </div>
+          \`).join('');
+        }
+
+        loadProducts();
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 app.listen(PORT, () => {
@@ -19,12 +79,6 @@ app.listen(PORT, () => {
 });
 
 const bot = new TelegramBot(token, { polling: true });
-
-// Mebellarni saqlash uchun massiv (operativ xotirada)
-const products = [];
-
-// Admin mahsulot qo'shish jarayonini kuzatish uchun holat (state)
-const adminStates = {};
 
 // /start buyrug'i
 bot.onText(/\/start/, (msg) => {
@@ -52,7 +106,7 @@ bot.onText(/\/start/, (msg) => {
   });
 });
 
-// Admin tugmalari va hodisalari
+// Admin callback query'lari
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -70,7 +124,6 @@ bot.on('callback_query', async (query) => {
         bot.sendMessage(chatId, "⚠️ Kamida 1 ta rasm yuborishingiz kerak!");
         return;
       }
-      // Yangi mahsulotni saqlash
       const newProduct = {
         id: Date.now(),
         title: state.title,
@@ -84,6 +137,21 @@ bot.on('callback_query', async (query) => {
         parse_mode: 'Markdown'
       });
     }
+  }
+  else if (data === "delete_list") {
+    if (products.length === 0) {
+      bot.sendMessage(chatId, "O'chirish uchun mahsulot yo'q.");
+      return;
+    }
+    const buttons = products.map(p => ([{
+      text: `🗑 ${p.title} (${p.price})`,
+      callback_data: `del_${p.id}`
+    }]));
+
+    bot.sendMessage(chatId, "🗑 **O'chirmoqchi bo'lgan mebelingizni tanlang:**", {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: buttons }
+    });
   }
   else if (data.startsWith("del_")) {
     const productId = parseInt(data.replace("del_", ""));
@@ -99,12 +167,11 @@ bot.on('callback_query', async (query) => {
   bot.answerCallbackQuery(query.id);
 });
 
-// Xabarlarni ushlash
+// Xabarlar
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // 1. Matnli buyruqlar
   if (text === "🛋 Mebellar katalogi") {
     if (products.length === 0) {
       bot.sendMessage(chatId, "🛋 Hozircha katalogda mebellar yo'q.");
@@ -147,10 +214,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Admin o'chirish ro'yxatini so'rasa
-  if (text === "⚙️ Admin Panel") return;
-
-  // 2. Admin qadamma-qadam mahsulot qo'shishi
+  // Admin ketma-ketlik ma'lumot kiritishi
   const state = adminStates[chatId];
   if (state) {
     if (state.step === 'awaiting_title' && text) {
@@ -161,7 +225,7 @@ bot.on('message', async (msg) => {
     else if (state.step === 'awaiting_price' && text) {
       state.price = text;
       state.step = 'awaiting_images';
-      bot.sendMessage(chatId, "🖼 **Mebel rasmlarini yuboring (1 dan 10 tagacha):**\n\nRasmlarni yuborib bo'lgach, pastdagi **'✅ Tugatish'** tugmasini bosing.", {
+      bot.sendMessage(chatId, "🖼 **Mebel rasmlarini yuboring (1 dan 10 tagacha):**\n\nRasmlarni yuborib bo'lgach, pastdagi **'✅ Rasmlarni yuklashni tugatish'** tugmasini bosing.", {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
@@ -182,24 +246,4 @@ bot.on('message', async (msg) => {
   }
 });
 
-// Admin mahsulot o'chirish menyusini ko'rishi uchun
-bot.on('callback_query', (query) => {
-  const chatId = query.message.chat.id;
-  if (query.data === "delete_list" && chatId.toString() === adminId.toString()) {
-    if (products.length === 0) {
-      bot.sendMessage(chatId, "O'chirish uchun hechnarsa yo'q.");
-      return;
-    }
-    const buttons = products.map(p => ([{
-      text: `🗑 ${p.title} (${p.price})`,
-      callback_data: `del_${p.id}`
-    }]));
-
-    bot.sendMessage(chatId, "🗑 **O'chirmoqchi bo'lgan mebelingizni tanlang:**", {
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: buttons }
-    });
-  }
-});
-
-console.log('Mebelix Bot to\'liq funksiyalar bilan ishlamoqda...');
+console.log('Mebelix Bot va Web App ishga tushdi...');
