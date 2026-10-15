@@ -1,48 +1,61 @@
-document.getElementById('total-price').innerText = 0;
-                return;
-            }
-            container.innerHTML = cart.map(item => <div>• ${item.name} - ${item.price.toLocaleString()} so'm</div>).join('');
-            document.getElementById('total-price').innerText = total.toLocaleString();
-        }
+const { Telegraf, Markup } = require('telegraf');
+const express = require('express');
+const path = require('path');
 
-        async function submitOrder() {
-            const fullName = document.getElementById('fullName').value;
-            const phone = document.getElementById('phone').value;
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
 
-            if (!fullName || !phone) {
-                alert("Iltimos, ismingiz va telefon raqamingizni kiriting!");
-                return;
-            }
-            if (cart.length === 0) {
-                alert("Savatga kamida bitta mebel qo'shing!");
-                return;
-            }
+app.use(express.json());
 
-            const orderData = {
-                fullName,
-                phone,
-                cart,
-                total
-            };
+// Telegram Webhook
+app.use(bot.webhookCallback('/telegram-webhook'));
 
-            // Serverga buyurtmani yuborish
-            try {
-                const response = await fetch('/api/order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ orderData })
-                });
+// Bot /start buyrug'i
+bot.start((ctx) => {
+    ctx.reply(
+        "Assalomu alaykum! Mebelix do'koniga xush kelibsiz! Quyidagi tugmani bosing:",
+        Markup.keyboard([
+            [Markup.button.webApp("🛋 Do'konni ochish", "https://mebelix-webapp.onrender.com")]
+        ]).resize()
+    );
+});
 
-                if (response.ok) {
-                    alert("Buyurtmangiz qabul qilindi! Tez orada aloqaga chiqamiz.");
-                    tg.close(); // Telegram WebApp oynasini yopish
-                } else {
-                    alert("Xatolik yuz berdi. Qaytadan urinib ko'ring.");
-                }
-            } catch (err) {
-                alert("Tarmoq xatosi: " + err.message);
-            }
-        }
-    </script>
-</body>
-</html>
+// Adminga buyurtma yuborish
+async function sendOrderToAdmin(orderData) {
+    const adminGroupId = process.env.ADMIN_GROUP_ID;
+    let caption = "📦 YANGI BUYURTMA!\n\n";
+    caption += "👤 Mijoz: " + orderData.fullName + "\n";
+    caption += "📞 Tel: " + orderData.phone + "\n";
+    caption += "💰 Jami: " + (orderData.total ? orderData.total.toLocaleString() : 0) + " so'm\n\n";
+    caption += "🛒 Buyurtmalar:\n";
+    
+    if (orderData.cart && orderData.cart.length > 0) {
+        orderData.cart.forEach(item => {
+            caption += • ${item.name} - ${item.price.toLocaleString()} so'm\n;
+        });
+    }
+
+    await bot.telegram.sendMessage(adminGroupId, caption);
+}
+
+// Buyurtma API
+app.post('/api/order', async (req, res) => {
+    try {
+        const { orderData } = req.body;
+        await sendOrderToAdmin(orderData);
+        res.status(200).send({ success: true, message: "Buyurtma qabul qilindi" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ success: false, error: error.message });
+    }
+});
+
+// Asosiy sahifa - index.html ni chiqarish
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log("Server " + PORT + "-portda ishga tushdi");
+});
