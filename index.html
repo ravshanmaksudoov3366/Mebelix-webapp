@@ -180,6 +180,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       cursor: pointer;
       font-weight: 600;
+      display: none; /* Asl dizaynni buzmaslik uchun yashirildi, o'rniga Telegram MainButton ishlaydi */
     }
   </style>
 </head>
@@ -192,7 +193,7 @@
 
   <div class="grid" id="products-grid"></div>
 
-  <div class="cart-bar" id="cart-bar" style="display: none;" onclick="sendOrder()">
+  <div class="cart-bar" id="cart-bar" onclick="sendOrder()">
     <span id="cart-count">0 ta mebel</span>
     <span id="cart-total">Buyurtma: 0 $</span>
   </div>
@@ -205,6 +206,10 @@
   <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
+
+    // Telegram MainButton sozlamalari
+    tg.MainButton.textColor = "#FFFFFF";
+    tg.MainButton.color = "#2ABEE8";
 
     const products = [
       { id: 1, title: "Zamonaviy Divan", price: 350, image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600" },
@@ -274,7 +279,6 @@
     }
 
     function updateCartBar() {
-      const bar = document.getElementById('cart-bar');
       let totalCount = 0;
       let totalPrice = 0;
 
@@ -288,13 +292,17 @@
       }
 
       if (totalCount > 0) {
-        bar.style.display = 'flex';
-        document.getElementById('cart-count').innerText = `${totalCount} ta mebel`;
-        document.getElementById('cart-total').innerText = `Buyurtma: ${totalPrice} $`;
+        tg.MainButton.setText(`BUYURTMA BERISH: ${totalCount} ta (${totalPrice} $)`);
+        tg.MainButton.show();
       } else {
-        bar.style.display = 'none';
+        tg.MainButton.hide();
       }
     }
+
+    // Telegram pastki tugmasi bosilganda ishlaydi
+    tg.onEvent('mainButtonClicked', function() {
+      sendOrder();
+    });
 
     function openModal(imgUrl) {
       document.getElementById('modal-img').src = imgUrl;
