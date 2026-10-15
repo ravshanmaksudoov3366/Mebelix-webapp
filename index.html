@@ -1,118 +1,118 @@
-<!DOCTYPE html>
-<html lang="uz">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mebelix - Do'kon</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f6f9; }
-        h2 { text-align: center; color: #2c3e50; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-        .card { background: #fff; padding: 10px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .card img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; }
-        .price { color: #27ae60; font-weight: bold; margin: 5px 0; }
-        .btn { background: #3498db; color: #fff; border: none; padding: 10px; border-radius: 5px; width: 100%; font-weight: bold; cursor: pointer; }
-        .btn:active { background: #2980b9; }
-        .cart { margin-top: 20px; background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        input { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
-        .order-btn { background: #27ae60; margin-top: 10px; color: white; }
-        .order-btn:active { background: #219150; }
-    </style>
-</head>
-<body>
+<h2>🛋 Mebelix Do'koni</h2>
 
-    <h2>🛋 Mebelix Do'koni</h2>
+<!-- Mahsulotlar dinamik ravishda ushbu div ichiga joylashadi -->
+<div class="grid" id="products-grid">
+    <p style="text-align: center; width: 100%;">Mahsulotlar yuklanmoqda...</p>
+</div>
 
-    <div class="grid">
-        <div class="card">
-            <img src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400" alt="Divan">
-            <h4>Zamonaviy Divan</h4>
-            <div class="price">3,500,000 so'm</div>
-            <button class="btn" type="button" onclick="addToCart('Zamonaviy Divan', 3500000)">Qo'shish</button>
-        </div>
-        <div class="card">
-            <img src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=400" alt="Krovat">
-            <h4>Yotoqxona Krovati</h4>
-            <div class="price">4,200,000 so'm</div>
-            <button class="btn" type="button" onclick="addToCart('Yotoqxona Krovati', 4200000)">Qo'shish</button>
-        </div>
-    </div>
+<div class="cart">
+    <h3>🛒 Savatcha</h3>
+    <div id="cart-items">Savat bo'sh</div>
+    <h4>Jami: <span id="total-price">0</span> so'm</h4>
 
-    <div class="cart">
-        <h3>🛒 Savatcha</h3>
-        <div id="cart-items">Savat bo'sh</div>
-        <h4>Jami: <span id="total-price">0</span> so'm</h4>
+    <input type="text" id="fullName" placeholder="Ismingiz">
+    <input type="tel" id="phone" placeholder="Telefon raqamingiz">
+    <button class="btn order-btn" type="button" onclick="submitOrder()">Buyurtma berish</button>
+</div>
 
-        <input type="text" id="fullName" placeholder="Ismingiz">
-        <input type="tel" id="phone" placeholder="Telefon raqamingiz">
-        <button class="btn order-btn" type="button" onclick="submitOrder()">Buyurtma berish</button>
-    </div>
+<script>
+    let tg = window.Telegram ? window.Telegram.WebApp : null;
+    if (tg) {
+        tg.expand();
+        tg.ready();
+    }
 
-    <script>
-        let tg = window.Telegram ? window.Telegram.WebApp : null;
-        if (tg) {
-            tg.expand();
-            tg.ready();
-        }
+    let cart = [];
+    let total = 0;
 
-        let cart = [];
-        let total = 0;
+    // Serverdan mahsulotlarni yuklab olish funksiyasi
+    async function loadProducts() {
+        const grid = document.getElementById('products-grid');
+        try {
+            const res = await fetch('/api/products');
+            const products = await res.json();
 
-        window.addToCart = function(name, price) {
-            cart.push({ name: name, price: price });
-            total += price;
-            updateCart();
-        };
-
-        function updateCart() {
-            const container = document.getElementById('cart-items');
-            if (cart.length === 0) {
-                container.innerHTML = "Savat bo'sh";
-                document.getElementById('total-price').innerText = '0';
+            if (!products || products.length === 0) {
+                grid.innerHTML = '<p style="text-align: center; width: 100%;">Hozircha do\'konda mahsulotlar yo\'q.</p>';
                 return;
             }
-            container.innerHTML = cart.map(function(item) {
-                return '<div>• ' + item.name + ' - ' + item.price.toLocaleString() + ' so\'m</div>';
+
+            grid.innerHTML = products.map(function(item) {
+                // Rasm mavjud bo'lsa standart rasm yoki birinchi rasmini qo'yish
+                let imgSrc = (item.photos && item.photos.length > 0) 
+                    ? 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400' 
+                    : 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400';
+
+                return 
+                    <div class="card">
+                        <img src="${imgSrc}" alt="${item.name}">
+                        <h4>${item.name}</h4>
+                        <p style="font-size: 12px; color: #666;">${item.description || ''}</p>
+                        <div class="price">${item.price.toLocaleString()} so'm</div>
+                        <button class="btn" type="button" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price})">Qo'shish</button>
+                    </div>
+                ;
             }).join('');
-            document.getElementById('total-price').innerText = total.toLocaleString();
+        } catch (err) {
+            grid.innerHTML = '<p style="text-align: center; color: red;">Mahsulotlarni yuklashda xatolik yuz berdi!</p>';
+        }
+    }
+
+    // Sahifa yuklanganda mahsulotlarni yuklash
+    document.addEventListener('DOMContentLoaded', loadProducts);
+
+    window.addToCart = function(name, price) {
+        cart.push({ name: name, price: price });
+        total += price;
+        updateCart();
+    };
+
+    function updateCart() {
+        const container = document.getElementById('cart-items');
+        if (cart.length === 0) {
+            container.innerHTML = "Savat bo'sh";
+            document.getElementById('total-price').innerText = '0';
+            return;
+        }
+        container.innerHTML = cart.map(function(item) {
+            return '<div>• ' + item.name + ' - ' + item.price.toLocaleString() + ' so\'m</div>';
+        }).join('');
+        document.getElementById('total-price').innerText = total.toLocaleString();
+    }
+
+    window.submitOrder = async function() {
+        const fullName = document.getElementById('fullName').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+
+        if (!fullName || !phone) {
+            alert("Iltimos, ismingiz va telefoningizni kiriting!");
+            return;
+        }
+        if (cart.length === 0) {
+            alert("Savatga kamida bitta mebel qo'shing!");
+            return;
         }
 
-        window.submitOrder = async function() {
-            const fullName = document.getElementById('fullName').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-
-            if (!fullName || !phone) {
-                alert("Iltimos, ismingiz va telefoningizni kiriting!");
-                return;
+        try {
+            const response = await fetch('/api/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderData: {
+                        fullName: fullName,
+                        phone: phone,
+                        cart: cart,
+                        total: total
+                    }
+                })
+            });if (response.ok) {
+                alert("Buyurtmangiz muvaffaqiyatli qabul qilindi!");
+                if (tg) tg.close();
+            } else {
+                alert("Xatolik yuz berdi. Qaytadan urinib ko'ring.");
             }
-            if (cart.length === 0) {
-                alert("Savatga kamida bitta mebel qo'shing!");
-                return;
-            }try {
-                const response = await fetch('/api/order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        orderData: {
-                            fullName: fullName,
-                            phone: phone,
-                            cart: cart,
-                            total: total
-                        }
-                    })
-                });
-
-                if (response.ok) {
-                    alert("Buyurtmangiz muvaffaqiyatli qabul qilindi!");
-                    if (tg) tg.close();
-                } else {
-                    alert("Xatolik yuz berdi. Qaytadan urinib ko'ring.");
-                }
-            } catch (err) {
-                alert("Xatolik: " + err.message);
-            }
-        };
-    </script>
-</body>
-</html>
+        } catch (err) {
+            alert("Xatolik: " + err.message);
+        }
+    };
+</script>
