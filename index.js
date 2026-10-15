@@ -19,7 +19,7 @@ app.use(express.json());
 
 // /start buyrug'i
 bot.start((ctx) => {
-  ctx.reply("🛋 Mebelix do'koniga xush kelibsiz!\n\nQuyidagi tugmani bosib tayyor mebellar katalogini ko'rishingiz mumkin:", {
+  ctx.reply("MQ Mebelix do'koniga xush kelibsiz!\n\nQuyidagi tugmani bosib tayyor mebellar katalogini ko'rishingiz mumkin:", {
     reply_markup: {
       keyboard: [
         [{ text: "🛋 Do'konni ochish", web_app: { url: WEBAPP_URL } }]
@@ -78,8 +78,8 @@ async function processOrder(user, items, totalPrice) {
     });
   }
 
-  const userInfo = user ? `${user.first_name || ''} ${user.last_name || ''} (@${user.username || 'username_yoq'})` : 'Noma'lum';
-  const userId = user && user.id ? user.id : 'Ko\'rsatilmagan';
+  const userInfo = user ? `${user.first_name || ''} ${user.last_name || ''} (@${user.username || 'username_yoq'})` : "Nomalum";
+  const userId = user && user.id ? user.id : "Korsatilmagan";
 
   const adminMessage = `🛒 *YANGI BUYURTMA!*
 
