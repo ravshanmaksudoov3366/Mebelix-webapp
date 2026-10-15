@@ -2,6 +2,11 @@ const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const path = require('path');
 
+// Token mavjudligini tekshirish
+if (!process.env.BOT_TOKEN) {
+    console.error("DIQQAT XATOLIK: BOT_TOKEN topilmadi!");
+}
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
@@ -11,10 +16,10 @@ app.use(express.json());
 app.use(bot.webhookCallback('/telegram-webhook'));
 
 // ------------------- XOTIRA VA HOLATLAR -------------------
-// Botga kirgan mijozlar ro'yxati (Unikal foydalanuvchilar)
+// Botga kirgan foydalanuvchilar ro'yxati
 const usersSet = new Set();
 
-// Admin bilan muloqot holati (userState)
+// Admin buyurtma/mahsulot qo'shish holatlari
 const userState = {};
 
 // Admin huquqini tekshirish
@@ -25,9 +30,8 @@ function isAdmin(ctx) {
 
 // ------------------- BOT BUYRUQLARI -------------------
 
-// Bot /start buyrug'i
+// /start buyrug'i
 bot.start((ctx) => {
-    // Mijozni ro'yxatga olish
     if (ctx.from && ctx.from.id) {
         usersSet.add(ctx.from.id);
     }
@@ -40,7 +44,7 @@ bot.start((ctx) => {
     );
 });
 
-// Admin Paneli: /admin buyrug'i
+// /admin buyrug'i
 bot.command('admin', (ctx) => {
     if (!isAdmin(ctx)) {
         return ctx.reply("❌ Sizda admin huquqlari yo'q!");
@@ -58,7 +62,7 @@ bot.command('admin', (ctx) => {
     );
 });
 
-// ------------------- ADMIN ACTIONS & DIALOGS -------------------
+// ------------------- ADMIN AMALLARI -------------------
 
 // Mijozlar statistikasi
 bot.action('stat_users', (ctx) => {
@@ -80,7 +84,7 @@ bot.action('add_product', (ctx) => {
     ctx.reply("📝 *1-Qadam:* Yangi mebel nomini kiriting (masalan: *Klassik burchakli divan*):", { parse_mode: 'Markdown' });
 });
 
-// Rasmlarni saqlash tugmasi
+// Rasmlarni saqlash
 bot.action('save_photos', (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
@@ -90,7 +94,6 @@ bot.action('save_photos', (ctx) => {
         return ctx.reply("⚠️ Kamida 1 ta rasm yuborishingiz kerak!");
     }
 
-    // Mahsulot ma'lumotlari tayyor
     const newProduct = {
         name: state.name,
         description: state.description,
@@ -98,7 +101,7 @@ bot.action('save_photos', (ctx) => {
         photos: state.photos
     };
 
-    delete userState[ctx.from.id]; // Holatni tozalash
+    delete userState[ctx.from.id];
 
     ctx.reply(
         "✅ *Yangi mebel muvaffaqiyatli saqlandi!*\n\n" +
@@ -110,7 +113,7 @@ bot.action('save_photos', (ctx) => {
     );
 });
 
-// Matnli xabarlarni tutib olish (Nom, Tavsif, Narx uchun)
+// Matnli xabarlarni qabul qilish (Nomi -> Tavsifi -> Narxi)
 bot.on('text', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
@@ -135,7 +138,7 @@ bot.on('text', (ctx) => {
         state.price = price;
         state.step = 'WAIT_PHOTOS';
         return ctx.reply(
-            "🖼 *4-Qadam:* Mebel rasmlarini yuboring (1 tagacha 10 tagacha foto yuborishingiz mumkin).\n\n" +
+            "🖼 *4-Qadam:* Mebel rasmlarini yuboring (1 tadan 10 tagacha foto yuborishingiz mumkin).\n\n" +
             "Rasmlarni yuborib bo'lgach, pastdagi *'✅ Saqlash'* tugmasini bosing:",
             Markup.inlineKeyboard([
                 [Markup.button.callback("✅ Saqlash", "save_photos")]
@@ -144,7 +147,7 @@ bot.on('text', (ctx) => {
     }
 });
 
-// Rasmlarni tutib olish (Fotosuratlar uchun)
+// Rasmlarni qabul qilish (10 tagacha)
 bot.on('photo', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
@@ -155,7 +158,6 @@ bot.on('photo', (ctx) => {
         return ctx.reply("⚠️ Maksimal 10 ta rasm yuklay olasiz! Endi '✅ Saqlash' tugmasini bosing.");
     }
 
-    // Eng yuqori sifatli rasming file_id sini saqlash
     const photoArray = ctx.message.photo;
     const fileId = photoArray[photoArray.length - 1].file_id;
 
@@ -170,6 +172,48 @@ bot.on('photo', (ctx) => {
     );
 });
 
-// ------------------- EXISTING SERVER LOGIC -------------------
+// ------------------- SERVER VA BUYURTMA QISMI -------------------
 
-//
+async function sendOrderToAdmin(orderData) {
+    const adminGroupId = process.env.ADMIN_GROUP_ID;
+    let caption = "📦 YANGI BUYURTMA!\n\n";
+    caption += "👤 Mijoz: " + orderData.fullName + "\n";
+    caption += "📞 Tel: " + orderData.phone + "\n";
+    caption += "💰 Jami: " + (orderData.total ? orderData.total.toLocaleString() : 0) + " so'm\n\n";
+    caption += "🛒 Buyurtmalar:\n";
+
+    if (orderData.cart && orderData.cart.length > 0) {
+        orderData.cart.forEach(item => {
+            caption += "• " + item.name + " - " + item.price.toLocaleString() + " so'm\n";
+        });
+    }
+
+    if (adminGroupId) {
+        await bot.telegram.sendMessage(adminGroupId, caption);
+    }
+}
+
+app.post('/api/order', async (req, res) => {
+    try {
+        const { orderData } = req.body;
+        await sendOrderToAdmin(orderData);
+        res.status(200).send({ success: true, message: "Buyurtma qabul qilindi" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send({ success: false, error: error.message });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Xatoliklarni ushlab qolish (server o'chib qolmasligi uchun)
+bot.catch((err, ctx) => {
+    console.error(Xatolik yuz berdi (${ctx.updateType}):, err);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log("Server " + PORT + "-portda ishga tushdi");
+});
