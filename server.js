@@ -22,6 +22,9 @@ const usersSet = new Set();
 // Admin buyurtma/mahsulot qo'shish holatlari
 const userState = {};
 
+// Do'kon uchun mahsulotlar ro'yxati
+const products = [];
+
 // Admin huquqini tekshirish
 function isAdmin(ctx) {
     const adminId = process.env.ADMIN_CHAT_ID;
@@ -95,16 +98,18 @@ bot.action('save_photos', (ctx) => {
     }
 
     const newProduct = {
+        id: Date.now(),
         name: state.name,
         description: state.description,
         price: state.price,
         photos: state.photos
     };
 
+    products.push(newProduct);
     delete userState[ctx.from.id];
 
     ctx.reply(
-        "✅ *Yangi mebel muvaffaqiyatli saqlandi!*\n\n" +
+        "✅ *Yangi mebel muvaffaqiyatli saqlandi va do'konga qo'shildi!*\n\n" +
         "📌 *Nomi:* " + newProduct.name + "\n" +
         "📝 *Tavsif:* " + newProduct.description + "\n" +
         "💵 *Narxi:* " + newProduct.price.toLocaleString() + " so'm\n" +
@@ -152,7 +157,7 @@ bot.on('photo', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
 
-    if (!isAdmin(ctx) || !state ||  state.step !== 'WAIT_PHOTOS') return;
+    if (!isAdmin(ctx)  !state  state.step !== 'WAIT_PHOTOS') return;
 
     if (state.photos.length >= 10) {
         return ctx.reply("⚠️ Maksimal 10 ta rasm yuklay olasiz! Endi '✅ Saqlash' tugmasini bosing.");
@@ -192,6 +197,11 @@ async function sendOrderToAdmin(orderData) {
         await bot.telegram.sendMessage(adminGroupId, caption);
     }
 }
+
+// Web App (do'kon) mahsulotlarni olishi uchun API
+app.get('/api/products', (req, res) => {
+    res.json(products);
+});
 
 app.post('/api/order', async (req, res) => {
     try {
