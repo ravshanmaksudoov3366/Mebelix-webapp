@@ -47,7 +47,7 @@ bot.command('admin', (ctx) => {
     }
 
     ctx.reply(
-        "⚙️ Mebelix Admin Paneli\n\nKerakli bo'limni tanlang:",
+        "⚙️ *Mebelix Admin Paneli*\n\nKerakli bo'limni tanlang:",
         {
             parse_mode: 'Markdown',
             ...Markup.inlineKeyboard([
@@ -64,7 +64,7 @@ bot.command('admin', (ctx) => {
 bot.action('stat_users', (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
-    ctx.reply(👥 **Mebelix botidan foydalangan mijozlar soni:** ${usersSet.size} ta);
+    ctx.reply("👥 *Mebelix botidan foydalangan mijozlar soni:* " + usersSet.size + " ta", { parse_mode: 'Markdown' });
 });
 
 // Yangi mebel qo'shishni boshlash
@@ -77,7 +77,7 @@ bot.action('add_product', (ctx) => {
         photos: []
     };
 
-    ctx.reply(1-Qadam:m:** Yangi mebel nomini kiriting (masalan: *Klassik burchakli divan*):", { parse_mode: 'Markdown' });
+    ctx.reply("📝 *1-Qadam:* Yangi mebel nomini kiriting (masalan: *Klassik burchakli divan*):", { parse_mode: 'Markdown' });
 });
 
 // Rasmlarni saqlash tugmasi
@@ -101,11 +101,11 @@ bot.action('save_photos', (ctx) => {
     delete userState[ctx.from.id]; // Holatni tozalash
 
     ctx.reply(
-        ✅ **Yangi mebel muvaffaqiyatli saqlandi!**\n\n +
-        📌 **Nomi:** ${newProduct.name}\n +
-        📝 **Tavsif:** ${newProduct.description}\n +
-        💵 **Narxi:** ${newProduct.price.toLocaleString()} so'm\n +
-        🖼 **Rasmlar soni:** ${newProduct.photos.length} ta,
+        "✅ *Yangi mebel muvaffaqiyatli saqlandi!*\n\n" +
+        "📌 *Nomi:* " + newProduct.name + "\n" +
+        "📝 *Tavsif:* " + newProduct.description + "\n" +
+        "💵 *Narxi:* " + newProduct.price.toLocaleString() + " so'm\n" +
+        "🖼 *Rasmlar soni:* " + newProduct.photos.length + " ta",
         { parse_mode: 'Markdown' }
     );
 });
@@ -120,13 +120,13 @@ bot.on('text', (ctx) => {
     if (state.step === 'WAIT_NAME') {
         state.name = ctx.message.text;
         state.step = 'WAIT_DESC';
-     2-Qadam:x.reply("📝 **2-Qadam:** Mebel haqida batafsil ma'lumot (tavsif) kiritib yuboring:");
+        return ctx.reply("📝 *2-Qadam:* Mebel haqida batafsil ma'lumot (tavsif) kiritib yuboring:");
     }
 
     if (state.step === 'WAIT_DESC') {
         state.description = ctx.message.text;
         state.step = 'WAIT_PRICE';
-     3-Qadam:x.reply("💰 **3-Qadam:** Mebel narxini kiriting (faqat raqamlarda, masalan: *4500000*):");
+        return ctx.reply("💰 *3-Qadam:* Mebel narxini kiriting (faqat raqamlarda, masalan: *4500000*):");
     }if (state.step === 'WAIT_PRICE') {
         const price = parseInt(ctx.message.text.replace(/\D/g, ''));
         if (isNaN(price) || price <= 0) {
@@ -135,8 +135,8 @@ bot.on('text', (ctx) => {
         state.price = price;
         state.step = 'WAIT_PHOTOS';
         return ctx.reply(
-            "🖼 4-Qadam: Mebel rasmlarini yuboring (1 tagacha 10 tagacha foto yuborishingiz mumkin).\n\n" +
-            "Rasmlarni yuborib bo'lgach, pastdagi '✅ Saqlash' tugmasini bosing:",
+            "🖼 *4-Qadam:* Mebel rasmlarini yuboring (1 tagacha 10 tagacha foto yuborishingiz mumkin).\n\n" +
+            "Rasmlarni yuborib bo'lgach, pastdagi *'✅ Saqlash'* tugmasini bosing:",
             Markup.inlineKeyboard([
                 [Markup.button.callback("✅ Saqlash", "save_photos")]
             ])
@@ -162,8 +162,8 @@ bot.on('photo', (ctx) => {
     state.photos.push(fileId);
 
     ctx.reply(
-        📸 Rasm qabul qilindi! (${state.photos.length}/10)\n +
-        Yana rasm yuborishingiz yoki saqlashingiz mumkin:,
+        "📸 Rasm qabul qilindi! (" + state.photos.length + "/10)\n" +
+        "Yana rasm yuborishingiz yoki saqlashingiz mumkin:",
         Markup.inlineKeyboard([
             [Markup.button.callback("✅ Saqlash", "save_photos")]
         ])
@@ -172,44 +172,4 @@ bot.on('photo', (ctx) => {
 
 // ------------------- EXISTING SERVER LOGIC -------------------
 
-// Adminga buyurtma yuborish funksiyasi
-async function sendOrderToAdmin(orderData) {
-    const adminGroupId = process.env.ADMIN_GROUP_ID;
-    let caption = "📦 YANGI BUYURTMA!\n\n";
-    caption += "👤 Mijoz: " + orderData.fullName + "\n";
-    caption += "📞 Tel: " + orderData.phone + "\n";
-    caption += "💰 Jami: " + (orderData.total ? orderData.total.toLocaleString() : 0) + " so'm\n\n";
-    caption += "🛒 Buyurtmalar:\n";
-
-    if (orderData.cart && orderData.cart.length > 0) {
-        orderData.cart.forEach(item => {
-            caption += "• " + item.name + " - " + item.price.toLocaleString() + " so'm\n";
-        });
-    }
-
-    if (adminGroupId) {
-        await bot.telegram.sendMessage(adminGroupId, caption);
-    }
-}
-
-// Buyurtmani qabul qilish uchun API
-app.post('/api/order', async (req, res) => {
-    try {
-        const { orderData } = req.body;
-        await sendOrderToAdmin(orderData);
-        res.status(200).send({ success: true, message: "Buyurtma qabul qilindi" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ success: false, error: error.message });
-    }
-});
-
-// Asosiy sahifa - index.html faylini ochish
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log("Server " + PORT + "-portda ishga tushdi");
-});
+//
