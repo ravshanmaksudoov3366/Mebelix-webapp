@@ -210,7 +210,7 @@ app.get('/', (req, res) => {
 
 // Xatoliklarni ushlab qolish (server o'chib qolmasligi uchun)
 bot.catch((err, ctx) => {
-    console.error(Xatolik yuz berdi (${ctx.updateType}):, err);
+    console.error("Xatolik yuz berdi:", err);
 });
 
 const PORT = process.env.PORT || 3000;
