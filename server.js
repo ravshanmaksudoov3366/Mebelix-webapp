@@ -19,7 +19,7 @@ bot.start((ctx) => {
 
 // Adminga buyurtma va mahsulot rasmini yuborish funksiyasi
 async function sendOrderToAdmin(orderData, productImageUrls, adminGroupId) {
-    let caption = Yangi Buyurtma!\n;
+    let caption = "Yangi Buyurtma!\n";
     caption += Mijoz: ${orderData.fullName}\n;
     caption += Tel: ${orderData.phone}\n;
     
