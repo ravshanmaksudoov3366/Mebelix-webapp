@@ -92,7 +92,6 @@
       margin-bottom: 8px;
     }
 
-    /* Soni va Qo'shish tugmalari */
     .controls {
       display: flex;
       align-items: center;
@@ -137,7 +136,6 @@
       font-size: 14px;
     }
 
-    /* Modal - Rasmni kattalashtirish */
     .modal {
       display: none;
       position: fixed;
@@ -167,7 +165,6 @@
       cursor: pointer;
     }
 
-    /* Savatcha paneli */
     .cart-bar {
       position: fixed;
       bottom: 12px;
@@ -195,13 +192,11 @@
 
   <div class="grid" id="products-grid"></div>
 
-  <!-- Savatcha tugmasi -->
   <div class="cart-bar" id="cart-bar" style="display: none;" onclick="sendOrder()">
     <span id="cart-count">0 ta mebel</span>
     <span id="cart-total">Buyurtma: 0 $</span>
   </div>
 
-  <!-- Rasmni Kattalashtirish Modali -->
   <div id="image-modal" class="modal" onclick="closeModal()">
     <span class="modal-close">&times;</span>
     <img id="modal-img" src="" alt="">
@@ -211,7 +206,6 @@
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // SHU YERGA O'Z MEBELLARINGIZNI KIRITASIZ:
     const products = [
       { id: 1, title: "Zamonaviy Divan", price: 350, image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600" },
       { id: 2, title: "Oshxona Stoli va 4 stul", price: 220, image: "https://images.unsplash.com/photo-1617806118233-18e1de247200?w=600" },
@@ -219,7 +213,6 @@
       { id: 4, title: "Shkaf (Kupe 3 eshikli)", price: 280, image: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600" }
     ];
 
-    // Savatcha holati: { product_id: count }
     let cart = {};
 
     function renderProducts() {
@@ -305,7 +298,7 @@
 
     function openModal(imgUrl) {
       document.getElementById('modal-img').src = imgUrl;
-      document.getElementById('modal-layout') || document.getElementById('image-modal').style.display = 'flex';
+      document.getElementById('image-modal').style.display = 'flex';
     }
 
     function closeModal() {
