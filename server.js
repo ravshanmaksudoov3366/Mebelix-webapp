@@ -149,7 +149,7 @@ bot.on('photo', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
 
-    if (!isAdmin(ctx)  !state  state.step !== 'WAIT_PHOTOS') return;
+    if (!isAdmin(ctx) || !state ||  state.step !== 'WAIT_PHOTOS') return;
 
     if (state.photos.length >= 10) {
         return ctx.reply("⚠️ Maksimal 10 ta rasm yuklay olasiz! Endi '✅ Saqlash' tugmasini bosing.");
