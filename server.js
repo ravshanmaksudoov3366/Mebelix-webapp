@@ -20,8 +20,8 @@ bot.start((ctx) => {
 // Adminga buyurtma yuborish
 async function sendOrderToAdmin(orderData, productImageUrls, adminGroupId) {
     let caption = "Yangi Buyurtma!\n";
-    caption += Mijoz: ${orderData.fullName}\n;
-    caption += Tel: ${orderData.phone}\n;
+    caption += "Mijoz: " + orderData.fullName + "\n";
+    caption += "Tel: " + orderData.phone + "\n";
     
     if (productImageUrls && productImageUrls.length > 0) {
         await bot.telegram.sendPhoto(adminGroupId, productImageUrls[0], { caption: caption });
@@ -39,5 +39,5 @@ app.post('/api/products', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(Server ${PORT}-portda ishga tushdi);
+    console.log("Server " + PORT + "-portda ishga tushdi");
 });
