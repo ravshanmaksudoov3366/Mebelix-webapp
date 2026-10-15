@@ -1,15 +1,10 @@
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
-const path = require('path');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
 app.use(express.json());
-
-// React fayllarini ulash (dist yoki build papkasi)
-app.use(express.static(path.join(__dirname, 'client/dist')));
-
 app.use(bot.webhookCallback('/telegram-webhook'));
 
 // Bot /start buyrug'i
@@ -37,9 +32,9 @@ async function sendOrderToAdmin(orderData, productImageUrls, adminGroupId) {
     await bot.telegram.sendLocation(adminGroupId, orderData.latitude, orderData.longitude);
 }
 
-// Barcha so'rovlarni React'ga yo'naltirish
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
+// Sinov uchun oddiy sahifa
+app.get('/', (req, res) => {
+    res.send("Mebelix Bot Server ishlamoqda!");
 });
 
 const PORT = process.env.PORT || 3000;
