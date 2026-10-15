@@ -1,0 +1,13 @@
+{
+  "name": "mebelix-bot",
+  "version": "1.0.0",
+  "description": "Mebelix Telegram WebApp Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.3",
+    "express": "^4.18.2"
+  }
+}
