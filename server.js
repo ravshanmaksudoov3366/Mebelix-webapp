@@ -17,7 +17,7 @@ bot.start((ctx) => {
     ctx.reply(
         "Assalomu alaykum! Mebelix mebel buyurtma berish botiga xush kelibsiz. Quyidagi tugmani bosing:",
         Markup.keyboard([
-            [Markup.button.webApp("🛋 Mebellarni ko'rish", "https://inglizcha-yoki-render-domen.onrender.com")]
+            [Markup.button.webApp("🛋 Mebellarni ko'rish", "https://mebelix-webapp.onrender.com")]
         ]).resize()
     );
 });
