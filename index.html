@@ -1,63 +1,104 @@
-const { Telegraf, Markup } = require('telegraf');
-const express = require('express');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mebelix - Do'kon</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 15px; background: #f4f6f9; }
+        h2 { text-align: center; color: #2c3e50; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+        .card { background: #fff; padding: 10px; border-radius: 10px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; }
+        .price { color: #27ae60; font-weight: bold; margin: 5px 0; }
+        .btn { background: #3498db; color: #fff; border: none; padding: 8px; border-radius: 5px; width: 100%; font-weight: bold; cursor: pointer; }
+        .cart { margin-top: 20px; background: #fff; padding: 15px; border-radius: 10px; }
+        input { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; }
+        .order-btn { background: #27ae60; margin-top: 10px; }
+    </style>
+</head>
+<body>
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-const app = express();
+    <h2>🛋 Mebelix Do'koni</h2>
 
-app.use(express.json());
+    <div class="grid">
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400" alt="Divan">
+            <h4>Zamonaviy Divan</h4>
+            <div class="price">3,500,000 so'm</div>
+            <button class="btn" onclick="addToCart('Zamonaviy Divan', 3500000)">Qo'shish</button>
+        </div>
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=400" alt="Krovat">
+            <h4>Yotoqxona Krovati</h4>
+            <div class="price">4,200,000 so'm</div>
+            <button class="btn" onclick="addToCart('Yotoqxona Krovati', 4200000)">Qo'shish</button>
+        </div>
+    </div>
 
-// Telegram Webhook
-app.use(bot.webhookCallback('/telegram-webhook'));
+    <div class="cart">
+        <h3>🛒 Savatcha</h3>
+        <div id="cart-items">Savat bo'sh</div>
+        <h4>Jami: <span id="total-price">0</span> so'm</h4>
 
-// Bot /start buyrug'i
-bot.start((ctx) => {
-    ctx.reply(
-        "Assalomu alaykum! Mebelix do'koniga xush kelibsiz! Quyidagi tugmani bosing:",
-        Markup.keyboard([
-            [Markup.button.webApp("🛋 Do'konni ochish", "https://mebelix-webapp.onrender.com")]
-        ]).resize()
-    );
-});
+        <input type="text" id="fullName" placeholder="Ismingiz">
+        <input type="tel" id="phone" placeholder="Telefon raqamingiz">
+        <button class="btn order-btn" onclick="submitOrder()">Buyurtma berish</button>
+    </div>
 
-// Adminga buyurtma yuborish funksiyasi
-async function sendOrderToAdmin(orderData) {
-    const adminGroupId = process.env.ADMIN_GROUP_ID;
-    let caption = "📦 YANGI BUYURTMA!\n\n";
-    caption += "👤 Mijoz: " + orderData.fullName + "\n";
-    caption += "📞 Tel: " + orderData.phone + "\n";
-    caption += "💰 Jami: " + (orderData.total ? orderData.total.toLocaleString() : 0) + " so'm\n\n";
-    caption += "🛒 Buyurtmalar:\n";
-    
-    if (orderData.cart && orderData.cart.length > 0) {
-        orderData.cart.forEach(item => {
-            caption += "• " + item.name + " - " + item.price.toLocaleString() + " so'm\n";
-        });
-    }
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-    if (adminGroupId) {
-        await bot.telegram.sendMessage(adminGroupId, caption);
-    }
-}
+        let cart = [];
+        let total = 0;
 
-// Buyurtmani qabul qilish uchun API
-app.post('/api/order', async (req, res) => {
-    try {
-        const { orderData } = req.body;
-        await sendOrderToAdmin(orderData);
-        res.status(200).send({ success: true, message: "Buyurtma qabul qilindi" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ success: false, error: error.message });
-    }
-});
+        function addToCart(name, price) {
+            cart.push({ name, price });
+            total += price;
+            updateCart();
+        }
 
-// Asosiy sahifa - index.html faylini ochish
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
+        function updateCart() {
+            const container = document.getElementById('cart-items');
+            if (cart.length === 0) {
+                container.innerHTML = "Savat bo'sh";
+                document.getElementById('total-price').innerText = 0;
+                return;
+            }
+            container.innerHTML = cart.map(i => <div>• ${i.name} - ${i.price.toLocaleString()} so'm</div>).join('');
+            document.getElementById('total-price').innerText = total.toLocaleString();
+        }
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log("Server " + PORT + "-portda ishga tushdi");
-});
+        async function submitOrder() {
+            const fullName = document.getElementById('fullName').value;
+            const phone = document.getElementById('phone').value;
+
+            if (!fullName || !phone) {
+                alert("Ismingiz va telefoningizni kiriting!");
+                return;
+            }
+            if (cart.length === 0) {
+                alert("Savatga mebel qo'shing!");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderData: { fullName, phone, cart, total } })
+                });if (response.ok) {
+                    alert("Buyurtmangiz qabul qilindi!");
+                    tg.close();
+                } else {
+                    alert("Xatolik yuz berdi!");
+                }
+            } catch (err) {
+                alert("Xato: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
