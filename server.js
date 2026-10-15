@@ -7,47 +7,42 @@ const app = express();
 
 app.use(express.json());
 
-// 1. WebApp frontend statik fayllarini ulash
-app.use(express.static(path.join(__dirname, 'dist')));
-app.use(express.static(path.join(__dirname, 'build')));
-app.use(express.static(__dirname));
-
-// 2. Telegram Webhook ulanishi
+// Telegram Webhook
 app.use(bot.webhookCallback('/telegram-webhook'));
 
-// 3. /start buyrug'i
+// Bot /start buyrug'i
 bot.start((ctx) => {
     ctx.reply(
-        "Assalomu alaykum! Mebelix do'koniga xush kelibsiz! Quyidagi tugmani bosib tayyor mebellar katalogini ko'rishingiz mumkin:",
+        "Assalomu alaykum! Mebelix do'koniga xush kelibsiz! Quyidagi tugmani bosing:",
         Markup.keyboard([
-            [Markup.button.webApp("🛋 Mebellarni ko'rish", "https://mebelix-webapp.onrender.com")]
+            [Markup.button.webApp("🛋 Do'konni ochish", "https://mebelix-webapp.onrender.com")]
         ]).resize()
     );
 });
 
-// 4. Adminga buyurtma yuborish mantiqi
-async function sendOrderToAdmin(orderData, productImageUrls, adminGroupId) {
-    let caption = "YANGI BUYURTMA!\n";
-    caption += "Mijoz: " + orderData.fullName + "\n";
-    caption += "Tel: " + orderData.phone + "\n";
+// Adminga buyurtma yuborish
+async function sendOrderToAdmin(orderData) {
+    const adminGroupId = process.env.ADMIN_GROUP_ID;
+    let caption = "📦 YANGI BUYURTMA!\n\n";
+    caption += "👤 Mijoz: " + orderData.fullName + "\n";
+    caption += "📞 Tel: " + orderData.phone + "\n";
+    caption += "💰 Jami: " + (orderData.total ? orderData.total.toLocaleString() : 0) + " so'm\n\n";
+    caption += "🛒 Buyurtmalar:\n";
     
-    if (productImageUrls && productImageUrls.length > 0) {
-        await bot.telegram.sendPhoto(adminGroupId, productImageUrls[0], { caption: caption });
-    } else {
-        await bot.telegram.sendMessage(adminGroupId, caption);
+    if (orderData.cart && orderData.cart.length > 0) {
+        orderData.cart.forEach(item => {
+            caption += • ${item.name} - ${item.price.toLocaleString()} so'm\n;
+        });
     }
-    
-    if (orderData.latitude && orderData.longitude) {
-        await bot.telegram.sendLocation(adminGroupId, orderData.latitude, orderData.longitude);
-    }
+
+    await bot.telegram.sendMessage(adminGroupId, caption);
 }
 
-// 5. API marshrutlari
+// Buyurtma API
 app.post('/api/order', async (req, res) => {
     try {
-        const { orderData, productImageUrls } = req.body;
-        const adminGroupId = process.env.ADMIN_GROUP_ID;
-        await sendOrderToAdmin(orderData, productImageUrls, adminGroupId);
+        const { orderData } = req.body;
+        await sendOrderToAdmin(orderData);
         res.status(200).send({ success: true, message: "Buyurtma qabul qilindi" });
     } catch (error) {
         console.error(error);
@@ -55,13 +50,9 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// 6. Barcha sahifalarni React index.html ga yo'naltirish
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'), (err) => {
-        if (err) {
-            res.send("Mebelix Bot Server muvaffaqiyatli ishlamoqda!");
-        }
-    });
+// Asosiy sahifa - index.html ni chiqarish
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
