@@ -1,0 +1,48 @@
+document.getElementById('total-price').innerText = 0;
+                return;
+            }
+            container.innerHTML = cart.map(item => <div>• ${item.name} - ${item.price.toLocaleString()} so'm</div>).join('');
+            document.getElementById('total-price').innerText = total.toLocaleString();
+        }
+
+        async function submitOrder() {
+            const fullName = document.getElementById('fullName').value;
+            const phone = document.getElementById('phone').value;
+
+            if (!fullName || !phone) {
+                alert("Iltimos, ismingiz va telefon raqamingizni kiriting!");
+                return;
+            }
+            if (cart.length === 0) {
+                alert("Savatga kamida bitta mebel qo'shing!");
+                return;
+            }
+
+            const orderData = {
+                fullName,
+                phone,
+                cart,
+                total
+            };
+
+            // Serverga buyurtmani yuborish
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderData })
+                });
+
+                if (response.ok) {
+                    alert("Buyurtmangiz qabul qilindi! Tez orada aloqaga chiqamiz.");
+                    tg.close(); // Telegram WebApp oynasini yopish
+                } else {
+                    alert("Xatolik yuz berdi. Qaytadan urinib ko'ring.");
+                }
+            } catch (err) {
+                alert("Tarmoq xatosi: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>
