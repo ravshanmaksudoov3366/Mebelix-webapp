@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "cd client && npm install && npm run build"
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
     "express": "^4.19.2",
