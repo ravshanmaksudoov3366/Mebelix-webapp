@@ -20,7 +20,7 @@ bot.start((ctx) => {
     );
 });
 
-// Adminga buyurtma yuborish
+// Adminga buyurtma yuborish funksiyasi
 async function sendOrderToAdmin(orderData) {
     const adminGroupId = process.env.ADMIN_GROUP_ID;
     let caption = "📦 YANGI BUYURTMA!\n\n";
@@ -31,14 +31,16 @@ async function sendOrderToAdmin(orderData) {
     
     if (orderData.cart && orderData.cart.length > 0) {
         orderData.cart.forEach(item => {
-            caption += • ${item.name} - ${item.price.toLocaleString()} so'm\n;
+            caption += "• " + item.name + " - " + item.price.toLocaleString() + " so'm\n";
         });
     }
 
-    await bot.telegram.sendMessage(adminGroupId, caption);
+    if (adminGroupId) {
+        await bot.telegram.sendMessage(adminGroupId, caption);
+    }
 }
 
-// Buyurtma API
+// Buyurtmani qabul qilish uchun API
 app.post('/api/order', async (req, res) => {
     try {
         const { orderData } = req.body;
@@ -50,7 +52,7 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// Asosiy sahifa - index.html ni chiqarish
+// Asosiy sahifa - index.html faylini ochish
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
