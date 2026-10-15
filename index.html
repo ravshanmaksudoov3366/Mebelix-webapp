@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mebelix - Tayyor Mebellar Do'koni</title>
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
@@ -57,11 +56,27 @@
       justify-content: space-between;
     }
 
+    .card-img-container {
+      position: relative;
+      cursor: pointer;
+    }
+
     .card img {
       width: 100%;
       height: 120px;
       object-fit: cover;
       border-radius: 8px;
+    }
+
+    .zoom-hint {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     .card-title {
@@ -77,6 +92,13 @@
       margin-bottom: 8px;
     }
 
+    /* Soni va Qo'shish tugmalari */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .add-btn {
       background: var(--btn);
       color: var(--btn-text);
@@ -88,6 +110,64 @@
       width: 100%;
     }
 
+    .quantity-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: #eef2f5;
+      border-radius: 8px;
+      padding: 2px;
+    }
+
+    .qty-btn {
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .qty-count {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    /* Modal - Rasmni kattalashtirish */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.85);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal img {
+      max-width: 90%;
+      max-height: 80%;
+      border-radius: 12px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 30px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Savatcha paneli */
     .cart-bar {
       position: fixed;
       bottom: 12px;
@@ -113,73 +193,148 @@
     <p>Tayyor mebellar katalogi</p>
   </div>
 
-  <div class="grid" id="products-grid">
-    <!-- Mebellar shu yerda ko'rinadi -->
-  </div>
+  <div class="grid" id="products-grid"></div>
 
+  <!-- Savatcha tugmasi -->
   <div class="cart-bar" id="cart-bar" style="display: none;" onclick="sendOrder()">
     <span id="cart-count">0 ta mebel</span>
-    <span id="cart-total">Buyurtma berish: 0 $</span>
+    <span id="cart-total">Buyurtma: 0 $</span>
+  </div>
+
+  <!-- Rasmni Kattalashtirish Modali -->
+  <div id="image-modal" class="modal" onclick="closeModal()">
+    <span class="modal-close">&times;</span>
+    <img id="modal-img" src="" alt="">
   </div>
 
   <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
 
-    // Namuna uchun tayyor mebellar ro'yxati
+    // SHU YERGA O'Z MEBELLARINGIZNI KIRITASIZ:
     const products = [
-      { id: 1, title: "Zamonaviy Divan", price: 350, image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400" },
-      { id: 2, title: "Oshxona Stoli va 4 stul", price: 220, image: "https://images.unsplash.com/photo-1617806118233-18e1de247200?w=400" },
-      { id: 3, title: "Yotoqxona Krovati 2x2", price: 400, image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=400" },
-      { id: 4, title: "Shkaf (Kupe 3 eshikli)", price: 280, image: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=400" }
+      { id: 1, title: "Zamonaviy Divan", price: 350, image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600" },
+      { id: 2, title: "Oshxona Stoli va 4 stul", price: 220, image: "https://images.unsplash.com/photo-1617806118233-18e1de247200?w=600" },
+      { id: 3, title: "Yotoqxona Krovati 2x2", price: 400, image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=600" },
+      { id: 4, title: "Shkaf (Kupe 3 eshikli)", price: 280, image: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=600" }
     ];
 
-    let cart = [];
+    // Savatcha holati: { product_id: count }
+    let cart = {};
 
     function renderProducts() {
       const grid = document.getElementById('products-grid');
       grid.innerHTML = '';
 
       products.forEach(p => {
+        const count = cart[p.id] || 0;
         const card = document.createElement('div');
         card.className = 'card';
+
+        let controlsHTML = '';
+        if (count === 0) {
+          controlsHTML = `<button class="add-btn" onclick="changeQty(${p.id}, 1)">+ Qo'shish</button>`;
+        } else {
+          controlsHTML = `
+            <div class="quantity-controls">
+              <button class="qty-btn" onclick="changeQty(${p.id}, -1)">-</button>
+              <span class="qty-count">${count} ta</span>
+              <button class="qty-btn" onclick="changeQty(${p.id}, 1)">+</button>
+            </div>
+          `;
+        }
+
         card.innerHTML = `
-          <img src="${p.image}" alt="${p.title}">
-          <div class="card-title">${p.title}</div>
-          <div class="card-price">${p.price} $</div>
-          <button class="add-btn" onclick="addToCart(${p.id})">+ Qo'shish</button>
+          <div>
+            <div class="card-img-container" onclick="openModal('${p.image}')">
+              <img src="${p.image}" alt="${p.title}">
+              <span class="zoom-hint">🔍 Kattalashtirish</span>
+            </div>
+            <div class="card-title">${p.title}</div>
+            <div class="card-price">${p.price} $</div>
+          </div>
+          <div class="controls">
+            ${controlsHTML}
+          </div>
         `;
         grid.appendChild(card);
       });
+
+      updateCartBar();
     }
 
-    function addToCart(id) {
-      const item = products.find(p => p.id === id);
-      cart.push(item);
-      updateCartBar();
-      if (tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('medium');
+    function changeQty(id, delta) {
+      const current = cart[id] || 0;
+      const updated = current + delta;
+
+      if (updated <= 0) {
+        delete cart[id];
+      } else {
+        cart[id] = updated;
       }
+
+      if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
+      }
+
+      renderProducts();
     }
 
     function updateCartBar() {
       const bar = document.getElementById('cart-bar');
-      if (cart.length > 0) {
+      let totalCount = 0;
+      let totalPrice = 0;
+
+      for (const id in cart) {
+        const count = cart[id];
+        const p = products.find(item => item.id == id);
+        if (p) {
+          totalCount += count;
+          totalPrice += p.price * count;
+        }
+      }
+
+      if (totalCount > 0) {
         bar.style.display = 'flex';
-        const total = cart.reduce((sum, item) => sum + item.price, 0);
-        document.getElementById('cart-count').innerText = `${cart.length} ta mebel`;
-        document.getElementById('cart-total').innerText = `Buyurtma: ${total} $`;
+        document.getElementById('cart-count').innerText = `${totalCount} ta mebel`;
+        document.getElementById('cart-total').innerText = `Buyurtma: ${totalPrice} $`;
       } else {
         bar.style.display = 'none';
       }
     }
 
+    function openModal(imgUrl) {
+      document.getElementById('modal-img').src = imgUrl;
+      document.getElementById('modal-layout') || document.getElementById('image-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('image-modal').style.display = 'none';
+    }
+
     function sendOrder() {
-      if (cart.length === 0) return;
+      const orderItems = [];
+      let totalPrice = 0;
+
+      for (const id in cart) {
+        const count = cart[id];
+        const p = products.find(item => item.id == id);
+        if (p) {
+          orderItems.push({
+            title: p.title,
+            price: p.price,
+            count: count,
+            subtotal: p.price * count
+          });
+          totalPrice += p.price * count;
+        }
+      }
+
+      if (orderItems.length === 0) return;
 
       const orderData = {
-        items: cart.map(i => i.title),
-        totalPrice: cart.reduce((sum, item) => sum + item.price, 0)
+        items: orderItems,
+        totalPrice: totalPrice
       };
 
       tg.sendData(JSON.stringify(orderData));
