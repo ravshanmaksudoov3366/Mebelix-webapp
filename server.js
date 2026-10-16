@@ -91,6 +91,7 @@ bot.action('save_photos', async (ctx) => {
     }
 
     try {
+        // Bazaga photos (massiv) va image_url (1-rasm) kabi ustunlarning har ikkisini ham qo'shib saqlaymiz
         const { data, error } = await supabase
             .from('products')
             .insert([
@@ -98,7 +99,8 @@ bot.action('save_photos', async (ctx) => {
                     title: state.name,
                     description: state.description,
                     price: state.price,
-                    photos: state.photos
+                    photos: state.photos,
+                    image_url: state.photos[0]
                 }
             ])
             .select();
@@ -112,8 +114,7 @@ bot.action('save_photos', async (ctx) => {
             "✅ *Yangi mebel muvaffaqiyatli saqlandi va do'konga qo'shildi!*\n\n" +
             "📌 *Nomi:* " + savedProduct.title + "\n" +
             "📝 *Tavsif:* " + savedProduct.description + "\n" +
-            "💵 *Narxi:* " + Number(savedProduct.price).toLocaleString() + " so'm\n" +
-            "🖼 *Rasmlar soni:* " + (savedProduct.photos ? savedProduct.photos.length : 0) + " ta",
+            "💵 *Narxi:* " + Number(savedProduct.price).toLocaleString() + " so'm",
             { parse_mode: 'Markdown' }
         );
     } catch (err) {
@@ -157,7 +158,6 @@ bot.on('text', (ctx) => {
     }
 });
 
-// RASMLARNI HAVOLA (URL) SIFATIDA OLISH (TO'G'RILANDI)
 bot.on('photo', async (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
@@ -172,7 +172,6 @@ bot.on('photo', async (ctx) => {
         const photoArray = ctx.message.photo;
         const fileId = photoArray[photoArray.length - 1].file_id;
 
-        // Telegram'dan rasmning to'g'ridan-to'g'ri URL havolasini olamiz
         const fileUrl = await ctx.telegram.getFileLink(fileId);
 
         state.photos.push(fileUrl.href);
