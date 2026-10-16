@@ -17,7 +17,7 @@ const ADMIN_NIK = '@MRS3366';
 
 // Supabase ulanishi (Siz bergan URL va API key)
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_KuReIRnnzOoTVD-vfIzeUA_9XE2A'; // Baza uchun anon/public kalit
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cnlhYm1icm93Z3V0aHJ2YXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTY3NjUsImV4cCI6MjEwNjA5Mjc2NX0.s99c6MuuJzYIQ5LMxvlUBirq8_YX3x7HMsmU8ymGyP8'; // Baza uchun anon/public kalit
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
