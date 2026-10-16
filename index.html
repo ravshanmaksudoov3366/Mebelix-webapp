@@ -1,10 +1,8 @@
             grid.innerHTML = products.map(function(item) {
-                // Rasm mavjud bo'lsa standart rasm yoki birinchi rasmini qo'yish
                 let imgSrc = (item.photos && item.photos.length > 0) 
-                    ? item.photos[0]  // Agar haqiqiy rasm manzili bo'lsa
+                    ? item.photos[0] 
                     : 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400';
 
-                // E'tibor bering: return so'zidan keyin ochiluvchi qavs to'g'ridan-to'g'ri bir qatorda turishi kerak
                 return `
                     <div class="card">
                         <img src="${imgSrc}" alt="${item.title || item.name}">
