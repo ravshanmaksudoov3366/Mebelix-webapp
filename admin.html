@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mebelix WebApp</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 10px; background-color: #f4f4f9; }
+        .banner { background: #d9534f; color: white; text-align: center; padding: 10px; font-weight: bold; position: sticky; top: 0; z-index: 100; border-radius: 8px; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .categories { display: flex; overflow-x: auto; gap: 8px; margin: 12px 0; padding-bottom: 5px; }
+        .cat-btn { background: #007bff; color: white; border: none; padding: 8px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; font-size: 13px; }
+        .cat-btn.active { background: #0056b3; font-weight: bold; }
+        .products-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .product-card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .product-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+        .product-title { font-size: 14px; font-weight: bold; margin: 5px 0; }
+        .product-price { color: #28a745; font-weight: bold; font-size: 13px; }
+        .qty-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+        .btn-qty { background: #eee; border: none; padding: 5px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .cart-bar { position: fixed; bottom: 10px; left: 10px; right: 10px; background: #28a745; color: white; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; display: none; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 200; padding: 15px; overflow-y: auto; color: white; }
+        .modal-content { background: #222; padding: 15px; border-radius: 10px; }
+        input, textarea, button { width: 100%; padding: 10px; margin: 6px 0; border-radius: 6px; border: none; box-sizing: border-box; }
+        button { background: #007bff; color: white; font-weight: bold; cursor: pointer; }
+        
+        /* Zoom Modal */
+        .zoom-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 300; justify-content: center; align-items: center; }
+        .zoom-modal img { max-width: 90%; max-height: 80%; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="banner" id="banner">
+        ⚠️ Diqqat: Xarid qilingan mahsulotning oldindan 10% summasi avans sifatida majburiy to'lov!
+    </div>
+
+    <div class="categories" id="categories"></div>
+
+    <div class="products-grid" id="products"></div>
+
+    <div class="cart-bar" id="cart-bar" onclick="openCheckout()">
+        🛒 Savatcha (<span id="cart-count">0</span>) - <span id="cart-total">0</span> so'm
+    </div>
+
+    <!-- Buyurtma rasmiylashtirish oynasi -->
+    <div class="modal" id="checkout-modal">
+        <div class="modal-content">
+            <h3>Buyurtmani rasmiylashtirish</h3>
+            <input type="text" id="full_name" placeholder="Ismingiz va familiyangiz" required>
+            <input type="tel" id="phone_number" placeholder="Telefon raqamingiz" required>
+            <input type="text" id="address" placeholder="Yashash manzilingiz" required>
+            <textarea id="notes" placeholder="Qo'shimcha izohlar"></textarea>
+            
+            <button type="button" onclick="getLocation()" style="background: #17a2b8;">📍 Geolokatsiyani yuborish</button>
+            <p id="geo-status" style="font-size: 12px; color: #28a745;"></p>
+
+            <div style="background: #333; padding: 10px; margin: 10px 0; border-radius: 6px;">
+                <p style="margin: 3px 0;">Umumiy summa: <b id="total-price">0</b> so'm</p>
+                <p style="color: #ffcc00; margin: 3px 0;">10% Avans: <b id="advance-price">0</b> so'm</p>
+                <p style="margin: 3px 0; font-size: 13px;">Karta: <b>8600570486736134</b> (Maksudov R)</p>
+            </div>
+
+            <label style="font-size: 13px;">To'lov cheki rasmi (skrinshot):</label>
+            <input type="file" id="receipt_file" accept="image/*" required>
+
+            <button type="button" onclick="submitOrder()" style="background: #28a745; margin-top: 10px;">Buyurtmani tasdiqlash</button>
+            <button type="button" onclick="closeCheckout()" style="background: #dc3545;">Yopish</button>
+        </div>
+    </div>
+
+    <!-- Rasmni kattalashtirish oynasi -->
+    <div class="zoom-modal" id="zoom-modal" onclick="closeZoom()">
+        <img id="zoom-img" src="">
+    </div>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const categoryList = [
+        "Barchasi", "shkaflar", "krovatlar", "tumbalar", "oshxona mebellari", "ofis mebellari",
+        "bolalar mebellari", "yotoqxona mebellari", "LDSP va LMDF", "oyoq kiyim javoni",
+        "televizor podstavkalari", "devor uchun LMDF panellar", "matraslar", "stol va stullar"
+    ];
+
+    let productsData = [];
+    let cart = {};
+    let selectedCat = "Barchasi";
+    let userLat = 41.2995, userLng = 69.2401;
+
+    async function init() {
+        renderCategories();
+        await loadProducts();
+    }
+
+    function renderCategories() {
+        const catContainer = document.getElementById('categories');
+        catContainer.innerHTML = categoryList.map(cat => 
+            `<button class="cat-btn ${cat === selectedCat ? 'active' : ''}" onclick="filterCategory('${cat}')">${cat}</button>`
+        ).join('');
+    }
+
+    function filterCategory(cat) {
+        selectedCat = cat;
+        renderCategories();
+        renderProducts();
+    }
+
+    async function loadProducts() {
+        try {
+            const res = await fetch('/api/products');
+            productsData = await res.json();
+            renderProducts();
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    function renderProducts() {
+        const container = document.getElementById('products');
+        const filtered = selectedCat === "Barchasi" 
+            ? productsData 
+            : productsData.filter(p => p.categories && p.categories.includes(selectedCat));
+
+        container.innerHTML = filtered.map(p => {
+            const qty = cart[p.id] ? cart[p.id].qty : 0;
+            const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/150';
+            return `
+                <div class="product-card">
+                    <img src="${imgUrl}" onclick="zoomImage('${imgUrl}')">
+                    <div class="product-title">${p.name_uz}</div>
+                    <div style="font-size: 11px; color: #666;">O'lcham: ${p.dimensions || '-'}</div>
+                    <div style="font-size: 11px; color: #666;">Muddat: ${p.delivery_days} kun</div>
+                    <div class="product-price">${Number(p.price).toLocaleString()} so'm</div>
+                    <div class="qty-controls">
+                        <button class="btn-qty" onclick="changeQty(${p.id}, -1)">-</button>
+                        <span>${qty}</span>
+                        <button class="btn-qty" onclick="changeQty(${p.id}, 1)">+</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        updateCartBar();
+    }
+
+    function changeQty(id, delta) {
+        const product = productsData.find(p => p.id === id);
+        if (!product) return;
+
+        if (!cart[id]) {
+            if (delta > 0) cart[id] = { product, qty: 1 };
+        } else {
+            cart[id].qty += delta;
+            if (cart[id].qty <= 0) delete cart[id];
+        }
+        renderProducts();
+    }
+
+    function updateCartBar() {
+        let totalCount = 0;
+        let totalPrice = 0;
+
+        Object.values(cart).forEach(item => {
+            totalCount += item.qty;
+            totalPrice += item.product.price * item.qty;
+        });
+
+        const bar = document.getElementById('cart-bar');
+        if (totalCount > 0) {
+            bar.style.display = 'block';
+            document.getElementById('cart-count').innerText = totalCount;
+            document.getElementById('cart-total').innerText = totalPrice.toLocaleString();
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    function openCheckout() {
+        let totalPrice = 0;
+        Object.values(cart).forEach(item => totalPrice += item.product.price * item.qty);
+        
+        document.getElementById('total-price').innerText = totalPrice.toLocaleString();
+        document.getElementById('advance-price').innerText = (totalPrice * 0.1).toLocaleString();
+        document.getElementById('checkout-modal').style.display = 'block';
+    }
+
+    function closeCheckout() {
+        document.getElementById('checkout-modal').style.display = 'none';
+    }
+
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                userLat = pos.coords.latitude;
+                userLng = pos.coords.longitude;
+                document.getElementById('geo-status').innerText = "📍 Geolokatsiya belgilandi!";
+            });
+        }
+    }
+
+    function zoomImage(url) {
+        document.getElementById('zoom-img').src = url;
+        document.getElementById('zoom-modal').style.display = 'flex';
+    }
+
+    function closeZoom() {
+        document.getElementById('zoom-modal').style.display = 'none';
+    }
+
+    async function submitOrder() {
+        const fullName = document.getElementById('full_name').value;
+        const phone = document.getElementById('phone_number').value;
+        const address = document.getElementById('address').value;
+        const notes = document.getElementById('notes').value;
+        const fileInput = document.getElementById('receipt_file');
+
+        if (!fullName || !phone || !address || fileInput.files.length === 0) {
+            alert("Iltimos, barcha maydonlarni to'ldiring va chek rasmini yuklang!");
+            return;
+        }
+
+        let totalPrice = 0;
+        const cartItems = Object.values(cart).map(item => {
+            totalPrice += item.product.price * item.qty;
+            return {
+                name: item.product.name_uz,
+                price: item.product.price,
+                qty: item.qty
+            };
+        });
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const base64Image = e.target.result;
+
+            const orderPayload = {
+                user_id: tg.initDataUnsafe?.user?.id || 1027326101,
+                full_name: fullName,
+                phone_number: phone,
+                address: address,
+                latitude: userLat,
+                longitude: userLng,
+                notes: notes,
+                cart_items: cartItems,
+                total_price: totalPrice,
+                advance_price: totalPrice * 0.1,
+                receipt_image_base64: base64Image
+            };
+
+            const res = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderPayload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("Biroz kutib turing, to'lovingiz tekshirilyapti!");
+                cart = {};
+                closeCheckout();
+                renderProducts();
+                tg.close();
+            }
+        };
+
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    init();
+</script>
+</body>
+</html>
