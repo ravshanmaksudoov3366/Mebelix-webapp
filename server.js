@@ -1,4 +1,4 @@
-Const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
