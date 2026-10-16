@@ -10,6 +10,8 @@
 
     async function loadProducts() {
         const grid = document.getElementById('products-grid');
+        if (!grid) return;
+        
         try {
             const res = await fetch('/api/products');
             const products = await res.json();
@@ -26,7 +28,7 @@
                     ? item.photos[0] 
                     : 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400';
                 let title = item.title || item.name || 'Mahsulot';
-                let price = item.price ? item.price.toLocaleString() : '0';
+                let price = item.price ? Number(item.price).toLocaleString() : '0';
                 let desc = item.description || '';
 
                 html += '<div class="card">' +
@@ -43,8 +45,6 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', loadProducts);
-
     window.addToCart = function(name, price) {
         cart.push({ name: name, price: price });
         total += price;
@@ -53,9 +53,12 @@
 
     function updateCart() {
         const container = document.getElementById('cart-items');
+        if (!container) return;
+        
         if (cart.length === 0) {
             container.innerHTML = "Savat bo'sh";
-            document.getElementById('total-price').innerText = '0';
+            const totalPriceEl = document.getElementById('total-price');
+            if (totalPriceEl) totalPriceEl.innerText = '0';
             return;
         }
         let cartHtml = '';
@@ -63,6 +66,10 @@
             cartHtml += '<div>• ' + cart[i].name + ' - ' + cart[i].price.toLocaleString() + ' so\'m</div>';
         }
         container.innerHTML = cartHtml;
-        document.getElementById('total-price').innerText = total.toLocaleString();
+        const totalPriceEl = document.getElementById('total-price');
+        if (totalPriceEl) totalPriceEl.innerText = total.toLocaleString();
     }
+
+    // Sahifa ochilishi bilan darhol mahsulotlarni yuklashni boshlash
+    loadProducts();
 </script>
