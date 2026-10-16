@@ -54,6 +54,23 @@ bot.onText(/\/start/, async (msg) => {
     bot.sendMessage(chatId, i18n.uz.select_lang, langKeyboard);
 });
 
+// Admin uchun /admin buyrug'i
+bot.onText(/\/admin/, (msg) => {
+    const chatId = msg.chat.id;
+    if (msg.from.id === ADMIN_ID) {
+        const adminKeyboard = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🛠 Admin Panelni Ochish", web_app: { url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost:3000'}/admin.html` } }]
+                ]
+            }
+        };
+        bot.sendMessage(chatId, "Assalomu alaykum, Admin! Quyidagi tugma orqali panelga kiring:", adminKeyboard);
+    } else {
+        bot.sendMessage(chatId, "Kechirasiz, bu buyruq faqat admin uchun.");
+    }
+});
+
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
