@@ -1,6 +1,7 @@
 const { Telegraf, Markup } = require('telegraf');
 const express = require('express');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 // Token mavjudligini tekshirish
 if (!process.env.BOT_TOKEN) {
@@ -15,15 +16,17 @@ app.use(express.json());
 // Telegram Webhook
 app.use(bot.webhookCallback('/telegram-webhook'));
 
+// ------------------- SUPABASE ULANISHI -------------------
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 // ------------------- XOTIRA VA HOLATLAR -------------------
 // Botga kirgan foydalanuvchilar ro'yxati
 const usersSet = new Set();
 
 // Admin buyurtma/mahsulot qo'shish holatlari
 const userState = {};
-
-// Do'kon uchun mahsulotlar ro'yxati
-const products = [];
 
 // Admin huquqini tekshirish
 function isAdmin(ctx) {
@@ -87,8 +90,8 @@ bot.action('add_product', (ctx) => {
     ctx.reply("📝 *1-Qadam:* Yangi mebel nomini kiriting (masalan: *Klassik burchakli divan*):", { parse_mode: 'Markdown' });
 });
 
-// Rasmlarni saqlash
-bot.action('save_photos', (ctx) => {
+// Rasmlarni saqlash (Supabase bazasiga yozish)
+bot.action('save_photos', async (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
 
@@ -97,25 +100,36 @@ bot.action('save_photos', (ctx) => {
         return ctx.reply("⚠️ Kamida 1 ta rasm yuborishingiz kerak!");
     }
 
-    const newProduct = {
-        id: Date.now(),
-        name: state.name,
-        description: state.description,
-        price: state.price,
-        photos: state.photos
-    };
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .insert([
+                {
+                    title: state.name,
+                    description: state.description,
+                    price: state.price,
+                    photos: state.photos
+                }
+            ])
+            .select();
 
-    products.push(newProduct);
-    delete userState[ctx.from.id];
+        if (error) throw error;
 
-    ctx.reply(
-        "✅ *Yangi mebel muvaffaqiyatli saqlandi va do'konga qo'shildi!*\n\n" +
-        "📌 *Nomi:* " + newProduct.name + "\n" +
-        "📝 *Tavsif:* " + newProduct.description + "\n" +
-        "💵 *Narxi:* " + newProduct.price.toLocaleString() + " so'm\n" +
-        "🖼 *Rasmlar soni:* " + newProduct.photos.length + " ta",
-        { parse_mode: 'Markdown' }
-    );
+        const savedProduct = data[0];
+        delete userState[ctx.from.id];
+
+        ctx.reply(
+            "✅ *Yangi mebel muvaffaqiyatli saqlandi va do'konga qo'shildi!*\n\n" +
+            "📌 *Nomi:* " + savedProduct.title + "\n" +
+            "📝 *Tavsif:* " + savedProduct.description + "\n" +
+            "💵 *Narxi:* " + Number(savedProduct.price).toLocaleString() + " so'm\n" +
+            "🖼 *Rasmlar soni:* " + (savedProduct.photos ? savedProduct.photos.length : 0) + " ta",
+            { parse_mode: 'Markdown' }
+        );
+    } catch (err) {
+        console.error("Supabase'ga saqlashda xato:", err);
+        ctx.reply("❌ Bazaga saqlashda xatolik yuz berdi!");
+    }
 });
 
 // Matnli xabarlarni qabul qilish (Nomi -> Tavsifi -> Narxi)
@@ -135,7 +149,7 @@ bot.on('text', (ctx) => {
         state.description = ctx.message.text;
         state.step = 'WAIT_PRICE';
         return ctx.reply("💰 *3-Qadam:* Mebel narxini kiriting (faqat raqamlarda, masalan: *4500000*):");
-    }if (state.step === 'WAIT_PRICE') {
+    } if (state.step === 'WAIT_PRICE') {
         const price = parseInt(ctx.message.text.replace(/\D/g, ''));
         if (isNaN(price) || price <= 0) {
             return ctx.reply("⚠️ Iltimos, narxni faqat raqamlarda to'g'ri kiriting!");
@@ -157,7 +171,7 @@ bot.on('photo', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
 
-    if (!isAdmin(ctx) || !state ||  state.step !== 'WAIT_PHOTOS') return;
+    if (!isAdmin(ctx) || !state || state.step !== 'WAIT_PHOTOS') return;
 
     if (state.photos.length >= 10) {
         return ctx.reply("⚠️ Maksimal 10 ta rasm yuklay olasiz! Endi '✅ Saqlash' tugmasini bosing.");
@@ -198,9 +212,20 @@ async function sendOrderToAdmin(orderData) {
     }
 }
 
-// Web App (do'kon) mahsulotlarni olishi uchun API
-app.get('/api/products', (req, res) => {
-    res.json(products);
+// Web App (do'kon) mahsulotlarni Supabase bazasidan olishi uchun API
+app.get('/api/products', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('id', { ascending: false });
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error("Mahsulotlarni olishda xatolik:", err);
+        res.status(500).json({ error: "Server xatoligi" });
+    }
 });
 
 app.post('/api/order', async (req, res) => {
