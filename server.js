@@ -3,7 +3,6 @@ const express = require('express');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
-// Token mavjudligini tekshirish
 if (!process.env.BOT_TOKEN) {
     console.error("DIQQAT XATOLIK: BOT_TOKEN topilmadi!");
 }
@@ -12,6 +11,8 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
 app.use(express.json());
+// Static fayllarni ulash (index.html va boshqalar uchun)
+app.use(express.static(__dirname));
 
 // Telegram Webhook
 app.use(bot.webhookCallback('/telegram-webhook'));
@@ -22,21 +23,15 @@ const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ------------------- XOTIRA VA HOLATLAR -------------------
-// Botga kirgan foydalanuvchilar ro'yxati
 const usersSet = new Set();
-
-// Admin buyurtma/mahsulot qo'shish holatlari
 const userState = {};
 
-// Admin huquqini tekshirish
 function isAdmin(ctx) {
     const adminId = process.env.ADMIN_CHAT_ID;
     return ctx.from && String(ctx.from.id) === String(adminId);
 }
 
 // ------------------- BOT BUYRUQLARI -------------------
-
-// /start buyrug'i
 bot.start((ctx) => {
     if (ctx.from && ctx.from.id) {
         usersSet.add(ctx.from.id);
@@ -50,7 +45,6 @@ bot.start((ctx) => {
     );
 });
 
-// /admin buyrug'i
 bot.command('admin', (ctx) => {
     if (!isAdmin(ctx)) {
         return ctx.reply("❌ Sizda admin huquqlari yo'q!");
@@ -69,15 +63,12 @@ bot.command('admin', (ctx) => {
 });
 
 // ------------------- ADMIN AMALLARI -------------------
-
-// Mijozlar statistikasi
 bot.action('stat_users', (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
     ctx.reply("👥 *Mebelix botidan foydalangan mijozlar soni:* " + usersSet.size + " ta", { parse_mode: 'Markdown' });
 });
 
-// Yangi mebel qo'shishni boshlash
 bot.action('add_product', (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
@@ -90,7 +81,6 @@ bot.action('add_product', (ctx) => {
     ctx.reply("📝 *1-Qadam:* Yangi mebel nomini kiriting (masalan: *Klassik burchakli divan*):", { parse_mode: 'Markdown' });
 });
 
-// Rasmlarni saqlash (Supabase bazasiga yozish)
 bot.action('save_photos', async (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.answerCbQuery();
@@ -132,7 +122,6 @@ bot.action('save_photos', async (ctx) => {
     }
 });
 
-// Matnli xabarlarni qabul qilish (Nomi -> Tavsifi -> Narxi)
 bot.on('text', (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
@@ -149,7 +138,9 @@ bot.on('text', (ctx) => {
         state.description = ctx.message.text;
         state.step = 'WAIT_PRICE';
         return ctx.reply("💰 *3-Qadam:* Mebel narxini kiriting (faqat raqamlarda, masalan: *4500000*):");
-    } if (state.step === 'WAIT_PRICE') {
+    } 
+
+    if (state.step === 'WAIT_PRICE') {
         const price = parseInt(ctx.message.text.replace(/\D/g, ''));
         if (isNaN(price) || price <= 0) {
             return ctx.reply("⚠️ Iltimos, narxni faqat raqamlarda to'g'ri kiriting!");
@@ -166,8 +157,8 @@ bot.on('text', (ctx) => {
     }
 });
 
-// Rasmlarni qabul qilish (10 tagacha)
-bot.on('photo', (ctx) => {
+// RASMLARNI HAVOLA (URL) SIFATIDA OLISH (TO'G'RILANDI)
+bot.on('photo', async (ctx) => {
     const userId = ctx.from.id;
     const state = userState[userId];
 
@@ -177,22 +168,29 @@ bot.on('photo', (ctx) => {
         return ctx.reply("⚠️ Maksimal 10 ta rasm yuklay olasiz! Endi '✅ Saqlash' tugmasini bosing.");
     }
 
-    const photoArray = ctx.message.photo;
-    const fileId = photoArray[photoArray.length - 1].file_id;
+    try {
+        const photoArray = ctx.message.photo;
+        const fileId = photoArray[photoArray.length - 1].file_id;
 
-    state.photos.push(fileId);
+        // Telegram'dan rasmning to'g'ridan-to'g'ri URL havolasini olamiz
+        const fileUrl = await ctx.telegram.getFileLink(fileId);
 
-    ctx.reply(
-        "📸 Rasm qabul qilindi! (" + state.photos.length + "/10)\n" +
-        "Yana rasm yuborishingiz yoki saqlashingiz mumkin:",
-        Markup.inlineKeyboard([
-            [Markup.button.callback("✅ Saqlash", "save_photos")]
-        ])
-    );
+        state.photos.push(fileUrl.href);
+
+        ctx.reply(
+            "📸 Rasm qabul qilindi! (" + state.photos.length + "/10)\n" +
+            "Yana rasm yuborishingiz yoki saqlashingiz mumkin:",
+            Markup.inlineKeyboard([
+                [Markup.button.callback("✅ Saqlash", "save_photos")]
+            ])
+        );
+    } catch (err) {
+        console.error("Rasm havolasini olishda xato:", err);
+        ctx.reply("❌ Rasmni yuklashda xatolik bo'ldi, qaytadan yuboring.");
+    }
 });
 
-// ------------------- SERVER VA BUYURTMA QISMI -------------------
-
+// ------------------- SERVER VA API -------------------
 async function sendOrderToAdmin(orderData) {
     const adminGroupId = process.env.ADMIN_GROUP_ID;
     let caption = "📦 YANGI BUYURTMA!\n\n";
@@ -212,7 +210,6 @@ async function sendOrderToAdmin(orderData) {
     }
 }
 
-// Web App (do'kon) mahsulotlarni Supabase bazasidan olishi uchun API
 app.get('/api/products', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -243,7 +240,6 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Xatoliklarni ushlab qolish (server o'chib qolmasligi uchun)
 bot.catch((err, ctx) => {
     console.error("Xatolik yuz berdi:", err);
 });
