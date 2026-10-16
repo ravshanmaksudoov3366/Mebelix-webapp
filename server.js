@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
@@ -160,7 +160,7 @@ app.get('/api/users', async (req, res) => {
     res.json(data);
 });
 
-// 5. Buyurtma berish va telegram guruhga chek hamda mahsulot rasmi va kategoriyasi bilan yuborish
+// 5. Buyurtma berish va telegram guruhga chek bilan yuborish
 app.post('/api/orders', async (req, res) => {
     try {
         const { user_id, full_name, phone_number, address, latitude, longitude, notes, cart_items, total_price, advance_price, receipt_image_base64 } = req.body;
@@ -172,12 +172,8 @@ app.post('/api/orders', async (req, res) => {
 
         if (error) throw error;
 
-        // Mahsulotlar ro'yxati, narxi hamda kategoriyasi bilan
-        const itemsList = cart_items.map(item => {
-            const catStr = item.categories && Array.isArray(item.categories) && item.categories.length > 0 ? ` (Kategoriya: ${item.categories.join(', ')})` : '';
-            return `• ${item.name}${catStr} x ${item.qty} = ${item.price * item.qty} so'm`;
-        }).join('\n');
-
+        // Chek rasmini Telegram guruhiga yuborish
+        const itemsList = cart_items.map(item => `• ${item.name} x ${item.qty} = ${item.price * item.qty} so'm`).join('\n');
         const caption = `📦 <b>Yangi Buyurtma #${order.id}</b>\n\n` +
             `👤 <b>Mijoz:</b> ${full_name}\n` +
             `📞 <b>Tel:</b> ${phone_number}\n` +
@@ -194,19 +190,8 @@ app.post('/api/orders', async (req, res) => {
             ]
         };
 
-        // Rasm tanlash (Birinchi to'lov cheki, agar chek bo'lmasa xarid qilingan mahsulotning rasmi)
-        let photoToSend = receipt_image_base64;
-        if (!photoToSend && cart_items && cart_items.length > 0) {
-            const firstItem = cart_items[0];
-            if (firstItem.images && firstItem.images.length > 0) {
-                photoToSend = firstItem.images[0];
-            } else if (firstItem.image) {
-                photoToSend = firstItem.image;
-            }
-        }
-
-        if (photoToSend) {
-            const buffer = Buffer.from(photoToSend.split(',')[1], 'base64');
+        if (receipt_image_base64) {
+            const buffer = Buffer.from(receipt_image_base64.split(',')[1], 'base64');
             await bot.sendPhoto(GROUP_ID, buffer, { caption, parse_mode: 'HTML', reply_markup: inline_keyboard });
         } else {
             await bot.sendMessage(GROUP_ID, caption, { parse_mode: 'HTML', reply_markup: inline_keyboard });
