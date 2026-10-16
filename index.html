@@ -1,4 +1,13 @@
-    // Serverdan mahsulotlarni yuklab olish funksiyasi
+<script>
+    let tg = window.Telegram ? window.Telegram.WebApp : null;
+    if (tg) {
+        tg.expand();
+        tg.ready();
+    }
+
+    let cart = [];
+    let total = 0;
+
     async function loadProducts() {
         const grid = document.getElementById('products-grid');
         try {
@@ -10,24 +19,50 @@
                 return;
             }
 
-            grid.innerHTML = products.map(function(item) {
-                var imgSrc = (item.photos && item.photos.length > 0) 
+            let html = '';
+            for (let i = 0; i < products.length; i++) {
+                let item = products[i];
+                let imgSrc = (item.photos && item.photos.length > 0) 
                     ? item.photos[0] 
                     : 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400';
+                let title = item.title || item.name || 'Mahsulot';
+                let price = item.price ? item.price.toLocaleString() : '0';
+                let desc = item.description || '';
 
-                var title = item.title || item.name || 'Mahsulot';
-                var price = item.price ? item.price.toLocaleString() : '0';
-                var desc = item.description || '';
-
-                return '<div class="card">' +
+                html += '<div class="card">' +
                     '<img src="' + imgSrc + '" alt="' + title + '">' +
                     '<h4>' + title + '</h4>' +
                     '<p style="font-size: 12px; color: #666;">' + desc + '</p>' +
                     '<div class="price">' + price + ' so\'m</div>' +
                     '<button class="btn" type="button" onclick="addToCart(\'' + title.replace(/'/g, "\\'") + '\', ' + (item.price || 0) + ')">Qo\'shish</button>' +
                 '</div>';
-            }).join('');
+            }
+            grid.innerHTML = html;
         } catch (err) {
             grid.innerHTML = '<p style="text-align: center; color: red;">Mahsulotlarni yuklashda xatolik yuz berdi!</p>';
         }
     }
+
+    document.addEventListener('DOMContentLoaded', loadProducts);
+
+    window.addToCart = function(name, price) {
+        cart.push({ name: name, price: price });
+        total += price;
+        updateCart();
+    };
+
+    function updateCart() {
+        const container = document.getElementById('cart-items');
+        if (cart.length === 0) {
+            container.innerHTML = "Savat bo'sh";
+            document.getElementById('total-price').innerText = '0';
+            return;
+        }
+        let cartHtml = '';
+        for (let i = 0; i < cart.length; i++) {
+            cartHtml += '<div>• ' + cart[i].name + ' - ' + cart[i].price.toLocaleString() + ' so\'m</div>';
+        }
+        container.innerHTML = cartHtml;
+        document.getElementById('total-price').innerText = total.toLocaleString();
+    }
+</script>
