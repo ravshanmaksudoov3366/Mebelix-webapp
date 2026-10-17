@@ -12,7 +12,6 @@
         button { background: #007bff; color: white; font-weight: bold; cursor: pointer; border: none; }
         button:hover { opacity: 0.9; }
         
-        /* Kategoriyalar ustma-ust tushmasligi uchun to'g'rilangan dizayn */
         .checkbox-group { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; max-height: 180px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 6px; background: #fafafa; }
         .checkbox-label { font-size: 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: #222; }
         .checkbox-label input { width: 18px; height: 18px; margin: 0; cursor: pointer; }
@@ -26,7 +25,6 @@
 
     <h2>🛠 Mebelix Admin Panel</h2>
 
-    <!-- 1. Yangi Mahsulot Qo'shish -->
     <div class="card">
         <h3>➕ Yangi Mahsulot Qo'shish</h3>
         <form id="product-form" onsubmit="addProduct(event)">
@@ -57,11 +55,10 @@
             <label>Rasmlar (10 tagacha):</label>
             <input type="file" id="images" accept="image/*" multiple max="10">
 
-            <button type="submit" style="background: #28a745;">Mahsulotni qo'shish</button>
+            <button type="submit" id="submit-btn" style="background: #28a745;">Mahsulotni qo'shish</button>
         </form>
     </div>
 
-    <!-- 2. Mijozlar Ro'yxati -->
     <div class="card">
         <h3>👥 Botga kirgan mijozlar</h3>
         <table id="users-table">
@@ -76,7 +73,6 @@
         </table>
     </div>
 
-    <!-- 3. Mahsulotlarni O'chirish -->
     <div class="card">
         <h3>🗑 Mavjud mahsulotlar (O'chirish)</h3>
         <div id="products-list"></div>
@@ -99,24 +95,56 @@
     }
 
     async function loadData() {
-        const usersRes = await fetch('/api/users');
-        const users = await usersRes.json();
-        document.getElementById('users-list').innerHTML = users.map(u => `
-            <tr>
-                <td>${u.telegram_id}</td>
-                <td>${u.first_name || ''} (@${u.username || 'yoq'})</td>
-                <td>${u.language}</td>
-            </tr>
-        `).join('');
+        try {
+            const usersRes = await fetch('/api/users');
+            const users = await usersRes.json();
+            document.getElementById('users-list').innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.telegram_id}</td>
+                    <td>${u.first_name || ''} (@${u.username || 'yoq'})</td>
+                    <td>${u.language}</td>
+                </tr>
+            `).join('');
 
-        const prodRes = await fetch('/api/products');
-        const products = await prodRes.json();
-        document.getElementById('products-list').innerHTML = products.map(p => `
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 8px 0;">
-                <span><b>${p.name_uz}</b> — ${Number(p.price).toLocaleString()} so'm</span>
-                <button onclick="deleteProduct(${p.id})" style="background: #dc3545; width: auto; padding: 5px 10px; font-size: 12px; margin: 0;">O'chirish</button>
-            </div>
-        `).join('');
+            const prodRes = await fetch('/api/products');
+            const products = await prodRes.json();
+            document.getElementById('products-list').innerHTML = products.map(p => `
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 8px 0;">
+                    <span><b>${p.name_uz}</b> — ${Number(p.price).toLocaleString()} so'm</span>
+                    <button onclick="deleteProduct(${p.id})" style="background: #dc3545; width: auto; padding: 5px 10px; font-size: 12px; margin: 0;">O'chirish</button>
+                </div>
+            `).join('');
+        } catch (err) {
+            console.error("Xatolik:", err);
+        }
+    }
+
+    function resizeImage(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_WIDTH = 1000;
+                    const MAX_HEIGHT = 1000;
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     async function addProduct(e) {
@@ -130,57 +158,57 @@
         }
 
         const filesInput = document.getElementById('images');
+        const submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Yuklanmoqda...";
+
         let imageUrls = [];
 
-        for (let i = 0; i < Math.min(filesInput.files.length, 10); i++) {
-            const base64 = await toBase64(filesInput.files[i]);
-            imageUrls.push(base64);
+        try {
+            for (let i = 0; i < Math.min(filesInput.files.length, 10); i++) {
+                const compressedBase64 = await resizeImage(filesInput.files[i]);
+                imageUrls.push(compressedBase64);
+            }
+
+            const productData = {
+                name_uz: document.getElementById('name_uz').value,
+                name_ru: document.getElementById('name_ru').value,
+                categories: selectedCategories,
+                price: Number(document.getElementById('price').value),
+                dimensions: document.getElementById('dimensions').value,
+                delivery_days: Number(document.getElementById('delivery_days').value),
+                description_uz: document.getElementById('desc_uz').value,
+                description_ru: document.getElementById('desc_ru').value,
+                images: imageUrls
+            };
+
+            const res = await fetch('/api/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(productData)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert("Mahsulot muvaffaqiyatli qo'shildi!");
+                document.getElementById('product-form').reset();
+                loadData();
+            } else {
+                alert("Xatolik yuz berdi: " + data.error);
+            }
+        } catch (err) {
+            alert("Xatolik yuz berdi: " + err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Mahsulotni qo'shish";
         }
-
-        const productData = {
-            name_uz: document.getElementById('name_uz').value,
-            name_ru: document.getElementById('name_ru').value,
-            categories: selectedCategories,
-            price: Number(document.getElementById('price').value),
-            dimensions: document.getElementById('dimensions').value,
-            delivery_days: Number(document.getElementById('delivery_days').value),
-            description_uz: document.getElementById('desc_uz').value,
-            description_ru: document.getElementById('desc_ru').value,
-            images: imageUrls
-        };
-
-        const res = await fetch('/api/products', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(productData)
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            alert("Mahsulot muvaffaqiyatli qo'shildi!");
-            document.getElementById('product-form').reset();
-            loadData();
-        } else {
-            alert("Xatolik yuz berdi: " + data.error);
-        }
-    }
-
-    function toBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
     }
 
     async function deleteProduct(id) {
         if (!confirm("Haqiqatan ham bu mahsulotni o'chirmoqchimisiz?")) return;
         const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
         const data = await res.json();
-        if (data.success) {
-            loadData();
-        }
+        if (data.success) { loadData(); }
     }
 
     renderCheckboxes();
