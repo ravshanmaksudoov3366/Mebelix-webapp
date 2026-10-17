@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const TelegramBot = require('node-telegram-bot-api');
 const { createClient } = require('@supabase/supabase-js');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 app.use(cors());
@@ -15,9 +17,9 @@ const GROUP_ID = -1004481485199;
 const ADMIN_PHONE = '993333366';
 const ADMIN_NIK = '@MRS3366';
 
-// Supabase ulanishi (Siz bergan URL va API key)
+// Supabase ulanishi
 const SUPABASE_URL = 'https://avryabmbrowguthrvatf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cnlhYm1icm93Z3V0aHJ2YXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTY3NjUsImV4cCI6MjEwNjA5Mjc2NX0.s99c6MuuJzYIQ5LMxvlUBirq8_YX3x7HMsmU8ymGyP8'; // Baza uchun anon/public kalit
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cnlhYm1icm93Z3V0aHJ2YXRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1MTY3NjUsImV4cCI6MjEwNjA5Mjc2NX0.s99c6MuuJzYIQ5LMxvlUBirq8_YX3x7HMsmU8ymGyP8';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
@@ -54,14 +56,15 @@ bot.onText(/\/start/, async (msg) => {
     bot.sendMessage(chatId, i18n.uz.select_lang, langKeyboard);
 });
 
-// Admin uchun /admin buyrug'i
 bot.onText(/\/admin/, (msg) => {
     const chatId = msg.chat.id;
     if (msg.from.id === ADMIN_ID) {
+        const hostname = process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost:3000';
+        const protocol = hostname.includes('localhost') ? 'http' : 'https';
         const adminKeyboard = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "🛠 Admin Panelni Ochish", web_app: { url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost:3000'}/admin.html` } }]
+                    [{ text: "🛠 Admin Panelni Ochish", web_app: { url: `${protocol}://${hostname}/admin.html` } }]
                 ]
             }
         };
@@ -86,10 +89,13 @@ bot.on('callback_query', async (query) => {
         });
 
         const txt = i18n[lang];
+        const hostname = process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost:3000';
+        const protocol = hostname.includes('localhost') ? 'http' : 'https';
+
         const mainKeyboard = {
             reply_markup: {
                 keyboard: [
-                    [{ text: txt.shop_btn, web_app: { url: `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost:3000'}` } }],
+                    [{ text: txt.shop_btn, web_app: { url: `${protocol}://${hostname}` } }],
                     [{ text: txt.contact_btn }]
                 ],
                 resize_keyboard: true
@@ -98,7 +104,6 @@ bot.on('callback_query', async (query) => {
         bot.sendMessage(chatId, txt.welcome, mainKeyboard);
     }
 
-    // Admin to'lovni tasdiqlashi
     if (data.startsWith('approve_order_')) {
         const orderId = data.split('_')[2];
         const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
@@ -127,14 +132,12 @@ bot.on('message', async (msg) => {
 
 // API ROUTE'LAR (WEBAPP UCHUN)
 
-// 1. Mahsulotlar ro'yxatini olish
 app.get('/api/products', async (req, res) => {
     const { data, error } = await supabase.from('products').select('*').order('id', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-// 2. Yangi mahsulot qo'shish (Admin)
 app.post('/api/products', async (req, res) => {
     const { name_uz, name_ru, categories, price, dimensions, delivery_days, description_uz, description_ru, images } = req.body;
     const { data, error } = await supabase.from('products').insert([{
@@ -145,7 +148,6 @@ app.post('/api/products', async (req, res) => {
     res.json({ success: true, product: data[0] });
 });
 
-// 3. Mahsulotni o'chirish (Admin)
 app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('products').delete().eq('id', id);
@@ -153,26 +155,22 @@ app.delete('/api/products/:id', async (req, res) => {
     res.json({ success: true });
 });
 
-// 4. Foydalanuvchilar ro'yxati (Admin)
 app.get('/api/users', async (req, res) => {
     const { data, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
 });
 
-// 5. Buyurtma berish va telegram guruhga chek bilan yuborish
 app.post('/api/orders', async (req, res) => {
     try {
         const { user_id, full_name, phone_number, address, latitude, longitude, notes, cart_items, total_price, advance_price, receipt_image_base64 } = req.body;
 
-        // Buyurtmani bazaga saqlash
         const { data: order, error } = await supabase.from('orders').insert([{
             user_id, full_name, phone_number, address, latitude, longitude, notes, cart_items, total_price, advance_price, status: 'pending_approval'
         }]).select().single();
 
         if (error) throw error;
 
-        // Chek rasmini Telegram guruhiga yuborish
         const itemsList = cart_items.map(item => `• ${item.name} x ${item.qty} = ${item.price * item.qty} so'm`).join('\n');
         const caption = `📦 <b>Yangi Buyurtma #${order.id}</b>\n\n` +
             `👤 <b>Mijoz:</b> ${full_name}\n` +
@@ -203,13 +201,13 @@ app.post('/api/orders', async (req, res) => {
     }
 });
 
-// Render Keep-Alive (Uxlab qolmaslik uchun avto-ping)
+// Render Keep-Alive
 setInterval(() => {
     const hostname = process.env.RENDER_EXTERNAL_HOSTNAME;
     if (hostname) {
-        require('https').get(`https://${hostname}`);
+        https.get(`https://${hostname}`, (res) => {}).on('error', (err) => {});
     }
-}, 10 * 60 * 1000); // Har 10 daqiqada bir marta
+}, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
