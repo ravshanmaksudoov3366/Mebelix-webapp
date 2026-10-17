@@ -12,21 +12,25 @@
         .cat-btn { background: #007bff; color: white; border: none; padding: 8px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; font-size: 13px; }
         .cat-btn.active { background: #0056b3; font-weight: bold; }
         .products-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .product-card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-        .product-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+        .product-card { background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: space-between; }
+        
+        /* Slayder uslublari */
+        .slider-container { position: relative; width: 100%; height: 120px; border-radius: 8px; overflow: hidden; background: #eee; }
+        .slider-images { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; }
+        .slider-images::-webkit-scrollbar { display: none; }
+        .slider-images img { width: 100%; height: 100%; object-fit: cover; flex-shrink: 0; scroll-snap-align: start; cursor: pointer; }
+
         .product-title { font-size: 14px; font-weight: bold; margin: 5px 0; }
-        .product-price { color: #28a745; font-weight: bold; font-size: 13px; }
+        .product-price { color: #28a745; font-weight: bold; font-size: 13px; margin-top: 5px; }
         .qty-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
         .btn-qty { background: #eee; border: none; padding: 5px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .cart-bar { position: fixed; bottom: 10px; left: 10px; right: 10px; background: #28a745; color: white; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; display: none; }
+        .cart-bar { position: fixed; bottom: 10px; left: 10px; right: 10px; background: #28a745; color: white; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; cursor: pointer; display: none; z-index: 150; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
         
-        /* Modal */
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 200; padding: 15px; overflow-y: auto; color: white; }
         .modal-content { background: #222; padding: 15px; border-radius: 10px; }
-        input, textarea, button { width: 100%; padding: 10px; margin: 6px 0; border-radius: 6px; border: none; box-sizing: border-box; }
+        input, textarea, button { width: 100%; padding: 10px; margin: 6px 0; border-radius: 6px; border: none; box-sizing: border-box; font-family: inherit; }
         button { background: #007bff; color: white; font-weight: bold; cursor: pointer; }
         
-        /* Zoom Modal */
         .zoom-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 300; justify-content: center; align-items: center; }
         .zoom-modal img { max-width: 90%; max-height: 80%; border-radius: 8px; }
     </style>
@@ -45,7 +49,6 @@
         🛒 Savatcha (<span id="cart-count">0</span>) - <span id="cart-total">0</span> so'm
     </div>
 
-    <!-- Buyurtma rasmiylashtirish oynasi -->
     <div class="modal" id="checkout-modal">
         <div class="modal-content">
             <h3>Buyurtmani rasmiylashtirish</h3>
@@ -71,7 +74,6 @@
         </div>
     </div>
 
-    <!-- Rasmni kattalashtirish oynasi -->
     <div class="zoom-modal" id="zoom-modal" onclick="closeZoom()">
         <img id="zoom-img" src="">
     </div>
@@ -127,18 +129,32 @@
 
         container.innerHTML = filtered.map(p => {
             const qty = cart[p.id] ? cart[p.id].qty : 0;
-            const imgUrl = (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/150';
+            
+            let imagesHtml = '<div class="slider-images">';
+            if (p.images && p.images.length > 0) {
+                imagesHtml += p.images.map(img => `<img src="${img}" onclick="zoomImage('${img}')">`).join('');
+            } else {
+                imagesHtml += `<img src="https://via.placeholder.com/150" onclick="zoomImage('https://via.placeholder.com/150')">`;
+            }
+            imagesHtml += '</div>';
+
             return `
                 <div class="product-card">
-                    <img src="${imgUrl}" onclick="zoomImage('${imgUrl}')">
-                    <div class="product-title">${p.name_uz}</div>
-                    <div style="font-size: 11px; color: #666;">O'lcham: ${p.dimensions || '-'}</div>
-                    <div style="font-size: 11px; color: #666;">Muddat: ${p.delivery_days} kun</div>
-                    <div class="product-price">${Number(p.price).toLocaleString()} so'm</div>
-                    <div class="qty-controls">
-                        <button class="btn-qty" onclick="changeQty(${p.id}, -1)">-</button>
-                        <span>${qty}</span>
-                        <button class="btn-qty" onclick="changeQty(${p.id}, 1)">+</button>
+                    <div>
+                        <div class="slider-container">
+                            ${imagesHtml}
+                        </div>
+                        <div class="product-title">${p.name_uz}</div>
+                        <div style="font-size: 11px; color: #666;">O'lcham: ${p.dimensions || '-'}</div>
+                        <div style="font-size: 11px; color: #666;">Muddat: ${p.delivery_days} kun</div>
+                    </div>
+                    <div>
+                        <div class="product-price">${Number(p.price).toLocaleString()} so'm</div>
+                        <div class="qty-controls">
+                            <button class="btn-qty" onclick="changeQty(${p.id}, -1)">-</button>
+                            <span>${qty}</span>
+                            <button class="btn-qty" onclick="changeQty(${p.id}, 1)">+</button>
+                        </div>
                     </div>
                 </div>
             `;
