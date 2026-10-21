@@ -202,6 +202,9 @@ textarea.in { resize: vertical; min-height: 72px; }
 .tag { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--bg2); color: var(--hint); margin-left: 4px; }
 .tag.red { background: #fde3e1; color: #b3261e; }
 
+.dd { font-size: 12px; color: var(--hint); }
+.ddbox { margin-top: 10px; background: var(--soft); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+
 /* checkout */
 .stepno { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
   color: var(--accent-text); font-size: 13px; margin-right: 8px; vertical-align: 1px; }
@@ -222,6 +225,8 @@ textarea.in { resize: vertical; min-height: 72px; }
   filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
 .locbtn { position: absolute; right: 10px; bottom: 10px; z-index: 500; box-shadow: 0 3px 10px rgba(0,0,0,.25); }
 .chips.adm { margin: 0; padding: 12px 12px 0; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; font-size: 18px; font-weight: 700; color: var(--accent-text);
+  background: var(--accent); }
 
 /* success */
 .done { text-align: center; padding: 30px 20px 10px; }
@@ -308,7 +313,7 @@ const S = {
   me: { is_admin: false, orders: [], profile: {} },
   cart: store.get("cart", {}),                 // {productId: qty}
   tab: "catalog", cat: 0, q: "", sort: store.get("sort", "new"),
-  adm: { tab: "orders", status: "active", data: null, pq: "" },
+  adm: { tab: "orders", status: "active", data: null, pq: "", cust: null, cq: "" },
   sheets: [],                                  // ochiq oynalar steki
 };
 const prod = id => S.products.find(p => p.id === +id);
@@ -382,6 +387,7 @@ function viewCatalog() {
         ${!p.in_stock ? `<span class="oos">Omborda yo'q</span>` : ""}</div>
       <div class="body"><div class="pname">${esc(p.name)}</div>
         <div><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<br><span class="old" style="margin:0">${money(p.old_price)}</span>` : ""}</div>
+        ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}
         ${buyBtn(p)}</div>
     </div>`).join("") + `</div>`;
 }
@@ -395,7 +401,8 @@ function viewCart() {
       <div class="thumb">${picHTML(p)}</div>
       <div class="grow"><div class="pname">${esc(p.name)}</div>
         <div class="small muted">${money(p.price)}${qty > 1 ? " × " + qty : ""}</div>
-        <div class="price">${money(p.price * qty)}</div></div>
+        <div class="price">${money(p.price * qty)}</div>
+        ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}</div>
       ${stepper(p.id)}
     </div>`).join("") + `</div>
     <div class="section"><div class="sum"><span class="muted">Mahsulotlar (${cartCount()} ta)</span><span>${money(cartTotal())}</span></div>
@@ -505,6 +512,7 @@ function openProduct(id) {
         <h2 style="margin:4px 0 8px;font-size:20px">${esc(p.name)}</h2>
         <div style="font-size:22px" class="price">${money(p.price)}
           ${p.old_price > p.price ? `<span class="old" style="font-size:14px">${money(p.old_price)}</span> <span class="badge" style="position:static">−${discount(p)}%</span>` : ""}</div>
+        ${p.delivery_days ? `<div class="ddbox">🚚 Yetkazib berish muddati: <b>${esc(p.delivery_days)}</b></div>` : ""}
         ${!p.in_stock ? `<div class="err">Hozir omborda yo'q</div>` : ""}
       </div>
       ${p.specs.length ? `<div class="section"><h3>Xususiyatlari</h3><table class="specs">
@@ -684,7 +692,7 @@ function checkoutHTML() {
       <label class="f">Izoh (ixtiyoriy)</label>
       <textarea class="in" oninput="F.note=this.value" placeholder="Masalan: lift yo'q, yig'ib berish kerak">${esc(F.note)}</textarea>
     </div>
-    <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}</span><span>${money(p.price * qty)}</span></div>`).join("")}
+    <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
       <div class="sum total"><span>Jami</span><span>${money(total)}</span></div>
       <div class="sum"><span class="muted">Oldindan to'lov (${pp.pct || 10}%)</span><span>${money(pre)}</span></div>
       <div class="sum"><span class="muted">Qabul qilganda to'lanadi</span><span>${money(total - pre)}</span></div>
@@ -732,7 +740,28 @@ function loadLeaflet() {
   });
   return leafletReady;
 }
-const MP = { map: null, lat: 41.3111, lon: 69.2797, label: "", timer: 0 };
+const MP = { map: null, kind: "", lat: 41.3111, lon: 69.2797, label: "", timer: 0 };
+let ymapsReady = null;
+function loadYandex(key) {
+  if (window.ymaps && window.ymaps.Map) return Promise.resolve();
+  if (ymapsReady) return ymapsReady;
+  ymapsReady = new Promise((ok, fail) => {
+    const js = document.createElement("script");
+    js.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(key)}&lang=uz_UZ`;
+    const t = setTimeout(() => { ymapsReady = null; fail(new Error("timeout")); }, 12000);
+    js.onload = () => window.ymaps.ready(() => { clearTimeout(t); ok(); }, err => { clearTimeout(t); ymapsReady = null; fail(err); });
+    js.onerror = () => { clearTimeout(t); ymapsReady = null; fail(new Error("load")); };
+    document.head.appendChild(js);
+  });
+  return ymapsReady;
+}
+function mpSetView(lat, lon, zoom) {
+  if (!MP.map) return;
+  if (MP.kind === "y") MP.map.setCenter([lat, lon], zoom, { duration: 300 });
+  else MP.map.setView([lat, lon], zoom);
+  MP.lat = lat; MP.lon = lon;
+}
+function mpMoved() { clearTimeout(MP.timer); MP.timer = setTimeout(reverseGeo, 500); }
 async function openMapPicker() {
   const has = F.lat != null;
   if (has) { MP.lat = F.lat; MP.lon = F.lon; MP.label = F.geo; } else MP.label = "";
@@ -742,20 +771,38 @@ async function openMapPicker() {
     <div class="section" style="margin-top:10px"><div class="small muted">Xaritani surib, 📍 belgisini uyingiz ustiga qo'ying</div>
       <div id="mpLabel" style="margin-top:6px;font-weight:600">${esc(MP.label || "Manzil aniqlanmoqda...")}</div></div>`,
     main: () => ["✅ Shu manzilni tanlash", pickPlace],
-    onClose: () => { if (MP.map) { MP.map.remove(); MP.map = null; } } });
+    onClose: () => { if (MP.map) { MP.kind === "y" ? MP.map.destroy() : MP.map.remove(); MP.map = null; } } });
+  const zoom = has ? 17 : 12;
+  // 1) Yandex xarita (kalit kiritilgan bo'lsa) — O'zbekistonda ko'cha va uylar aniqroq
+  if (S.shop.ymaps_key) {
+    try {
+      await loadYandex(S.shop.ymaps_key);
+      await new Promise(r => setTimeout(r, 280));
+      const el = document.getElementById("map"); if (!el) return;
+      MP.kind = "y";
+      MP.map = new ymaps.Map(el, { center: [MP.lat, MP.lon], zoom, controls: ["zoomControl"] },
+        { suppressMapOpenBlock: true, yandexMapDisablePoiInteractivity: true });
+      MP.map.events.add("actiontick", e => { const c = MP.map.getCenter(); MP.lat = c[0]; MP.lon = c[1]; });
+      MP.map.events.add("boundschange", () => { const c = MP.map.getCenter(); MP.lat = c[0]; MP.lon = c[1]; mpMoved(); });
+      if (!has) locateMe(); else reverseGeo();
+      return;
+    } catch (e) { console.warn("Yandex xarita yuklanmadi, OpenStreetMap ishlatiladi", e); }
+  }
+  // 2) Zaxira: OpenStreetMap (Leaflet)
   try { await loadLeaflet(); } catch (e) { return alertBox(e.message); }
   setTimeout(() => {
     const el = document.getElementById("map"); if (!el) return;
-    MP.map = L.map(el, { zoomControl: true, attributionControl: true }).setView([MP.lat, MP.lon], has ? 17 : 12);
+    MP.kind = "l";
+    MP.map = L.map(el, { zoomControl: true, attributionControl: true }).setView([MP.lat, MP.lon], zoom);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(MP.map);
     MP.map.on("move", () => { const c = MP.map.getCenter(); MP.lat = c.lat; MP.lon = c.lng; });
-    MP.map.on("moveend", () => { clearTimeout(MP.timer); MP.timer = setTimeout(reverseGeo, 500); });
+    MP.map.on("moveend", mpMoved);
     if (!has) locateMe(); else reverseGeo();
   }, 280);
 }
 function locateMe() {
-  const go = (lat, lon) => { if (MP.map) MP.map.setView([lat, lon], 17); haptic(); };
+  const go = (lat, lon) => { mpSetView(lat, lon, 17); haptic(); };
   const fallback = () => {
     if (!navigator.geolocation) return toast("Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang");
     navigator.geolocation.getCurrentPosition(p => go(p.coords.latitude, p.coords.longitude),
@@ -777,6 +824,14 @@ function locateMe() {
 async function reverseGeo() {
   const lab = document.getElementById("mpLabel"); if (!lab) return;
   const coords = MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5);
+  if (MP.kind === "y" && window.ymaps) {
+    try {
+      const res = await ymaps.geocode([MP.lat, MP.lon], { results: 1 });
+      const g = res.geoObjects.get(0);
+      MP.label = g ? g.getAddressLine().replace(/^O[ʻ'`‘]?zbekiston,\s*/i, "") : coords;
+    } catch (e) { MP.label = coords; }
+    lab.textContent = MP.label; return;
+  }
   try {
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=uz&lat=${MP.lat}&lon=${MP.lon}`);
     const d = await r.json(); const a = d.address || {};
@@ -836,12 +891,12 @@ function viewAdmin() {
   const d = S.adm.data;
   if (!d) return `<div class="section"><div class="skeleton"></div></div>`;
   const st = d.stats;
-  const tabs = [["orders", "📦 Buyurtmalar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
+  const tabs = [["orders", "📦 Buyurtmalar"], ["customers", "👥 Mijozlar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
   let h = `<div class="stats">
     <div class="stat"><b>${st.new}</b><span>Chek kutmoqda</span></div>
     <div class="stat"><b>${short(st.today_sum)}</b><span>Bugun · ${st.today_orders} ta</span></div>
     <div class="stat"><b>${short(st.month_sum)}</b><span>Shu oy · ${st.month_orders} ta</span></div></div>
-    <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; render()">${t}</button>`).join("")}</div>
+    <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="admTab('${k}')">${t}</button>`).join("")}</div>
     ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
       <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;
   if (S.adm.tab === "orders") {
@@ -867,6 +922,30 @@ function viewAdmin() {
         <button class="btn ghost sm" onclick="openCatForm(${c.id})">✏️</button>
         <button class="btn danger sm" onclick="deleteCat(${c.id})">🗑</button></div>`; }).join("")}</div>
       <div style="padding:0 12px"><button class="btn block" onclick="openCatForm()">＋ Yangi kategoriya</button></div>`;
+  } else if (S.adm.tab === "customers") {
+    const c = S.adm.cust;
+    if (!c) return h + `<div class="section"><div class="skeleton" style="height:120px"></div></div>`;
+    const cs = c.stats;
+    h += `<div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat"><b>${cs.total.toLocaleString("ru-RU")}</b><span>Jami mijozlar</span></div>
+        <div class="stat"><b>${cs.today}</b><span>Bugun qo'shildi</span></div>
+        <div class="stat"><b>${cs.week}</b><span>Shu hafta</span></div>
+        <div class="stat"><b>${cs.active7.toLocaleString("ru-RU")}</b><span>Faol (7 kun)</span></div>
+        <div class="stat"><b>${cs.buyers}</b><span>Xarid qilganlar</span></div>
+        <div class="stat"><b>${cs.month}</b><span>Shu oy (30 kun)</span></div></div>
+      <div style="padding:0 12px"><input class="in" id="custQ" placeholder="🔍 Ism, @username, telefon yoki ID" value="${esc(S.adm.cq)}"
+        oninput="S.adm.cq=this.value; clearTimeout(window._cq); window._cq=setTimeout(()=>loadCustomers(true),400)"></div>
+      <div class="small muted" style="padding:8px 16px 0">${S.adm.cq ? `Topildi: ${c.total}` : `Oxirgi qo'shilganlar`}</div>
+      <div class="list-card">${c.items.map(u => {
+        const nm = [u.first_name, u.last_name].filter(Boolean).join(" ") || "—";
+        return `<div class="row">
+          <div class="thumb avatar">${esc((nm[0] || "?").toUpperCase())}</div>
+          <div class="grow"><div class="pname">${esc(nm)} ${u.username ? `<a class="tel small" href="#" onclick="openUrl('https://t.me/${esc(u.username)}');return false">@${esc(u.username)}</a>` : ""}</div>
+            ${u.phone ? `<div class="small"><a class="tel" href="tel:${esc(u.phone)}">${esc(u.phone)}</a></div>` : ""}
+            <div class="small muted">Qo'shilgan: ${dateStr(u.created)} · oxirgi kirish: ${dateStr(u.last_seen)}</div>
+            <div class="small">${u.orders ? `🛒 ${u.orders} ta buyurtma · ${money(u.spent)}` : `<span class="muted">Hali buyurtma bermagan</span>`}</div></div>
+        </div>`; }).join("") || `<div class="empty">Mijoz topilmadi</div>`}</div>
+      ${c.items.length < c.total ? `<div style="padding:0 12px"><button class="btn ghost block" onclick="loadCustomers(false)">Yana ko'rsatish (${c.total - c.items.length})</button></div>` : ""}`;
   } else if (S.adm.tab === "settings") {
     const st2 = d.settings;
     h += `<div class="section"><h3>💳 Oldindan to'lov</h3>
@@ -878,6 +957,8 @@ function viewAdmin() {
       <input class="in" id="setOwner" value="${esc(st2.pay_owner || "")}" placeholder="Masalan: Maksudov R">
       <label class="f">Oldindan to'lov foizi (%)</label>
       <input class="in" id="setPct" inputmode="numeric" value="${esc(st2.prepay_pct || "10")}" style="width:100px">
+      <label class="switch" style="margin-top:8px"><span>Yangi mijoz qo'shilganda menga xabar yuborilsin</span>
+        <input type="checkbox" id="setNotify" ${st2.notify_new_users === "1" ? "checked" : ""}></label>
       <button class="btn block" style="margin-top:14px" onclick="saveSettings()">💾 Saqlash</button></div>`;
   } else {
     h += `<div class="section"><h3>Barcha mijozlarga xabar</h3>
@@ -906,7 +987,8 @@ function openAdminOrder(id) {
       <div class="sum"><span class="muted">To'lanishi kerak</span><b>${money(o.prepay)}</b></div>
       <div class="rcpt-big" id="rcpt${o.id}">${o.has_receipt ? "⏳ Chek yuklanmoqda..." : "Chek yo'q"}</div></div>` : ""}
     <div class="section">${o.items.map(i => `<div class="row"><div class="thumb">${picHTML(i)}</div><div class="grow">
-      <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div></div><b>${money(i.price * i.qty)}</b></div>`).join("")}
+      <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div>
+      ${i.delivery_days ? `<div class="dd">🚚 ${esc(i.delivery_days)}</div>` : ""}</div><b>${money(i.price * i.qty)}</b></div>`).join("")}
       <div class="sum total"><span>Jami</span><span>${money(o.total)}</span></div>
       ${o.prepay ? `<div class="sum"><span class="muted">Qabul qilganda olinadi</span><span>${money(o.total - o.prepay)}</span></div>` : ""}</div>
     <div style="padding:0 12px;display:grid;gap:8px">
@@ -924,6 +1006,22 @@ async function loadReceipt(id) {
     if (box) box.innerHTML = `<img src="${url}" alt="Chek" onclick="showViewer(['${url}'],0,'chek')"><div class="small muted">Kattalashtirish uchun bosing</div>`;
   } catch (e) { if (box) box.textContent = "Chekni yuklab bo'lmadi"; }
 }
+function admTab(k) {
+  S.adm.tab = k; render();
+  if (k === "customers") loadCustomers(true);
+}
+async function loadCustomers(reset) {
+  const cur = reset || !S.adm.cust ? [] : S.adm.cust.items;
+  try {
+    const r = await api(`/api/admin/customers?q=${encodeURIComponent(S.adm.cq || "")}&offset=${cur.length}&limit=50`);
+    S.adm.cust = { stats: r.stats, total: r.total, items: cur.concat(r.items) };
+  } catch (e) { toast(e.message); }
+  if (S.tab === "admin" && S.adm.tab === "customers") {
+    const hadFocus = document.activeElement && document.activeElement.id === "custQ";
+    render();
+    if (hadFocus) { const i = $("#custQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  }
+}
 function openUrl(u) { if (IN_TG && tg.openLink) tg.openLink(u); else window.open(u, "_blank"); }
 async function setStatus(id, status) {
   const ask = { cancelled: "Buyurtmani bekor qilasizmi? Mijozga xabar boradi.",
@@ -936,7 +1034,7 @@ async function setStatus(id, status) {
 }
 async function saveSettings() {
   try {
-    const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value } });
+    const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value, notify_new_users: $("#setNotify").checked ? 1 : 0 } });
     S.adm.data.settings = r.settings; await loadCatalog(); notifyH("success"); toast("Saqlandi ✓"); render();
   } catch (e) { alertBox(e.message); }
 }
@@ -948,7 +1046,7 @@ function openProductForm(id) {
   PF = { id: p ? p.id : 0, name: p ? p.name : "", cat_id: p ? p.cat_id : (S.adm.data.categories[0] || {}).id,
     price: p ? p.price : "", old_price: p && p.old_price ? p.old_price : "", emoji: p ? p.emoji : "🛋",
     description: p ? p.description : "", specs: p ? p.specs.map(s => s.join(": ")).join("\n") : "",
-    in_stock: p ? p.in_stock : true, active: p ? p.active : true,
+    in_stock: p ? p.in_stock : true, active: p ? p.active : true, delivery_days: p ? (p.delivery_days || "") : "",
     imgs: p ? p.images.map(src => ({ kind: "k", src })) : [],   // k — saqlangan, n — yangi tanlangan
     err: "", busy: false, loading: 0 };
   openSheet({ title: p ? "Mahsulotni tahrirlash" : "Yangi mahsulot", rerender: productFormHTML,
@@ -981,6 +1079,10 @@ function productFormHTML() {
         <div style="flex:1"><label class="f" style="margin-top:0">Eski narx (chegirma)</label>
           <input class="in" inputmode="numeric" value="${numFmt(PF.old_price)}" oninput="this.value=numFmt(this.value); PF.old_price=this.value" placeholder="ixtiyoriy"></div>
       </div>
+      <label class="f">Yetkazib berish muddati</label>
+      <input class="in" value="${esc(PF.delivery_days)}" oninput="PF.delivery_days=this.value" placeholder="Masalan: 3-7 kun">
+      <div class="opts" style="margin-top:8px">${["1-3 kun", "3-7 kun", "7-14 kun", "14-30 kun"].map(v =>
+        `<button class="${PF.delivery_days === v ? "on" : ""}" onclick="PF.delivery_days='${v}'; refresh()">${v}</button>`).join("")}</div>
       <label class="f">Tavsif</label><textarea class="in" oninput="PF.description=this.value" placeholder="Material, afzalliklari, yetkazib berish shartlari...">${esc(PF.description)}</textarea>
       <label class="f">Xususiyatlar (har qatorda «Nomi: qiymati»)</label>
       <textarea class="in" rows="4" oninput="PF.specs=this.value" placeholder="O'lcham: 220×90 sm&#10;Material: Velyur&#10;Kafolat: 18 oy">${esc(PF.specs)}</textarea>
@@ -1031,7 +1133,8 @@ async function saveProduct() {
   PF.busy = true; refresh();
   const fd = new FormData();
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
-    description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0 };
+    description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0,
+    delivery_days: PF.delivery_days };
   let n = 0;
   const order = PF.imgs.map(im => im.kind === "k" ? "k:" + im.src : "n:" + (n++));
   fields.keep_images = JSON.stringify(PF.imgs.filter(im => im.kind === "k").map(im => im.src));

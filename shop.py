@@ -44,7 +44,7 @@ ACTIVE = ("new", "confirmed", "delivering")
 DELIVERY = {"delivery": "🚚 Yetkazib berish", "pickup": "🏬 Do'kondan olib ketish"}
 # Qolgan summani to'lash usullari (naqd olib tashlangan)
 PAYMENTS = ["Karta orqali (qabul qilganda)", "Click / Payme"]
-DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10"}
+DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1"}
 
 
 class ShopError(Exception):
@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """
 # Eski bazaga qo'shiladigan ustunlar
+PRODUCT_COLUMNS = {"delivery_days": "TEXT DEFAULT ''"}
+USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER"}
 ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''"}
 
 SEED_CATEGORIES = [("Divanlar", "🛋"), ("Yotoqxona", "🛏"), ("Oshxona", "🍳"),
@@ -151,10 +153,11 @@ class Shop:
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
-        have = {r[1] for r in self.db.execute("PRAGMA table_info(orders)").fetchall()}
-        for col, typ in ORDER_COLUMNS.items():
-            if col not in have:
-                self.db.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
+        for table, cols in (("orders", ORDER_COLUMNS), ("products", PRODUCT_COLUMNS), ("users", USER_COLUMNS)):
+            have = {r[1] for r in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+            for col, typ in cols.items():
+                if col not in have:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
         self.db.commit()
         if not self.db.execute("SELECT 1 FROM categories LIMIT 1").fetchone():
             self._seed()
@@ -220,7 +223,11 @@ class Shop:
             pct = 10
         if not 1 <= pct <= 100:
             raise ShopError("Oldindan to'lov foizi 1 dan 100 gacha bo'lishi kerak")
-        for k, v in {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct)}.items():
+        cur = self.settings()
+        notify = data.get("notify_new_users", cur["notify_new_users"])
+        notify = "1" if str(notify).lower() in ("1", "true", "on") else "0"
+        for k, v in {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct),
+                     "notify_new_users": notify}.items():
             self.db.execute("INSERT INTO settings(key, value) VALUES (?,?) "
                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
         self.db.commit()
@@ -306,6 +313,7 @@ class Shop:
             description=(data.get("description") or "").strip(),
             specs=json.dumps(specs, ensure_ascii=False), images=json.dumps(images[:10]),
             emoji=(data.get("emoji") or "🪑").strip()[:4] or "🪑",
+            delivery_days=(data.get("delivery_days") or "").strip()[:40],
             in_stock=1 if str(data.get("in_stock", "1")) in ("1", "true", "on") else 0,
             active=1 if str(data.get("active", "1")) in ("1", "true", "on") else 0,
         )
@@ -360,12 +368,52 @@ class Shop:
         self.db.commit()
 
     # ------------------------------------------------ foydalanuvchilar
-    def touch_user(self, user: dict):
+    def touch_user(self, user: dict) -> bool:
+        """Mijozni saqlaydi/yangilaydi. Birinchi marta qo'shilgan bo'lsa True qaytaradi."""
+        now = int(time.time())
+        is_new = not self.db.execute("SELECT 1 FROM users WHERE id=?", (user["id"],)).fetchone()
         self.db.execute(
-            "INSERT INTO users(id, first_name, username, created) VALUES (?,?,?,?) "
-            "ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name, username=excluded.username",
-            (user["id"], user.get("first_name", ""), user.get("username", ""), int(time.time())))
+            "INSERT INTO users(id, first_name, last_name, username, created, last_seen) VALUES (?,?,?,?,?,?) "
+            "ON CONFLICT(id) DO UPDATE SET first_name=excluded.first_name, last_name=excluded.last_name, "
+            "username=excluded.username, last_seen=excluded.last_seen",
+            (user["id"], user.get("first_name") or "", user.get("last_name") or "", user.get("username") or "",
+             now, now))
         self.db.commit()
+        return is_new
+
+    def customer_stats(self, tz_offset_hours: int = 5) -> dict:
+        import calendar
+        off = tz_offset_hours * 3600
+        t = time.gmtime(time.time() + off)
+        day = calendar.timegm((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0)) - off
+        q = lambda sql, *a: self.db.execute(sql, a).fetchone()[0]
+        return {
+            "total": q("SELECT COUNT(*) FROM users"),
+            "today": q("SELECT COUNT(*) FROM users WHERE created>=?", day),
+            "week": q("SELECT COUNT(*) FROM users WHERE created>=?", day - 6 * 86400),
+            "month": q("SELECT COUNT(*) FROM users WHERE created>=?", day - 29 * 86400),
+            "active7": q("SELECT COUNT(*) FROM users WHERE COALESCE(last_seen, created)>=?", int(time.time()) - 7 * 86400),
+            "buyers": q("SELECT COUNT(DISTINCT user_id) FROM orders WHERE status NOT IN ('cancelled','rejected')"),
+        }
+
+    def customers(self, query: str = "", offset: int = 0, limit: int = 50) -> dict:
+        where, args = "", []
+        query = (query or "").strip().lstrip("@")
+        if query:
+            like = f"%{query}%"
+            where = ("WHERE u.first_name LIKE ? OR u.last_name LIKE ? OR u.username LIKE ? OR CAST(u.id AS TEXT) LIKE ? "
+                     "OR u.id IN (SELECT user_id FROM orders WHERE phone LIKE ? OR name LIKE ?)")
+            args = [like, like, like, like, f"%{re.sub(chr(92) + 'D', '', query) or query}%", like]
+        total = self.db.execute(f"SELECT COUNT(*) FROM users u {where}", args).fetchone()[0]
+        rows = self.db.execute(f"""
+            SELECT u.id, u.first_name, u.last_name, u.username, u.created, COALESCE(u.last_seen, u.created) AS last_seen,
+              (SELECT COUNT(*) FROM orders o WHERE o.user_id=u.id) AS orders,
+              (SELECT COALESCE(SUM(total),0) FROM orders o WHERE o.user_id=u.id
+                 AND o.status NOT IN ('cancelled','rejected')) AS spent,
+              (SELECT phone FROM orders o WHERE o.user_id=u.id ORDER BY o.id DESC LIMIT 1) AS phone
+            FROM users u {where} ORDER BY u.created DESC LIMIT ? OFFSET ?""",
+            [*args, max(1, min(200, limit)), max(0, offset)]).fetchall()
+        return {"total": total, "items": [dict(r) for r in rows]}
 
     def user_ids(self) -> list:
         return [r[0] for r in self.db.execute("SELECT id FROM users").fetchall()]
@@ -394,7 +442,8 @@ class Shop:
             if not r["in_stock"]:
                 raise ShopError(f"«{r['name']}» hozir omborda yo'q")
             items.append({"id": pid, "name": r["name"], "price": r["price"], "qty": qty,
-                          "image": (json.loads(r["images"]) or [None])[0], "emoji": r["emoji"]})
+                          "image": (json.loads(r["images"]) or [None])[0], "emoji": r["emoji"],
+                          "delivery_days": r["delivery_days"] or ""})
             total += r["price"] * qty
 
         c = payload.get("customer") or {}
@@ -497,7 +546,9 @@ class Shop:
 # ---------------------------------------------------------------- xabar matnlari
 def order_text(o: dict, for_admin: bool) -> str:
     e = lambda s: html.escape(str(s), quote=False)
-    lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'])}" for i in o["items"])
+    lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'])}"
+                      + (f"\n   🚚 Yetkazish: {e(i['delivery_days'])}" if i.get("delivery_days") else "")
+                      for i in o["items"])
     when = time.strftime("%d.%m.%Y %H:%M", time.gmtime(o["created"] + 5 * 3600))
     if for_admin:
         user = f"@{e(o['username'])}" if o.get("username") else f"<a href=\"tg://user?id={o['user_id']}\">profil</a>"

@@ -71,6 +71,8 @@ SHOP = {
     "name": os.getenv("SHOP_NAME", "Mebel Do'koni"),
     "phone": os.getenv("SHOP_PHONE", ""),
     "address": os.getenv("SHOP_ADDRESS", ""),
+    # Yandex Maps JavaScript API kaliti (ixtiyoriy). Bo'lsa — mijoz manzilni Yandex xaritada belgilaydi
+    "ymaps_key": os.getenv("YANDEX_MAPS_KEY", ""),
 }
 PORT = int(os.getenv("PORT", "8080"))
 DB_PATH = os.getenv("DB_PATH", str(BASE / "data" / "shop.db"))
@@ -103,15 +105,20 @@ def status_keyboard(o: dict, chat_id: int = 1) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def order_photo(o: dict) -> str:
-    """Guruhga faqat bitta rasm: birinchi mahsulotning asosiy rasmi (bo'lsa)."""
+def order_photos(o: dict) -> list:
+    """Har bir mahsulotning asosiy rasmi va izohi: [[fayl yo'li, izoh], ...] (Telegram albomi — ko'pi bilan 10)."""
+    out = []
     for i in o["items"]:
         img = i.get("image")
-        if img:
-            path = os.path.join(UPLOAD_DIR, os.path.basename(img))
-            if os.path.isfile(path):
-                return path
-    return ""
+        if not img:
+            continue
+        path = os.path.join(UPLOAD_DIR, os.path.basename(img))
+        if os.path.isfile(path):
+            cap = f"<b>{esc(i['name'])}</b>\n{i['qty']} ta × {fmt_price(i['price'])} = {fmt_price(i['price'] * i['qty'])}"
+            if i.get("delivery_days"):
+                cap += f"\n🚚 Yetkazish: {esc(i['delivery_days'])}"
+            out.append([path, cap])
+    return out[:10]
 
 
 def _media(m: str):
@@ -120,14 +127,26 @@ def _media(m: str):
 
 
 async def send_order_to(chat_id: int, o: dict, media: dict) -> list:
-    """Buyurtma: mahsulot rasmi + ma'lumot + tugmalar, keyin chek rasmi javob sifatida."""
+    """Mahsulotlar rasmlari (albom) -> buyurtma ma'lumoti va tugmalar -> chek rasmi (javob sifatida)."""
     text = "🔔 " + order_text(o, for_admin=True)
     kb = status_keyboard(o, chat_id)
-    if media.get("photo") and len(text) <= 1024:
-        m = await bot.send_photo(chat_id, _media(media["photo"]), caption=text, reply_markup=kb)
-        media["photo"] = m.photo[-1].file_id
+    photos = media.get("photos") or []
+    if len(photos) == 1 and len(text) <= 1024:
+        # bitta mahsulot: rasm + buyurtma ma'lumoti bitta xabarda
+        m = await bot.send_photo(chat_id, _media(photos[0][0]), caption=text, reply_markup=kb)
+        photos[0][0] = m.photo[-1].file_id
         entry = [chat_id, m.message_id, "photo"]
     else:
+        if len(photos) == 1:
+            sent = [await bot.send_photo(chat_id, _media(photos[0][0]), caption=photos[0][1])]
+        elif photos:
+            sent = await bot.send_media_group(
+                chat_id, [InputMediaPhoto(media=_media(p), caption=c) for p, c in photos])
+        else:
+            sent = []
+        for ph, sm in zip(photos, sent):
+            if sm.photo:
+                ph[0] = sm.photo[-1].file_id
         m = await bot.send_message(chat_id, text, reply_markup=kb)
         entry = [chat_id, m.message_id, "text"]
     if media.get("receipt"):
@@ -145,7 +164,7 @@ async def notify_new_order(o: dict):
     if not bot:
         return
     msgs = []
-    media = {"photo": order_photo(o), "receipt": shop.receipt_path(o)}
+    media = {"photos": order_photos(o), "receipt": shop.receipt_path(o)}
     for aid in NOTIFY_CHATS:
         try:
             msgs.append(await send_order_to(aid, o, media))
@@ -191,6 +210,22 @@ async def notify_status(o: dict):
             pass
 
 
+async def register_user(user: dict):
+    """Mijozni bazaga yozadi; yangi bo'lsa — adminlarga xabar (sozlamada o'chirib qo'yish mumkin)."""
+    if not shop.touch_user(user) or not bot or shop.settings().get("notify_new_users") != "1":
+        return
+    name = esc(" ".join(x for x in (user.get("first_name"), user.get("last_name")) if x) or "—")
+    uname = f" (@{esc(user['username'])})" if user.get("username") else ""
+    st = shop.customer_stats()
+    text = (f"👤 <b>Yangi mijoz qo'shildi</b>\n{name}{uname}\nID: <code>{user['id']}</code>\n\n"
+            f"👥 Jami mijozlar: <b>{st['total']}</b> · bugun: {st['today']}")
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
+
+
 # ------------------------------------------------------------------ bot
 def shop_button(text="🛋 Katalogni ochish", suffix="") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
@@ -199,7 +234,7 @@ def shop_button(text="🛋 Katalogni ochish", suffix="") -> InlineKeyboardMarkup
 
 @dp.message(CommandStart())
 async def cmd_start(m: Message):
-    shop.touch_user(m.from_user.model_dump())
+    await register_user(m.from_user.model_dump())
     text = (f"Assalomu alaykum, <b>{esc(m.from_user.first_name or '')}</b>! 👋\n\n"
             f"<b>{esc(SHOP['name'])}</b> ga xush kelibsiz.\n"
             "Tayyor mebellar katalogini ko'ring va bir necha bosishda buyurtma bering 👇")
@@ -262,7 +297,7 @@ async def user_message(m: Message):
     if is_admin(m.from_user.id):
         return await m.answer("Mijozga javob berish uchun uning xabariga «Reply» qiling.",
                               reply_markup=shop_button("🗂 Admin panel", "?admin=1"))
-    shop.touch_user(m.from_user.model_dump())
+    await register_user(m.from_user.model_dump())
     u = m.from_user
     who = esc(u.full_name) + (f" (@{u.username})" if u.username else "")
     for aid in ADMIN_IDS:
@@ -319,7 +354,7 @@ def public(o: dict) -> dict:
 
 async def api_me(request):
     u = get_user(request)
-    shop.touch_user(u)
+    await register_user(u)
     return web.json_response({"user": u, "is_admin": is_admin(u["id"]), "profile": shop.last_profile(u["id"]),
                               "orders": [public(o) for o in shop.user_orders(u["id"])]})
 
@@ -363,6 +398,13 @@ async def api_admin_receipt(request):
     if not path:
         raise ShopError("Chek topilmadi")
     return web.FileResponse(path, headers={"Cache-Control": "private, no-store"})
+
+
+async def api_admin_customers(request):
+    get_admin(request)
+    q = request.query
+    data = shop.customers(q.get("q", ""), int(q.get("offset") or 0), int(q.get("limit") or 50))
+    return web.json_response({"stats": shop.customer_stats(), **data})
 
 
 async def api_admin_settings(request):
@@ -461,6 +503,7 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/broadcast", api_admin_broadcast)
     app.router.add_get("/api/admin/receipt/{id}", api_admin_receipt)
     app.router.add_post("/api/admin/settings", api_admin_settings)
+    app.router.add_get("/api/admin/customers", api_admin_customers)
     return app
 
 
