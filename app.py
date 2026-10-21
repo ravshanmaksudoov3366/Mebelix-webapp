@@ -18,8 +18,10 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     CallbackQuery,
+    FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
     MenuButtonWebApp,
     Message,
     WebAppInfo,
@@ -97,17 +99,60 @@ def status_keyboard(o: dict, chat_id: int = 1) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def order_photos(o: dict) -> list:
+    """Buyurtmadagi mahsulotlar rasmlari: [[fayl yo'li, izoh], ...] (ko'pi bilan 10 ta)."""
+    out = []
+    for i in o["items"]:
+        img = i.get("image")
+        if img:
+            path = os.path.join(UPLOAD_DIR, os.path.basename(img))
+            if os.path.isfile(path):
+                out.append([path, f"{i['name']} × {i['qty']}"])
+    return out[:10]
+
+
+def _media(m: str):
+    # birinchi yuborishda fayl, keyingi chatlarga Telegram file_id (qayta yuklamaslik uchun)
+    return FSInputFile(m) if os.path.isfile(m) else m
+
+
+async def send_order_to(chat_id: int, o: dict, photos: list) -> list:
+    text = "🔔 " + order_text(o, for_admin=True)
+    kb = status_keyboard(o, chat_id)
+    if len(photos) == 1 and len(text) <= 1024:
+        # bitta mahsulot: rasm + buyurtma matni bitta xabarda
+        m = await bot.send_photo(chat_id, _media(photos[0][0]), caption=text, reply_markup=kb)
+        photos[0][0] = m.photo[-1].file_id
+        return [chat_id, m.message_id, "photo"]
+    if len(photos) == 1:
+        m = await bot.send_photo(chat_id, _media(photos[0][0]), caption=esc(photos[0][1]))
+        photos[0][0] = m.photo[-1].file_id
+    elif photos:
+        sent = await bot.send_media_group(
+            chat_id, [InputMediaPhoto(media=_media(p), caption=esc(c)) for p, c in photos])
+        for ph, sm in zip(photos, sent):
+            if sm.photo:
+                ph[0] = sm.photo[-1].file_id
+    m = await bot.send_message(chat_id, text, reply_markup=kb)
+    return [chat_id, m.message_id, "text"]
+
+
 async def notify_new_order(o: dict):
     if not bot:
         return
     msgs = []
+    photos = order_photos(o)
     for aid in NOTIFY_CHATS:
         try:
-            m = await bot.send_message(aid, "🔔 " + order_text(o, for_admin=True),
-                                       reply_markup=status_keyboard(o, aid))
-            msgs.append([aid, m.message_id])
+            msgs.append(await send_order_to(aid, o, photos))
         except TelegramAPIError as e:
-            log.warning("adminga yuborilmadi %s: %s", aid, e)
+            log.warning("rasmli xabar yuborilmadi %s: %s", aid, e)
+            try:  # rasm bilan muammo bo'lsa, hech bo'lmasa matn borsin
+                m = await bot.send_message(aid, "🔔 " + order_text(o, for_admin=True),
+                                           reply_markup=status_keyboard(o, aid))
+                msgs.append([aid, m.message_id, "text"])
+            except TelegramAPIError as e2:
+                log.warning("adminga yuborilmadi %s: %s", aid, e2)
     shop.set_admin_msgs(o["id"], msgs)
     try:
         await bot.send_message(
@@ -121,10 +166,17 @@ async def notify_new_order(o: dict):
 async def notify_status(o: dict):
     if not bot:
         return
-    for chat_id, msg_id in o["admin_msgs"]:
+    for entry in o["admin_msgs"]:
+        chat_id, msg_id = entry[0], entry[1]
+        kind = entry[2] if len(entry) > 2 else "text"
+        text = "🔔 " + order_text(o, for_admin=True)
         try:
-            await bot.edit_message_text(order_text(o, for_admin=True), chat_id=chat_id, message_id=msg_id,
-                                        reply_markup=status_keyboard(o, chat_id))
+            if kind == "photo":
+                await bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text,
+                                               reply_markup=status_keyboard(o, chat_id))
+            else:
+                await bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id,
+                                            reply_markup=status_keyboard(o, chat_id))
         except TelegramAPIError:
             pass
     text = STATUS_MESSAGES.get(o["status"])
@@ -347,8 +399,16 @@ async def api_admin_broadcast(request):
     return web.json_response({"queued": len(ids)})
 
 
+async def upload_headers(request, response):
+    # Rasmlar: uzoq keshlash (nomlari takrorlanmaydi) va Telegram'dan yuklab olishga ruxsat
+    if request.path.startswith("/uploads/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        response.headers["Access-Control-Allow-Origin"] = "*"
+
+
 def make_app() -> web.Application:
     app = web.Application(middlewares=[errors], client_max_size=60 * 1024 * 1024)
+    app.on_response_prepare.append(upload_headers)
     app.router.add_get("/", page_index)
     app.router.add_static("/uploads/", UPLOAD_DIR)
     app.router.add_get("/api/catalog", api_catalog)

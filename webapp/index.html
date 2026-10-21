@@ -131,7 +131,28 @@ body.tg nav.in-sheet { display: none; }
 .gallery::-webkit-scrollbar { display: none; }
 .gallery > div { flex: 0 0 100%; scroll-snap-align: center; aspect-ratio: 4/3; display: grid; place-items: center;
   font-size: 110px; background: linear-gradient(140deg, #efe2d3, #dcc5ad); }
-.gallery img { width: 100%; height: 100%; object-fit: cover; }
+.gallery img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+.gallery > div { position: relative; }
+.zoom-hint { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.5); color: #fff; font-size: 15px;
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; pointer-events: none; }
+
+/* rasm ko'ruvchi */
+.viewer { position: fixed; inset: 0; z-index: 60; background: #000; display: flex; flex-direction: column; }
+.viewer.hidden { display: none; }
+.vbar { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: linear-gradient(rgba(0,0,0,.6), transparent); color: #fff; }
+.vbar button { border: 0; background: rgba(255,255,255,.16); color: #fff; border-radius: 20px; padding: 8px 14px; font-weight: 600; }
+.vbar .vclose { width: 38px; height: 38px; padding: 0; border-radius: 50%; font-size: 17px; }
+.vtrack { flex: 1; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; touch-action: pan-x; }
+.vtrack::-webkit-scrollbar { display: none; }
+.vtrack.zoomed { overflow: hidden; touch-action: none; }
+.vtrack.zoomed ~ .vhint { display: none; }
+.vslide { flex: 0 0 100%; height: 100%; scroll-snap-align: center; display: grid; place-items: center; overflow: hidden; }
+.vslide img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none; -webkit-user-drag: none;
+  will-change: transform; transition: transform .15s ease; }
+.vslide img.drag { transition: none; }
+.vhint { position: absolute; left: 0; right: 0; bottom: calc(14px + env(safe-area-inset-bottom)); text-align: center;
+  color: rgba(255,255,255,.7); font-size: 13px; pointer-events: none; }
 .dots { display: flex; justify-content: center; gap: 6px; padding: 8px 0 0; }
 .dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); }
 .dots i.on { background: var(--accent); width: 16px; }
@@ -161,6 +182,12 @@ textarea.in { resize: vertical; min-height: 72px; }
 .imgs .thumb { width: 76px; height: 76px; }
 .imgs .thumb .x { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff; width: 22px; height: 22px;
   border-radius: 50%; font-size: 12px; padding: 0; display: grid; place-items: center; }
+.imgs .thumb .star { position: absolute; left: 2px; bottom: 2px; background: rgba(0,0,0,.55); color: #ffd54a; width: 24px; height: 24px;
+  border: 0; border-radius: 50%; font-size: 13px; padding: 0; display: grid; place-items: center; }
+.imgs .main-tag { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); color: var(--accent-text);
+  font-size: 10px; font-weight: 700; text-align: center; padding: 2px 0; }
+.addimg { position: relative; overflow: hidden; margin-top: 10px; }
+.addimg input { position: absolute; inset: 0; opacity: 0; }
 .imgs .add { width: 76px; height: 76px; border-radius: 12px; border: 1.5px dashed var(--hint); display: grid; place-items: center;
   color: var(--hint); font-size: 26px; background: none; position: relative; overflow: hidden; }
 .imgs .add input { position: absolute; inset: 0; opacity: 0; }
@@ -206,6 +233,12 @@ a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
 </nav>
 
 <div class="shade" id="shade"></div>
+<div class="viewer hidden" id="viewer">
+  <div class="vbar"><span id="vcount"></span>
+    <div style="display:flex;gap:8px"><button id="vsave">📥 Saqlash</button><button class="vclose" id="vclose" aria-label="Yopish">✕</button></div></div>
+  <div class="vtrack" id="vtrack"></div>
+  <div class="vhint">Kattalashtirish: ikki barmoq bilan yoki ikki marta bosing</div>
+</div>
 <div id="sheets"></div>
 <button class="btn fallback hidden" id="fallback"></button>
 
@@ -423,6 +456,7 @@ function setMain(text, fn) {
   }
 }
 function updateMain() {
+  if (typeof V !== "undefined" && V.open) return setMain(null);
   const top = S.sheets[S.sheets.length - 1];
   if (top) return top.main ? setMain(...top.main()) : setMain(null);
   const n = cartCount();
@@ -441,7 +475,7 @@ function openProduct(id) {
     title: "",
     rerender: () => `
       <div class="gallery" onscroll="const i=Math.round(this.scrollLeft/this.clientWidth);this.nextElementSibling&&this.nextElementSibling.querySelectorAll('i').forEach((d,k)=>d.classList.toggle('on',k===i))">
-        ${imgs.map(src => `<div>${src ? `<img src="${esc(src)}" alt="">` : esc(p.emoji)}</div>`).join("")}</div>
+        ${imgs.map((src, k) => `<div>${src ? `<img src="${esc(src)}" alt="" onclick="openViewer(${p.id}, ${k})"><span class="zoom-hint">🔍</span>` : esc(p.emoji)}</div>`).join("")}</div>
       ${imgs.length > 1 ? `<div class="dots">${imgs.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
       <div class="section">
         ${cat ? `<div class="small muted">${esc(cat.emoji)} ${esc(cat.name)}</div>` : ""}
@@ -466,6 +500,95 @@ function openProduct(id) {
     sh.el.querySelector(".sb").innerHTML = sh.rerender();
   }
 }
+
+/* ------------------------------------------------ rasm ko'ruvchi (kattalashtirish va saqlash) */
+var V = { open: false, p: null, idx: 0, s: 1, x: 0, y: 0 };
+function openViewer(pid, idx) {
+  const p = prod(pid); if (!p || !p.images.length) return;
+  Object.assign(V, { open: true, p, idx, s: 1, x: 0, y: 0 });
+  const tr = $("#vtrack");
+  tr.innerHTML = p.images.map(src => `<div class="vslide"><img src="${esc(src)}" alt="" draggable="false"></div>`).join("");
+  $("#viewer").classList.remove("hidden");
+  requestAnimationFrame(() => { tr.scrollLeft = idx * tr.clientWidth; vCount(); });
+  tr.querySelectorAll(".vslide").forEach(bindZoom);
+  if (IN_TG) tg.MainButton.hide(); else $("#fallback").classList.add("hidden");
+  if (tg && tg.BackButton) tg.BackButton.show();
+  haptic();
+}
+function closeViewer() {
+  V.open = false; $("#viewer").classList.add("hidden"); $("#vtrack").innerHTML = "";
+  updateBack(); updateMain();
+}
+function vCount() {
+  const tr = $("#vtrack");
+  V.idx = Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth));
+  $("#vcount").textContent = V.p && V.p.images.length > 1 ? `${V.idx + 1} / ${V.p.images.length}` : "";
+}
+function vApply(img, anim) {
+  img.classList.toggle("drag", !anim);
+  img.style.transform = `translate(${V.x}px, ${V.y}px) scale(${V.s})`;
+  $("#vtrack").classList.toggle("zoomed", V.s > 1.01);
+}
+function vClamp(img) {
+  const r = img.getBoundingClientRect(), w = r.width / V.s, h = r.height / V.s;
+  const mx = Math.max(0, (w * V.s - innerWidth) / 2), my = Math.max(0, (h * V.s - innerHeight) / 2);
+  V.x = Math.max(-mx, Math.min(mx, V.x)); V.y = Math.max(-my, Math.min(my, V.y));
+}
+function bindZoom(slide) {
+  const img = slide.querySelector("img"), pts = new Map();
+  let startDist = 0, startS = 1, last = null, lastTap = 0;
+  const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  slide.addEventListener("pointerdown", e => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) { startDist = dist(); startS = V.s; }
+    last = { x: e.clientX, y: e.clientY };
+    if (pts.size === 2 || V.s > 1.01) slide.setPointerCapture(e.pointerId);
+  });
+  slide.addEventListener("pointermove", e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && startDist) {
+      V.s = Math.max(1, Math.min(5, startS * dist() / startDist)); vClamp(img); vApply(img, false);
+    } else if (pts.size === 1 && V.s > 1.01 && last) {
+      V.x += e.clientX - last.x; V.y += e.clientY - last.y; vClamp(img); vApply(img, false);
+    }
+    last = { x: e.clientX, y: e.clientY };
+  });
+  const up = e => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) startDist = 0;
+    if (V.s <= 1.02) { V.s = 1; V.x = 0; V.y = 0; vApply(img, true); }
+    if (e.type === "pointerup" && pts.size === 0) {
+      const now = Date.now();
+      if (now - lastTap < 300) {            // ikki marta bosish
+        if (V.s > 1.01) { V.s = 1; V.x = 0; V.y = 0; } else { V.s = 2.5; }
+        vClamp(img); vApply(img, true); lastTap = 0;
+      } else lastTap = now;
+    }
+  };
+  slide.addEventListener("pointerup", up);
+  slide.addEventListener("pointercancel", up);
+}
+async function saveImage() {
+  const src = V.p && V.p.images[V.idx]; if (!src) return;
+  const url = new URL(src, location.href).href;
+  const name = (V.p.name || "mebelix").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
+  try {
+    if (IN_TG && tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
+      tg.downloadFile({ url, file_name: name }, ok => ok && toast("Rasm saqlanmoqda…"));
+      return;
+    }
+  } catch (e) { /* eski Telegram — pastdagi usul */ }
+  if (IN_TG) { tg.openLink(url); toast("Rasmni bosib turing va «Saqlash»ni tanlang"); return; }
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+$("#vclose").onclick = closeViewer;
+$("#vsave").onclick = saveImage;
+$("#vtrack").addEventListener("scroll", () => {
+  vCount();
+  const imgs = $("#vtrack").querySelectorAll("img");
+  imgs.forEach((im, i) => { if (i !== V.idx && im.style.transform) { im.style.transform = ""; } });
+}, { passive: true });
 
 /* ------------------------------------------------ buyurtma berish */
 const CITIES = ["Toshkent shahri", "Toshkent viloyati", "Andijon", "Buxoro", "Farg'ona", "Jizzax", "Xorazm", "Namangan",
@@ -627,19 +750,28 @@ function openProductForm(id) {
     price: p ? p.price : "", old_price: p && p.old_price ? p.old_price : "", emoji: p ? p.emoji : "🛋",
     description: p ? p.description : "", specs: p ? p.specs.map(s => s.join(": ")).join("\n") : "",
     in_stock: p ? p.in_stock : true, active: p ? p.active : true,
-    keep: p ? [...p.images] : [], files: [], previews: [], err: "", busy: false };
+    imgs: p ? p.images.map(src => ({ kind: "k", src })) : [],   // k — saqlangan, n — yangi tanlangan
+    err: "", busy: false, loading: 0 };
   openSheet({ title: p ? "Mahsulotni tahrirlash" : "Yangi mahsulot", rerender: productFormHTML,
-    onClose: () => PF.previews.forEach(u => URL.revokeObjectURL(u)) });
+    onClose: () => PF.imgs.forEach(im => im.kind === "n" && URL.revokeObjectURL(im.src)) });
 }
 const numFmt = v => String(v ?? "").replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 function productFormHTML() {
   const cats = S.adm.data.categories;
-  return `<div class="section"><label class="f">Rasmlar (birinchisi asosiy rasm bo'ladi)</label>
+  const left = MAX_IMGS - PF.imgs.length;
+  return `<div class="section"><h3>Rasmlar <span class="muted small">(${PF.imgs.length}/${MAX_IMGS})</span></h3>
       <div class="imgs">
-        ${PF.keep.map((src, i) => `<div class="thumb"><img src="${esc(src)}"><button class="x" onclick="PF.keep.splice(${i},1); refresh()">✕</button></div>`).join("")}
-        ${PF.previews.map((src, i) => `<div class="thumb"><img src="${src}"><button class="x" onclick="URL.revokeObjectURL(PF.previews[${i}]); PF.previews.splice(${i},1); PF.files.splice(${i},1); refresh()">✕</button></div>`).join("")}
-        ${PF.keep.length + PF.files.length < 10 ? `<label class="add">📷<input type="file" accept="image/*" multiple onchange="addFiles(this.files)"></label>` : ""}
-      </div></div>
+        ${PF.imgs.map((im, i) => `<div class="thumb">
+          <img src="${esc(im.src)}" alt="">
+          ${i === 0 ? `<span class="main-tag">Asosiy</span>` : `<button class="star" onclick="mainImg(${i})" title="Asosiy qilish">★</button>`}
+          <button class="x" onclick="removeImg(${i})" aria-label="O'chirish">✕</button></div>`).join("")}
+        ${PF.loading ? `<div class="thumb"><span class="small muted">⏳ ${PF.loading}</span></div>` : ""}
+      </div>
+      ${left > 0 ? `<label class="btn soft block addimg">📷 Rasm qo'shish
+          <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''"></label>
+        <div class="small muted" style="margin-top:6px">Galereyadan bir vaqtning o'zida ${left} tagacha rasm belgilashingiz mumkin.
+          Asosiy rasmni almashtirish uchun ★ ni bosing.</div>` : `<div class="small muted" style="margin-top:8px">Ko'pi bilan ${MAX_IMGS} ta rasm.</div>`}
+    </div>
     <div class="section">
       <label class="f">Nomi *</label><input class="in" value="${esc(PF.name)}" oninput="PF.name=this.value" placeholder="Masalan: Burchak divan «Roma»">
       <label class="f">Kategoriya</label>
@@ -665,23 +797,48 @@ function productFormHTML() {
       ${PF.id ? `<button class="btn danger block" onclick="deleteProduct()">🗑 O'chirish</button>` : ""}
     </div>`;
 }
-function addFiles(list) {
-  for (const f of list) {
-    if (PF.keep.length + PF.files.length >= 10) break;
-    if (!f.type.startsWith("image/")) continue;
-    PF.files.push(f); PF.previews.push(URL.createObjectURL(f));
+const MAX_IMGS = 10;
+function mainImg(i) { const [im] = PF.imgs.splice(i, 1); PF.imgs.unshift(im); haptic(); refresh(); }
+function removeImg(i) { const [im] = PF.imgs.splice(i, 1); if (im.kind === "n") URL.revokeObjectURL(im.src); refresh(); }
+// Telefondagi katta rasmni yuklashdan oldin kichraytiramiz (tezroq yuklanadi, internet tejaladi)
+async function shrink(file, max = 1600) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.size < 1.5e6) return file;
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.86));
+    return blob ? new File([blob], "photo.jpg", { type: "image/jpeg" }) : file;
+  } catch (e) { return file; }
+}
+async function addFiles(list) {
+  const files = [...list].filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/i.test(f.name));
+  const room = MAX_IMGS - PF.imgs.length;
+  if (files.length > room) toast(`Faqat ${room} ta rasm qo'shildi (ko'pi bilan ${MAX_IMGS} ta)`);
+  const take = files.slice(0, room);
+  PF.loading = take.length; refresh();
+  for (const f of take) {
+    const small = await shrink(f);
+    PF.imgs.push({ kind: "n", file: small, src: URL.createObjectURL(small) });
+    PF.loading--; refresh();
   }
-  refresh();
 }
 async function saveProduct() {
   PF.err = !PF.name.trim() ? "Nomini kiriting" : !String(PF.price).replace(/\D/g, "") ? "Narxini kiriting" : "";
   if (PF.err) return refresh();
+  if (PF.loading) { PF.err = "Rasmlar tayyorlanmoqda, biroz kuting"; return refresh(); }
   PF.busy = true; refresh();
   const fd = new FormData();
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
-    description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0, keep_images: JSON.stringify(PF.keep) };
+    description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0 };
+  let n = 0;
+  const order = PF.imgs.map(im => im.kind === "k" ? "k:" + im.src : "n:" + (n++));
+  fields.keep_images = JSON.stringify(PF.imgs.filter(im => im.kind === "k").map(im => im.src));
+  fields.order = JSON.stringify(order);
   Object.entries(fields).forEach(([k, v]) => fd.append(k, v ?? ""));
-  PF.files.forEach(f => fd.append("images", f, f.name || "photo.jpg"));
+  PF.imgs.filter(im => im.kind === "n").forEach(im => fd.append("images", im.file, im.file.name || "photo.jpg"));
   try { await api("/api/admin/product", { form: fd }); notifyH("success"); toast("Saqlandi ✓");
         closeAll(); await Promise.all([loadAdmin(), loadCatalog()]); render(); }
   catch (e) { PF.err = e.message; PF.busy = false; refresh(); }
@@ -737,7 +894,7 @@ $("#shade").onclick = closeSheet;
 $("#fallback").onclick = () => mainHandler && mainHandler();
 if (IN_TG) {
   tg.MainButton.onClick(() => mainHandler && mainHandler());
-  tg.BackButton.onClick(() => S.sheets.length ? closeSheet() : go("catalog"));
+  tg.BackButton.onClick(() => V.open ? closeViewer() : S.sheets.length ? closeSheet() : go("catalog"));
 }
 
 /* ------------------------------------------------ yuklash */

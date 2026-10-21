@@ -29,7 +29,7 @@ ACTIONS = {
     "cancelled": "❌ Bekor qilish",
 }
 DELIVERY = {"delivery": "🚚 Yetkazib berish", "pickup": "🏬 Do'kondan olib ketish"}
-PAYMENTS = ["Naqd (qabul qilganda)", "Karta orqali (qabul qilganda)", "Click / Payme", "Muddatli to'lov"]
+PAYMENTS = ["Naqd (qabul qilganda)", "Karta orqali (qabul qilganda)", "Click / Payme"]
 
 
 class ShopError(Exception):
@@ -216,7 +216,21 @@ class Shop:
                     specs.append([k.strip(), v.strip()])
         keep = data.get("keep_images")
         keep = json.loads(keep) if isinstance(keep, str) and keep else (keep or [])
-        images = [p for p in keep if isinstance(p, str) and p.startswith("uploads/")] + list(new_images)
+        keep = [p for p in keep if isinstance(p, str) and p.startswith("uploads/")]
+        new_images = list(new_images)
+        # "order": rasmlar tartibi, masalan ["k:uploads/a.jpg", "n:0", "n:1"] (k — eski, n — yangi yuklangan)
+        order = data.get("order")
+        order = json.loads(order) if isinstance(order, str) and order else (order or [])
+        images = []
+        for ref in order:
+            if not isinstance(ref, str):
+                continue
+            if ref.startswith("k:") and ref[2:] in keep:
+                images.append(ref[2:])
+            elif ref.startswith("n:") and ref[2:].isdigit() and int(ref[2:]) < len(new_images):
+                images.append(new_images[int(ref[2:])])
+        # tartibda ko'rsatilmaganlarini oxiriga qo'shamiz
+        images += [p for p in keep + new_images if p not in images]
         fields = dict(
             cat_id=cat_id, name=name, price=price, old_price=old_price,
             description=(data.get("description") or "").strip(),
