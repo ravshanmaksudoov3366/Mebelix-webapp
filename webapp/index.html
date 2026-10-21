@@ -239,31 +239,40 @@ textarea.in { resize: vertical; min-height: 72px; }
   animation: sk 1.2s infinite; border-radius: var(--r); height: 240px; }
 @keyframes sk { to { background-position: -200% 0; } }
 a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
+.brand-r { display: flex; align-items: center; gap: 10px; }
+.langsw { display: flex; background: var(--bg2); border-radius: 10px; padding: 2px; }
+.langsw button { border: 0; background: none; font-size: 12px; font-weight: 700; padding: 5px 8px; border-radius: 8px; color: var(--hint); }
+.langsw button.on { background: var(--accent); color: var(--accent-text); }
+.langpick { text-align: center; padding: 26px 20px 10px; }
+.langpick .big { font-size: 46px; }
+.langpick .btn { width: 100%; padding: 16px; font-size: 18px; margin-top: 10px; }
 </style>
 </head>
 <body>
 
 <header id="hdr">
-  <div class="brand"><h1 id="shopName">🛋 Mebel</h1><a id="shopPhone" class="hidden"></a></div>
-  <div class="search"><span>🔍</span><input id="q" type="search" placeholder="Divan, shkaf, stol..." autocomplete="off"></div>
+  <div class="brand"><h1 id="shopName">🛋 Mebel</h1>
+    <div class="brand-r"><a id="shopPhone" class="hidden"></a>
+      <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div></div>
+  <div class="search"><span>🔍</span><input id="q" type="search" data-tph="search_ph" placeholder="Divan, shkaf, stol..." autocomplete="off"></div>
   <div class="chips" id="cats"></div>
 </header>
 
 <main id="view"></main>
 
 <nav id="nav">
-  <button data-tab="catalog" class="on"><span class="ic">🛋</span>Katalog</button>
-  <button data-tab="cart"><span class="ic">🛒</span>Savatcha<span class="cnt hidden" id="cartCnt"></span></button>
-  <button data-tab="orders"><span class="ic">📦</span>Buyurtmalarim</button>
+  <button data-tab="catalog" class="on"><span class="ic">🛋</span><span data-t="nav_catalog">Katalog</span></button>
+  <button data-tab="cart"><span class="ic">🛒</span><span data-t="nav_cart">Savatcha</span><span class="cnt hidden" id="cartCnt"></span></button>
+  <button data-tab="orders"><span class="ic">📦</span><span data-t="nav_orders">Buyurtmalarim</span></button>
   <button data-tab="admin" class="hidden" id="adminTab"><span class="ic">🗂</span>Admin<span class="cnt hidden" id="newCnt"></span></button>
 </nav>
 
 <div class="shade" id="shade"></div>
 <div class="viewer hidden" id="viewer">
   <div class="vbar"><span id="vcount"></span>
-    <div style="display:flex;gap:8px"><button id="vsave">📥 Saqlash</button><button class="vclose" id="vclose" aria-label="Yopish">✕</button></div></div>
+    <div style="display:flex;gap:8px"><button id="vsave" data-t="save_img">📥 Saqlash</button><button class="vclose" id="vclose" aria-label="Yopish">✕</button></div></div>
   <div class="vtrack" id="vtrack"></div>
-  <div class="vhint">Kattalashtirish: ikki barmoq bilan yoki ikki marta bosing</div>
+  <div class="vhint" data-t="zoom_hint">Kattalashtirish: ikki barmoq bilan yoki ikki marta bosing</div>
 </div>
 <div id="sheets"></div>
 <button class="btn fallback hidden" id="fallback"></button>
@@ -275,10 +284,129 @@ const IN_TG = !!(tg && tg.initData);
 if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
 if (IN_TG) document.body.classList.add("tg");
 
+/* ------------------------------------------------ til (uz / ru) */
+const I18N = {
+  uz: {
+    nav_catalog: "Katalog", nav_cart: "Savatcha", nav_orders: "Buyurtmalarim", search_ph: "Divan, shkaf, stol...",
+    save_img: "📥 Saqlash", zoom_hint: "Kattalashtirish: ikki barmoq bilan yoki ikki marta bosing",
+    net_err: "Internet aloqasini tekshiring", gen_err: "Xatolik yuz berdi", oos: "Omborda yo'q", to_cart: "Savatga",
+    all: "Barchasi", n_products: "{n} ta mahsulot", sort_new: "Yangilari", sort_cheap: "Arzonroq", sort_exp: "Qimmatroq",
+    sort_sale: "Chegirmalar", nothing: "Hech narsa topilmadi", cart_empty: "Savatcha hozircha bo'sh",
+    go_catalog: "Katalogga o'tish", items_n: "Mahsulotlar ({n} ta)", delivery: "Yetkazib berish",
+    by_manager: "Menejer bilan kelishiladi", total: "Jami", clear_cart: "Savatchani tozalash", clear_q: "Savatchani tozalaysizmi?",
+    prepay_line: "💰 Oldindan to'lov: {a} · Qolgan: {b}",
+    check_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, bot orqali xabar keladi.",
+    check_rej: "To'lov cheki tasdiqlanmadi. Iltimos, do'kon bilan bog'laning.", repeat: "🔁 Qayta buyurtma",
+    questions: "Savollar bo'yicha: {phone} yoki botga yozing.", no_orders: "Hali buyurtma bermagansiz",
+    not_avail: "Bu mahsulotlar hozir sotuvda yo'q", added: "Savatchaga qo'shildi", close: "Yopish",
+    main_cart: "🛒 Savatcha · {n} ta · {sum}", main_checkout: "Rasmiylashtirish · {sum}",
+    delivery_time: "🚚 Yetkazib berish muddati:", specs: "Xususiyatlari", desc: "Tavsif",
+    in_cart_go: "✓ Savatchada {n} ta · Savatchaga o'tish", add_cart: "Savatga qo'shish · {sum}", qty: "Miqdori",
+    saving_img: "Rasm saqlanmoqda…", hold_save: "Rasmni bosib turing va «Saqlash»ni tanlang",
+    sold_out_cart: "Savatchadagi mahsulotlar sotuvda qolmadi", prev_addr: "Oldingi buyurtmadagi manzil",
+    checkout: "Buyurtmani rasmiylashtirish", send_order: "Chekni yuborish va buyurtma berish",
+    deliv_opt: "🚚 Yetkazib berish", pickup_opt: "🏬 Olib ketish", contact: "Aloqa ma'lumotlari", your_name: "Ismingiz",
+    name_ph: "Ism Familiya", phone: "Telefon raqam", share_phone: "Telegram raqamini yuborish",
+    addr_title: "Yetkazib berish manzili", addr_set: "Manzil belgilandi", change: "O'zgartirish",
+    map_btn: "🗺 Xaritada belgilash",
+    map_hint: "Mahsulot qayerga yetkazilishini xaritada ko'rsating — joylashuvingizni avtomatik aniqlash ham mumkin.",
+    region: "Viloyat / shahar", addr_extra: "Uy, xonadon, mo'ljal (ixtiyoriy)",
+    addr_ph: "Masalan: 12-uy, 45-xonadon, 3-qavat, maktab yonida", prepay_title: "Oldindan to'lov — {p}%",
+    no_card: "Do'kon hali to'lov kartasini kiritmagan. Iltimos, keyinroq urinib ko'ring yoki {phone} raqamiga qo'ng'iroq qiling.",
+    prepay_hint: "Buyurtma berish uchun quyidagi summani kartaga o'tkazing va to'lov chekining rasmini (skrinshot) yuklang.",
+    amount: "O'tkaziladigan summa", card_no: "Karta raqami", copy: "📋 Nusxa", rc_ok: "✅ Chek yuklandi",
+    rc_check: "Rasmni bosib tekshiring", replace: "Almashtirish", uploading: "⏳ Yuklanmoqda...",
+    upload_rc: "🧾 Chek rasmini yuklash", rest_pay: "Qolgan summani to'lash", note: "Izoh (ixtiyoriy)",
+    note_ph: "Masalan: lift yo'q, yig'ib berish kerak", prepay_sum: "Oldindan to'lov ({p}%)",
+    on_receive: "Qabul qilganda to'lanadi",
+    after_check: "Chekingiz tekshirilgach, buyurtma qabul qilinadi va bot orqali xabar beramiz.",
+    card_copied: "Karta raqami nusxalandi", phone_sent: "Raqam yuborildi",
+    map_load_err: "Xaritani yuklab bo'lmadi. Internetni tekshiring.", my_loc: "🎯 Mening joylashuvim",
+    map_drag: "Xaritani surib, 📍 belgisini uyingiz ustiga qo'ying", locating: "Manzil aniqlanmoqda...",
+    pick_here: "✅ Shu manzilni tanlash", no_geo: "Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang",
+    geo_denied: "Joylashuvga ruxsat berilmadi. Xaritada qo'lda belgilang",
+    geo_settings: "Joylashuvga ruxsat berilmagan. Sozlamalarni ochamizmi?",
+    e_name: "Ismingizni kiriting", e_phone: "Telefon raqamni to'g'ri kiriting",
+    e_addr: "Yetkazib berish manzilini xaritada belgilang", e_card: "Do'kon hali to'lov kartasini kiritmagan",
+    e_rc_busy: "Chek rasmi yuklanmoqda, biroz kuting", e_rc: "Oldindan to'lov ({sum}) chekining rasmini yuklang",
+    sent_title: "Buyurtmangiz yuborildi!", order_no: "Buyurtma raqami", prepaid: "Oldindan to'langan",
+    sent_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.",
+    ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm",
+  },
+  ru: {
+    nav_catalog: "Каталог", nav_cart: "Корзина", nav_orders: "Мои заказы", search_ph: "Диван, шкаф, стол...",
+    save_img: "📥 Сохранить", zoom_hint: "Увеличение: двумя пальцами или двойным нажатием",
+    net_err: "Проверьте подключение к интернету", gen_err: "Произошла ошибка", oos: "Нет в наличии", to_cart: "В корзину",
+    all: "Все", n_products: "Товаров: {n}", sort_new: "Новинки", sort_cheap: "Дешевле", sort_exp: "Дороже",
+    sort_sale: "Скидки", nothing: "Ничего не найдено", cart_empty: "Корзина пока пуста",
+    go_catalog: "Перейти в каталог", items_n: "Товары ({n} шт.)", delivery: "Доставка",
+    by_manager: "Согласуется с менеджером", total: "Итого", clear_cart: "Очистить корзину", clear_q: "Очистить корзину?",
+    prepay_line: "💰 Предоплата: {a} · Остаток: {b}",
+    check_wait: "🧾 Ваш чек проверяется. После подтверждения придёт сообщение в боте.",
+    check_rej: "Чек об оплате не подтверждён. Пожалуйста, свяжитесь с магазином.", repeat: "🔁 Повторить заказ",
+    questions: "По вопросам: {phone} или напишите в бот.", no_orders: "Вы ещё не делали заказов",
+    not_avail: "Этих товаров сейчас нет в продаже", added: "Добавлено в корзину", close: "Закрыть",
+    main_cart: "🛒 Корзина · {n} шт. · {sum}", main_checkout: "Оформить · {sum}",
+    delivery_time: "🚚 Срок доставки:", specs: "Характеристики", desc: "Описание",
+    in_cart_go: "✓ В корзине {n} шт. · Перейти в корзину", add_cart: "В корзину · {sum}", qty: "Количество",
+    saving_img: "Изображение сохраняется…", hold_save: "Нажмите и удерживайте изображение, затем выберите «Сохранить»",
+    sold_out_cart: "Товаров из корзины больше нет в продаже", prev_addr: "Адрес из прошлого заказа",
+    checkout: "Оформление заказа", send_order: "Отправить чек и оформить заказ",
+    deliv_opt: "🚚 Доставка", pickup_opt: "🏬 Самовывоз", contact: "Контактные данные", your_name: "Ваше имя",
+    name_ph: "Имя Фамилия", phone: "Номер телефона", share_phone: "Отправить номер из Telegram",
+    addr_title: "Адрес доставки", addr_set: "Адрес отмечен", change: "Изменить",
+    map_btn: "🗺 Отметить на карте",
+    map_hint: "Укажите на карте, куда доставить товар — местоположение можно определить автоматически.",
+    region: "Область / город", addr_extra: "Дом, квартира, ориентир (необязательно)",
+    addr_ph: "Например: дом 12, кв. 45, 3 этаж, рядом со школой", prepay_title: "Предоплата — {p}%",
+    no_card: "Магазин ещё не указал карту для оплаты. Попробуйте позже или позвоните: {phone}.",
+    prepay_hint: "Чтобы оформить заказ, переведите указанную сумму на карту и загрузите фото (скриншот) чека.",
+    amount: "Сумма перевода", card_no: "Номер карты", copy: "📋 Копировать", rc_ok: "✅ Чек загружен",
+    rc_check: "Нажмите, чтобы проверить", replace: "Заменить", uploading: "⏳ Загрузка...",
+    upload_rc: "🧾 Загрузить фото чека", rest_pay: "Оплата остатка", note: "Комментарий (необязательно)",
+    note_ph: "Например: нет лифта, нужна сборка", prepay_sum: "Предоплата ({p}%)",
+    on_receive: "Оплата при получении",
+    after_check: "После проверки чека заказ будет принят — мы сообщим в боте.",
+    card_copied: "Номер карты скопирован", phone_sent: "Номер отправлен",
+    map_load_err: "Не удалось загрузить карту. Проверьте интернет.", my_loc: "🎯 Моё местоположение",
+    map_drag: "Передвиньте карту, чтобы 📍 оказалась на вашем доме", locating: "Определяем адрес...",
+    pick_here: "✅ Выбрать этот адрес", no_geo: "Не удалось определить местоположение. Отметьте вручную на карте",
+    geo_denied: "Нет доступа к геолокации. Отметьте вручную на карте",
+    geo_settings: "Нет доступа к геолокации. Открыть настройки?",
+    e_name: "Введите ваше имя", e_phone: "Введите правильный номер телефона",
+    e_addr: "Отметьте адрес доставки на карте", e_card: "Магазин ещё не указал карту для оплаты",
+    e_rc_busy: "Фото чека загружается, подождите немного", e_rc: "Загрузите фото чека предоплаты ({sum})",
+    sent_title: "Заказ отправлен!", order_no: "Номер заказа", prepaid: "Предоплачено",
+    sent_wait: "🧾 Ваш чек проверяется. После подтверждения заказ будет принят — мы сообщим в боте.",
+    ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум",
+  },
+};
+const CITY_RU = { "Toshkent shahri": "г. Ташкент", "Toshkent viloyati": "Ташкентская обл.", "Andijon": "Андижан",
+  "Buxoro": "Бухара", "Farg'ona": "Фергана", "Jizzax": "Джизак", "Xorazm": "Хорезм", "Namangan": "Наманган",
+  "Navoiy": "Навои", "Qashqadaryo": "Кашкадарья", "Qoraqalpog'iston": "Каракалпакстан", "Samarqand": "Самарканд",
+  "Sirdaryo": "Сырдарья", "Surxondaryo": "Сурхандарья" };
+const urlLang = new URLSearchParams(location.search).get("lang");
+const normLang = l => String(l || "").toLowerCase().startsWith("ru") ? "ru" : "uz";
+let LANG = normLang(urlLang || (function () { try { return JSON.parse(localStorage.getItem("lang")); } catch (e) { return ""; } })()
+  || (window.Telegram && Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user && Telegram.WebApp.initDataUnsafe.user.language_code));
+function t(key, vars) {
+  let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.uz[key] ?? key;
+  if (vars) for (const k in vars) s = s.split("{" + k + "}").join(vars[k]);
+  return s;
+}
+const cityName = c => LANG === "ru" ? (CITY_RU[c] || c) : c;
+const payName = p => LANG === "ru" ? ((S.paymentsRu || {})[p] || p) : p;
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
+  document.querySelectorAll("[data-tph]").forEach(el => el.placeholder = t(el.dataset.tph));
+  document.querySelectorAll("#langsw button").forEach(b => b.classList.toggle("on", b.dataset.l === LANG));
+}
+
 /* ------------------------------------------------ yordamchilar */
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const money = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " so'm";
+const money = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " " + t("som");
 const haptic = (t = "light") => { try { tg.HapticFeedback.impactOccurred(t); } catch (e) {} };
 const notifyH = t => { try { tg.HapticFeedback.notificationOccurred(t); } catch (e) {} };
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
@@ -296,14 +424,14 @@ const picHTML = (p, cls = "ph") => {
 };
 
 async function api(path, { method = "GET", json, form } = {}) {
-  const opt = { method, headers: { "X-Init-Data": (tg && tg.initData) || "" } };
+  const opt = { method, headers: { "X-Init-Data": (tg && tg.initData) || "", "X-Lang": LANG } };
   if (json) { opt.method = "POST"; opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(json); }
   if (form) { opt.method = "POST"; opt.body = form; }
   if (method === "POST" && !opt.body) opt.body = "{}";
   let res;
-  try { res = await fetch(path, opt); } catch (e) { throw new Error("Internet aloqasini tekshiring"); }
+  try { res = await fetch(path, opt); } catch (e) { throw new Error(t("net_err")); }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Xatolik yuz berdi");
+  if (!res.ok) throw new Error(data.error || t("gen_err"));
   return data;
 }
 
@@ -333,10 +461,10 @@ function cleanCart() {             // sotuvdan olingan mahsulotlarni savatchadan
 const stepper = id => `<div class="stepper" onclick="event.stopPropagation()">
   <button onclick="setQty(${id}, ${(S.cart[id] || 0) - 1})">−</button><b>${S.cart[id]}</b>
   <button onclick="setQty(${id}, ${(S.cart[id] || 0) + 1})">+</button></div>`;
-const buyBtn = p => !p.in_stock ? `<button class="btn ghost" disabled>Omborda yo'q</button>`
+const buyBtn = p => !p.in_stock ? `<button class="btn ghost" disabled>${t("oos")}</button>`
   : S.cart[p.id] ? stepper(p.id)
-  : `<button class="btn" onclick="event.stopPropagation(); setQty(${p.id}, 1)">Savatga</button>`;
-const short = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".0", "") + " mlrd" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " mln" : money(n).replace(" so'm", "");
+  : `<button class="btn" onclick="event.stopPropagation(); setQty(${p.id}, 1)">${t("to_cart")}</button>`;
+const short = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".0", "") + " mlrd" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " mln" : Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const ACTIONS = { new: "🔄 Qayta ochish", confirmed: "✅ Tasdiqlash", delivering: "🚚 Yo'lga chiqarish", done: "📦 Yetkazildi", cancelled: "❌ Bekor qilish" };
 const discount = p => p.old_price > p.price ? Math.round((1 - p.price / p.old_price) * 100) : 0;
 
@@ -363,7 +491,7 @@ function refresh() {           // ochiq oynani ham yangilash
 }
 
 function renderCats() {
-  $("#cats").innerHTML = [{ id: 0, name: "Barchasi", emoji: "" }, ...S.cats.filter(c => S.products.some(p => p.cat_id === c.id))]
+  $("#cats").innerHTML = [{ id: 0, name: t("all"), emoji: "" }, ...S.cats.filter(c => S.products.some(p => p.cat_id === c.id))]
     .map(c => `<button class="chip ${S.cat === c.id ? "on" : ""}" data-cat="${c.id}">${esc(c.emoji)} ${esc(c.name)}</button>`).join("");
 }
 
@@ -375,16 +503,16 @@ function viewCatalog() {
     exp: (a, b) => b.price - a.price, sale: (a, b) => discount(b) - discount(a) };
   list.sort(sorters[S.sort] || sorters.new);
   list.sort((a, b) => b.in_stock - a.in_stock);
-  const tools = `<div class="toolbar"><span class="muted small">${list.length} ta mahsulot</span>
+  const tools = `<div class="toolbar"><span class="muted small">${t("n_products", { n: list.length })}</span>
     <select onchange="S.sort=this.value; store.set('sort', this.value); render()">
-      ${[["new", "Yangilari"], ["cheap", "Arzonroq"], ["exp", "Qimmatroq"], ["sale", "Chegirmalar"]]
+      ${[["new", t("sort_new")], ["cheap", t("sort_cheap")], ["exp", t("sort_exp")], ["sale", t("sort_sale")]]
         .map(([k, t]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${t}</option>`).join("")}
     </select></div>`;
-  if (!list.length) return tools + `<div class="empty"><div class="big">🔎</div>Hech narsa topilmadi</div>`;
+  if (!list.length) return tools + `<div class="empty"><div class="big">🔎</div>${t("nothing")}</div>`;
   return tools + `<div class="grid">` + list.map(p => `
     <div class="card" onclick="openProduct(${p.id})">
       <div class="ph">${discount(p) ? `<span class="badge">−${discount(p)}%</span>` : ""}${picHTML(p)}
-        ${!p.in_stock ? `<span class="oos">Omborda yo'q</span>` : ""}</div>
+        ${!p.in_stock ? `<span class="oos">${t("oos")}</span>` : ""}</div>
       <div class="body"><div class="pname">${esc(p.name)}</div>
         <div><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<br><span class="old" style="margin:0">${money(p.old_price)}</span>` : ""}</div>
         ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}
@@ -394,9 +522,9 @@ function viewCatalog() {
 
 function viewCart() {
   const items = cartItems();
-  if (!items.length) return `<h2 class="title">Savatcha</h2><div class="empty"><div class="big">🛒</div>
-    Savatcha hozircha bo'sh<br><br><button class="btn" onclick="go('catalog')">Katalogga o'tish</button></div>`;
-  return `<h2 class="title">Savatcha</h2><div class="section">` + items.map(({ p, qty }) => `
+  if (!items.length) return `<h2 class="title">${t("nav_cart")}</h2><div class="empty"><div class="big">🛒</div>
+    ${t("cart_empty")}<br><br><button class="btn" onclick="go('catalog')">${t("go_catalog")}</button></div>`;
+  return `<h2 class="title">${t("nav_cart")}</h2><div class="section">` + items.map(({ p, qty }) => `
     <div class="row" onclick="openProduct(${p.id})">
       <div class="thumb">${picHTML(p)}</div>
       <div class="grow"><div class="pname">${esc(p.name)}</div>
@@ -405,12 +533,12 @@ function viewCart() {
         ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}</div>
       ${stepper(p.id)}
     </div>`).join("") + `</div>
-    <div class="section"><div class="sum"><span class="muted">Mahsulotlar (${cartCount()} ta)</span><span>${money(cartTotal())}</span></div>
-      <div class="sum"><span class="muted">Yetkazib berish</span><span>Menejer bilan kelishiladi</span></div>
-      <div class="sum total"><span>Jami</span><span>${money(cartTotal())}</span></div></div>
-    <div style="padding:0 12px"><button class="btn ghost block" onclick="clearCart()">Savatchani tozalash</button></div>`;
+    <div class="section"><div class="sum"><span class="muted">${t("items_n", { n: cartCount() })}</span><span>${money(cartTotal())}</span></div>
+      <div class="sum"><span class="muted">${t("delivery")}</span><span>${t("by_manager")}</span></div>
+      <div class="sum total"><span>${t("total")}</span><span>${money(cartTotal())}</span></div></div>
+    <div style="padding:0 12px"><button class="btn ghost block" onclick="clearCart()">${t("clear_cart")}</button></div>`;
 }
-async function clearCart() { if (await confirmBox("Savatchani tozalaysizmi?")) { S.cart = {}; store.set("cart", {}); render(); } }
+async function clearCart() { if (await confirmBox(t("clear_q"))) { S.cart = {}; store.set("cart", {}); render(); } }
 
 const TRACK = ["new", "confirmed", "delivering", "done"];
 function orderCard(o, admin = false) {
@@ -421,19 +549,18 @@ function orderCard(o, admin = false) {
     <div class="small muted">${dateStr(o.created)}${admin ? " · " + esc(o.phone) : ""}</div>
     ${step >= 0 ? `<div class="track">${TRACK.map((_, i) => `<span class="${i <= step ? "on" : ""}"></span>`).join("")}</div>` : ""}
     <div class="olines">${names}</div>
-    ${o.prepay ? `<div class="small muted">💰 Oldindan to'lov: ${money(o.prepay)} · Qolgan: ${money(o.total - o.prepay)}</div>` : ""}
-    ${!admin && o.status === "new" ? `<div class="small" style="margin-top:6px">🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, bot orqali xabar keladi.</div>` : ""}
-    ${!admin && o.status === "rejected" ? `<div class="small err" style="margin-top:6px">To'lov cheki tasdiqlanmadi. Iltimos, do'kon bilan bog'laning.</div>` : ""}
+    ${o.prepay ? `<div class="small muted">${admin ? `💰 Oldindan to'lov: ${money(o.prepay)} · Qolgan: ${money(o.total - o.prepay)}` : t("prepay_line", { a: money(o.prepay), b: money(o.total - o.prepay) })}</div>` : ""}
+    ${!admin && o.status === "new" ? `<div class="small" style="margin-top:6px">${t("check_wait")}</div>` : ""}
+    ${!admin && o.status === "rejected" ? `<div class="small err" style="margin-top:6px">${t("check_rej")}</div>` : ""}
     <div class="ohead" style="margin:6px 0 0"><b>${money(o.total)}</b>
-      ${!admin && ["done", "cancelled", "rejected"].includes(o.status) ? `<button class="btn soft sm" onclick="repeatOrder(${o.id})">🔁 Qayta buyurtma</button>` : ""}
+      ${!admin && ["done", "cancelled", "rejected"].includes(o.status) ? `<button class="btn soft sm" onclick="repeatOrder(${o.id})">${t("repeat")}</button>` : ""}
     </div></div>`;
 }
 function viewOrders() {
   const list = S.me.orders || [];
-  const contact = S.shop.phone ? `<div class="section small">Savollar bo'yicha: <a class="tel" href="tel:${esc(S.shop.phone.replace(/[^\d+]/g, ""))}">${esc(S.shop.phone)}</a>
-    yoki botga yozing.</div>` : "";
-  if (!list.length) return `<h2 class="title">Buyurtmalarim</h2><div class="empty"><div class="big">📦</div>Hali buyurtma bermagansiz</div>` + contact;
-  return `<h2 class="title">Buyurtmalarim</h2>` + list.map(o => orderCard(o)).join("") + contact;
+  const contact = S.shop.phone ? `<div class="section small">${t("questions", { phone: `<a class="tel" href="tel:${esc(S.shop.phone.replace(/[^\d+]/g, ""))}">${esc(S.shop.phone)}</a>` })}</div>` : "";
+  if (!list.length) return `<h2 class="title">${t("nav_orders")}</h2><div class="empty"><div class="big">📦</div>${t("no_orders")}</div>` + contact;
+  return `<h2 class="title">${t("nav_orders")}</h2>` + list.map(o => orderCard(o)).join("") + contact;
 }
 async function cancelOrder(id) {
   if (!await confirmBox(`№${id} buyurtmani bekor qilasizmi?`)) return;
@@ -444,15 +571,15 @@ function repeatOrder(id) {
   const o = S.me.orders.find(x => x.id === id); let added = 0;
   o.items.forEach(i => { const p = prod(i.id); if (p && p.in_stock) { S.cart[i.id] = (S.cart[i.id] || 0) + i.qty; added++; } });
   store.set("cart", S.cart);
-  if (!added) return alertBox("Bu mahsulotlar hozir sotuvda yo'q");
-  toast("Savatchaga qo'shildi"); go("cart");
+  if (!added) return alertBox(t("not_avail"));
+  toast(t("added")); go("cart");
 }
 
 /* ------------------------------------------------ oynalar (sheet) */
 function openSheet({ title = "", body, rerender, main, onClose }) {
   const el = document.createElement("div");
   el.className = "sheet";
-  el.innerHTML = `<div class="grab"><h2>${esc(title)}</h2><button class="close" aria-label="Yopish">✕</button></div><div class="sb"></div>`;
+  el.innerHTML = `<div class="grab"><h2>${esc(title)}</h2><button class="close" aria-label="${t("close")}">✕</button></div><div class="sb"></div>`;
   el.querySelector(".sb").innerHTML = rerender ? rerender() : body;
   el.querySelector(".close").onclick = closeSheet;
   $("#sheets").appendChild(el);
@@ -490,8 +617,8 @@ function updateMain() {
   const top = S.sheets[S.sheets.length - 1];
   if (top) return top.main ? setMain(...top.main()) : setMain(null);
   const n = cartCount();
-  if (S.tab === "catalog" && n) return setMain(`🛒 Savatcha · ${n} ta · ${money(cartTotal())}`, () => go("cart"));
-  if (S.tab === "cart" && n) return setMain(`Rasmiylashtirish · ${money(cartTotal())}`, openCheckout);
+  if (S.tab === "catalog" && n) return setMain(t("main_cart", { n, sum: money(cartTotal()) }), () => go("cart"));
+  if (S.tab === "cart" && n) return setMain(t("main_checkout", { sum: money(cartTotal()) }), openCheckout);
   setMain(null);
 }
 function mainBusy(on) { if (IN_TG) on ? tg.MainButton.showProgress(false) : tg.MainButton.hideProgress(); else $("#fallback").disabled = on; }
@@ -512,21 +639,21 @@ function openProduct(id) {
         <h2 style="margin:4px 0 8px;font-size:20px">${esc(p.name)}</h2>
         <div style="font-size:22px" class="price">${money(p.price)}
           ${p.old_price > p.price ? `<span class="old" style="font-size:14px">${money(p.old_price)}</span> <span class="badge" style="position:static">−${discount(p)}%</span>` : ""}</div>
-        ${p.delivery_days ? `<div class="ddbox">🚚 Yetkazib berish muddati: <b>${esc(p.delivery_days)}</b></div>` : ""}
-        ${!p.in_stock ? `<div class="err">Hozir omborda yo'q</div>` : ""}
+        ${p.delivery_days ? `<div class="ddbox">${t("delivery_time")} <b>${esc(p.delivery_days)}</b></div>` : ""}
+        ${!p.in_stock ? `<div class="err">${t("oos")}</div>` : ""}
       </div>
-      ${p.specs.length ? `<div class="section"><h3>Xususiyatlari</h3><table class="specs">
+      ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
         ${p.specs.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table></div>` : ""}
-      ${p.description ? `<div class="section"><h3>Tavsif</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}`,
+      ${p.description ? `<div class="section"><h3>${t("desc")}</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}`,
     main: () => !p.in_stock ? [null] : S.cart[p.id]
-      ? [`✓ Savatchada ${S.cart[p.id]} ta · Savatchaga o'tish`, () => { closeAll(); go("cart"); }]
-      : [`Savatga qo'shish · ${money(p.price)}`, () => { setQty(p.id, 1); notifyH("success"); }],
+      ? [t("in_cart_go", { n: S.cart[p.id] }), () => { closeAll(); go("cart"); }]
+      : [t("add_cart", { sum: money(p.price) }), () => { setQty(p.id, 1); notifyH("success"); }],
   });
   // savatchadagi miqdorni oyna ichida o'zgartirish
   if (p.in_stock) {
     const sh = S.sheets[S.sheets.length - 1];
     const base = sh.rerender;
-    sh.rerender = () => base() + (S.cart[p.id] ? `<div class="section"><div class="ohead" style="margin:0"><span>Miqdori</span>
+    sh.rerender = () => base() + (S.cart[p.id] ? `<div class="section"><div class="ohead" style="margin:0"><span>${t("qty")}</span>
       <div style="width:130px">${stepper(p.id)}</div></div></div>` : "");
     sh.el.querySelector(".sb").innerHTML = sh.rerender();
   }
@@ -612,11 +739,11 @@ async function saveImage() {
   const name = (V.name || "mebelix").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
   try {
     if (IN_TG && tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
-      tg.downloadFile({ url, file_name: name }, ok => ok && toast("Rasm saqlanmoqda…"));
+      tg.downloadFile({ url, file_name: name }, ok => ok && toast(t("saving_img")));
       return;
     }
   } catch (e) { /* eski Telegram — pastdagi usul */ }
-  if (IN_TG) { tg.openLink(url); toast("Rasmni bosib turing va «Saqlash»ni tanlang"); return; }
+  if (IN_TG) { tg.openLink(url); toast(t("hold_save")); return; }
   const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
 $("#vclose").onclick = closeViewer;
@@ -634,69 +761,69 @@ let F = {};
 const prepayOf = total => Math.ceil(total * ((S.prepay && S.prepay.pct) || 10) / 100 / 1000) * 1000;
 function openCheckout() {
   cleanCart();
-  if (!cartCount()) { render(); return alertBox("Savatchadagi mahsulotlar sotuvda qolmadi"); }
+  if (!cartCount()) { render(); return alertBox(t("sold_out_cart")); }
   const pr = S.me.profile || {};
   const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
   F = { name: pr.name || [u.first_name, u.last_name].filter(Boolean).join(" "), phone: pr.phone || "",
         delivery: pr.delivery || "delivery", city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
-        lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? "Oldingi buyurtmadagi manzil" : "",
+        lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? t("prev_addr") : "", prevGeo: pr.lat != null,
         pay: S.payments.includes(pr.pay) ? pr.pay : S.payments[0], note: "",
         receipt: null, receiptUrl: "", receiptBusy: false, err: "" };
-  openSheet({ title: "Buyurtmani rasmiylashtirish", rerender: checkoutHTML,
-    main: () => [`Chekni yuborish va buyurtma berish`, submitOrder],
+  openSheet({ title: t("checkout"), rerender: checkoutHTML,
+    main: () => [t("send_order"), submitOrder],
     onClose: () => F.receiptUrl && URL.revokeObjectURL(F.receiptUrl) });
 }
 function checkoutHTML() {
   const total = cartTotal(), pre = prepayOf(total), pp = S.prepay || {};
   const step = (n, t) => `<h3><span class="stepno">${n}</span>${t}</h3>`;
   return `<div class="section">
-      <div class="seg">${[["delivery", "🚚 Yetkazib berish"], ["pickup", "🏬 Olib ketish"]].map(([k, t]) =>
-        `<button class="${F.delivery === k ? "on" : ""}" onclick="F.delivery='${k}'; refresh()">${t}</button>`).join("")}</div>
+      <div class="seg">${[["delivery", t("deliv_opt")], ["pickup", t("pickup_opt")]].map(([k, lb]) =>
+        `<button class="${F.delivery === k ? "on" : ""}" onclick="F.delivery='${k}'; refresh()">${lb}</button>`).join("")}</div>
       ${F.delivery === "pickup" && S.shop.address ? `<div class="small muted" style="margin-top:8px">📍 ${esc(S.shop.address)}</div>` : ""}
     </div>
-    <div class="section">${step(1, "Aloqa ma'lumotlari")}
-      <label class="f">Ismingiz</label>
-      <input class="in" value="${esc(F.name)}" oninput="F.name=this.value" placeholder="Ism Familiya" autocomplete="name">
-      <label class="f">Telefon raqam</label>
+    <div class="section">${step(1, t("contact"))}
+      <label class="f">${t("your_name")}</label>
+      <input class="in" value="${esc(F.name)}" oninput="F.name=this.value" placeholder="${t("name_ph")}" autocomplete="name">
+      <label class="f">${t("phone")}</label>
       <div class="inrow"><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" oninput="F.phone=this.value" placeholder="+998 90 123 45 67" autocomplete="tel" id="phoneIn">
-        ${IN_TG && tg.requestContact ? `<button class="btn soft" onclick="shareContact()" title="Telegram raqamini yuborish">📱</button>` : ""}</div>
+        ${IN_TG && tg.requestContact ? `<button class="btn soft" onclick="shareContact()" title="${t("share_phone")}">📱</button>` : ""}</div>
     </div>
-    ${F.delivery === "delivery" ? `<div class="section">${step(2, "Yetkazib berish manzili")}
-      ${F.lat != null ? `<div class="geo-ok"><div>📍 <b>Manzil belgilandi</b><div class="small muted">${esc(F.geo || (F.lat.toFixed(5) + ", " + F.lon.toFixed(5)))}</div></div>
-          <button class="btn soft sm" onclick="openMapPicker()">O'zgartirish</button></div>`
-        : `<button class="btn block" onclick="openMapPicker()">🗺 Xaritada belgilash</button>
-          <div class="small muted" style="margin-top:6px">Mahsulot qayerga yetkazilishini xaritada ko'rsating — joylashuvingizni avtomatik aniqlash ham mumkin.</div>`}
-      <label class="f">Viloyat / shahar</label>
-      <select class="in" onchange="F.city=this.value">${CITIES.map(c => `<option ${F.city === c ? "selected" : ""}>${c}</option>`).join("")}</select>
-      <label class="f">Uy, xonadon, mo'ljal (ixtiyoriy)</label>
-      <textarea class="in" oninput="F.address=this.value" placeholder="Masalan: 12-uy, 45-xonadon, 3-qavat, maktab yonida">${esc(F.address)}</textarea>
+    ${F.delivery === "delivery" ? `<div class="section">${step(2, t("addr_title"))}
+      ${F.lat != null ? `<div class="geo-ok"><div>📍 <b>${t("addr_set")}</b><div class="small muted">${esc(F.prevGeo ? t("prev_addr") : (F.geo || (F.lat.toFixed(5) + ", " + F.lon.toFixed(5))))}</div></div>
+          <button class="btn soft sm" onclick="openMapPicker()">${t("change")}</button></div>`
+        : `<button class="btn block" onclick="openMapPicker()">${t("map_btn")}</button>
+          <div class="small muted" style="margin-top:6px">${t("map_hint")}</div>`}
+      <label class="f">${t("region")}</label>
+      <select class="in" onchange="F.city=this.value">${CITIES.map(c => `<option value="${c}" ${F.city === c ? "selected" : ""}>${cityName(c)}</option>`).join("")}</select>
+      <label class="f">${t("addr_extra")}</label>
+      <textarea class="in" oninput="F.address=this.value" placeholder="${t("addr_ph")}">${esc(F.address)}</textarea>
     </div>` : ""}
-    <div class="section">${step(F.delivery === "delivery" ? 3 : 2, `Oldindan to'lov — ${pp.pct || 10}%`)}
-      ${!pp.card ? `<div class="err">Do'kon hali to'lov kartasini kiritmagan. Iltimos, keyinroq urinib ko'ring yoki ${esc(S.shop.phone || "do'konga")} qo'ng'iroq qiling.</div>` : `
-      <div class="small muted">Buyurtma berish uchun quyidagi summani kartaga o'tkazing va to'lov chekining rasmini (skrinshot) yuklang.</div>
+    <div class="section">${step(F.delivery === "delivery" ? 3 : 2, t("prepay_title", { p: pp.pct || 10 }))}
+      ${!pp.card ? `<div class="err">${t("no_card", { phone: esc(S.shop.phone || "") })}</div>` : `
+      <div class="small muted">${t("prepay_hint")}</div>
       <div class="paybox">
-        <div class="small muted">O'tkaziladigan summa</div>
+        <div class="small muted">${t("amount")}</div>
         <div class="payamt">${money(pre)}</div>
-        <div class="small muted" style="margin-top:10px">Karta raqami</div>
-        <div class="cardrow"><span class="cardno">${esc(pp.card)}</span><button class="btn soft sm" onclick="copyCard()">📋 Nusxa</button></div>
+        <div class="small muted" style="margin-top:10px">${t("card_no")}</div>
+        <div class="cardrow"><span class="cardno">${esc(pp.card)}</span><button class="btn soft sm" onclick="copyCard()">${t("copy")}</button></div>
         ${pp.owner ? `<div class="small">${esc(pp.owner)}</div>` : ""}
       </div>
       ${F.receiptUrl ? `<div class="rcpt"><img src="${F.receiptUrl}" alt="" onclick="showViewer(['${F.receiptUrl}'],0,'chek')">
-          <div class="grow"><b>✅ Chek yuklandi</b><div class="small muted">Rasmni bosib tekshiring</div></div>
-          <label class="btn ghost sm upl">Almashtirish<input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label></div>`
-        : `<label class="btn block upl" style="margin-top:12px">${F.receiptBusy ? "⏳ Yuklanmoqda..." : "🧾 Chek rasmini yuklash"}
+          <div class="grow"><b>${t("rc_ok")}</b><div class="small muted">${t("rc_check")}</div></div>
+          <label class="btn ghost sm upl">${t("replace")}<input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label></div>`
+        : `<label class="btn block upl" style="margin-top:12px">${F.receiptBusy ? t("uploading") : t("upload_rc")}
           <input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label>`}`}
     </div>
-    <div class="section"><h3>Qolgan summani to'lash</h3>
-      <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(p)}</button>`).join("")}</div>
-      <label class="f">Izoh (ixtiyoriy)</label>
-      <textarea class="in" oninput="F.note=this.value" placeholder="Masalan: lift yo'q, yig'ib berish kerak">${esc(F.note)}</textarea>
+    <div class="section"><h3>${t("rest_pay")}</h3>
+      <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(payName(p))}</button>`).join("")}</div>
+      <label class="f">${t("note")}</label>
+      <textarea class="in" oninput="F.note=this.value" placeholder="${t("note_ph")}">${esc(F.note)}</textarea>
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
-      <div class="sum total"><span>Jami</span><span>${money(total)}</span></div>
-      <div class="sum"><span class="muted">Oldindan to'lov (${pp.pct || 10}%)</span><span>${money(pre)}</span></div>
-      <div class="sum"><span class="muted">Qabul qilganda to'lanadi</span><span>${money(total - pre)}</span></div>
-      <div class="small muted" style="margin-top:6px">Chekingiz tekshirilgach, buyurtma qabul qilinadi va bot orqali xabar beramiz.</div>
+      <div class="sum total"><span>${t("total")}</span><span>${money(total)}</span></div>
+      <div class="sum"><span class="muted">${t("prepay_sum", { p: pp.pct || 10 })}</span><span>${money(pre)}</span></div>
+      <div class="sum"><span class="muted">${t("on_receive")}</span><span>${money(total - pre)}</span></div>
+      <div class="small muted" style="margin-top:6px">${t("after_check")}</div>
       ${F.err ? `<div class="err">⚠️ ${esc(F.err)}</div>` : ""}
     </div>`;
 }
@@ -710,7 +837,7 @@ async function setReceipt(file) {
 }
 function copyCard() {
   const digits = ((S.prepay && S.prepay.card) || "").replace(/\s/g, "");
-  const done = () => { toast("Karta raqami nusxalandi"); notifyH("success"); };
+  const done = () => { toast(t("card_copied")); notifyH("success"); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(digits).then(done, () => fallbackCopy(digits, done));
   else fallbackCopy(digits, done);
 }
@@ -722,7 +849,7 @@ function shareContact() {
   tg.requestContact((ok, res) => {
     const ph = ok && res && res.responseUnsafe && res.responseUnsafe.contact && res.responseUnsafe.contact.phone_number;
     if (ph) { F.phone = (ph.startsWith("+") ? "" : "+") + ph; refresh(); }
-    else if (ok) toast("Raqam yuborildi");
+    else if (ok) toast(t("phone_sent"));
   });
 }
 
@@ -735,7 +862,7 @@ function loadLeaflet() {
     const css = document.createElement("link"); css.rel = "stylesheet";
     css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
     const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
-    js.onload = ok; js.onerror = () => { leafletReady = null; fail(new Error("Xaritani yuklab bo'lmadi. Internetni tekshiring.")); };
+    js.onload = ok; js.onerror = () => { leafletReady = null; fail(new Error(t("map_load_err"))); };
     document.head.appendChild(js);
   });
   return leafletReady;
@@ -747,7 +874,7 @@ function loadYandex(key) {
   if (ymapsReady) return ymapsReady;
   ymapsReady = new Promise((ok, fail) => {
     const js = document.createElement("script");
-    js.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(key)}&lang=uz_UZ`;
+    js.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(key)}&lang=${LANG === "ru" ? "ru_RU" : "uz_UZ"}`;
     const t = setTimeout(() => { ymapsReady = null; fail(new Error("timeout")); }, 12000);
     js.onload = () => window.ymaps.ready(() => { clearTimeout(t); ok(); }, err => { clearTimeout(t); ymapsReady = null; fail(err); });
     js.onerror = () => { clearTimeout(t); ymapsReady = null; fail(new Error("load")); };
@@ -764,13 +891,13 @@ function mpSetView(lat, lon, zoom) {
 function mpMoved() { clearTimeout(MP.timer); MP.timer = setTimeout(reverseGeo, 500); }
 async function openMapPicker() {
   const has = F.lat != null;
-  if (has) { MP.lat = F.lat; MP.lon = F.lon; MP.label = F.geo; } else MP.label = "";
-  openSheet({ title: "Yetkazib berish manzili", body: `
+  if (has) { MP.lat = F.lat; MP.lon = F.lon; MP.label = F.prevGeo ? "" : F.geo; } else MP.label = "";
+  openSheet({ title: t("addr_title"), body: `
     <div class="mapwrap"><div id="map"></div><div class="pin">📍</div>
-      <button class="btn locbtn" onclick="locateMe()">🎯 Mening joylashuvim</button></div>
-    <div class="section" style="margin-top:10px"><div class="small muted">Xaritani surib, 📍 belgisini uyingiz ustiga qo'ying</div>
-      <div id="mpLabel" style="margin-top:6px;font-weight:600">${esc(MP.label || "Manzil aniqlanmoqda...")}</div></div>`,
-    main: () => ["✅ Shu manzilni tanlash", pickPlace],
+      <button class="btn locbtn" onclick="locateMe()">${t("my_loc")}</button></div>
+    <div class="section" style="margin-top:10px"><div class="small muted">${t("map_drag")}</div>
+      <div id="mpLabel" style="margin-top:6px;font-weight:600">${esc(MP.label || t("locating"))}</div></div>`,
+    main: () => [t("pick_here"), pickPlace],
     onClose: () => { if (MP.map) { MP.kind === "y" ? MP.map.destroy() : MP.map.remove(); MP.map = null; } } });
   const zoom = has ? 17 : 12;
   // 1) Yandex xarita (kalit kiritilgan bo'lsa) — O'zbekistonda ko'cha va uylar aniqroq
@@ -804,9 +931,9 @@ async function openMapPicker() {
 function locateMe() {
   const go = (lat, lon) => { mpSetView(lat, lon, 17); haptic(); };
   const fallback = () => {
-    if (!navigator.geolocation) return toast("Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang");
+    if (!navigator.geolocation) return toast(t("no_geo"));
     navigator.geolocation.getCurrentPosition(p => go(p.coords.latitude, p.coords.longitude),
-      () => toast("Joylashuvga ruxsat berilmadi. Xaritada qo'lda belgilang"), { enableHighAccuracy: true, timeout: 12000 });
+      () => toast(t("geo_denied")), { enableHighAccuracy: true, timeout: 12000 });
   };
   try {
     const LM = tg && tg.LocationManager;
@@ -814,7 +941,7 @@ function locateMe() {
       return LM.init(() => {
         if (!LM.isLocationAvailable) return fallback();
         LM.getLocation(d => d ? go(d.latitude, d.longitude) : (LM.isAccessRequested && !LM.isAccessGranted
-          ? confirmBox("Joylashuvga ruxsat berilmagan. Sozlamalarni ochamizmi?").then(y => y && LM.openSettings())
+          ? confirmBox(t("geo_settings")).then(y => y && LM.openSettings())
           : fallback()));
       });
     }
@@ -833,7 +960,7 @@ async function reverseGeo() {
     lab.textContent = MP.label; return;
   }
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=uz&lat=${MP.lat}&lon=${MP.lon}`);
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG}&lat=${MP.lat}&lon=${MP.lon}`);
     const d = await r.json(); const a = d.address || {};
     const parts = [a.road, a.house_number, a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county].filter(Boolean);
     MP.label = parts.length ? parts.join(", ") : (d.display_name || coords);
@@ -841,7 +968,7 @@ async function reverseGeo() {
   lab.textContent = MP.label;
 }
 function pickPlace() {
-  F.lat = MP.lat; F.lon = MP.lon; F.geo = MP.label || (MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5)); F.err = "";
+  F.lat = MP.lat; F.lon = MP.lon; F.geo = MP.label || (MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5)); F.prevGeo = false; F.err = "";
   notifyH("success"); closeSheet(); refresh();
 }
 
@@ -849,12 +976,12 @@ let sending = false;
 async function submitOrder() {
   if (sending) return;
   const digits = (F.phone || "").replace(/\D/g, "");
-  F.err = F.name.trim().length < 2 ? "Ismingizni kiriting"
-    : digits.length < 9 ? "Telefon raqamni to'g'ri kiriting"
-    : F.delivery === "delivery" && F.lat == null ? "Yetkazib berish manzilini xaritada belgilang"
-    : !(S.prepay && S.prepay.card) ? "Do'kon hali to'lov kartasini kiritmagan"
-    : F.receiptBusy ? "Chek rasmi yuklanmoqda, biroz kuting"
-    : !F.receipt ? `Oldindan to'lov (${money(prepayOf(cartTotal()))}) chekining rasmini yuklang` : "";
+  F.err = F.name.trim().length < 2 ? t("e_name")
+    : digits.length < 9 ? t("e_phone")
+    : F.delivery === "delivery" && F.lat == null ? t("e_addr")
+    : !(S.prepay && S.prepay.card) ? t("e_card")
+    : F.receiptBusy ? t("e_rc_busy")
+    : !F.receipt ? t("e_rc", { sum: money(prepayOf(cartTotal())) }) : "";
   if (F.err) { notifyH("error"); refresh(); const e = document.querySelector(".sheet.on .err:last-of-type"); e && e.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
   sending = true; mainBusy(true);
   try {
@@ -863,7 +990,7 @@ async function submitOrder() {
       items: cartItems().map(({ p, qty }) => ({ id: p.id, qty })),
       // shaharga xaritadan aniqlangan manzil nomini ham qo'shamiz (admin ko'rishi uchun)
       customer: { name: F.name, phone: F.phone, delivery: F.delivery,
-                  city: F.delivery === "delivery" && F.geo && !/^Oldingi/.test(F.geo) ? `${F.city} — ${F.geo}` : F.city, address: F.address,
+                  city: F.delivery === "delivery" && F.geo && !F.prevGeo ? `${F.city} — ${F.geo}` : F.city, address: F.address,
                   lat: F.lat, lon: F.lon, pay: F.pay, note: F.note } }));
     fd.append("receipt", F.receipt, "chek.jpg");
     const { order } = await api("/api/order", { form: fd });
@@ -871,13 +998,13 @@ async function submitOrder() {
     S.cart = {}; store.set("cart", {});
     closeAll(); loadMe().then(render);
     go("orders");
-    openSheet({ title: "", body: `<div class="done"><div class="big">📨</div><h2>Buyurtmangiz yuborildi!</h2>
-      <p class="muted">Buyurtma raqami: <b>№ ${order.id}</b><br>Jami: <b>${money(order.total)}</b><br>Oldindan to'langan: <b>${money(order.prepay)}</b></p>
-      <p class="muted small">🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.</p></div>`,
-      main: () => ["Yaxshi", closeAll] });
+    openSheet({ title: "", body: `<div class="done"><div class="big">📨</div><h2>${t("sent_title")}</h2>
+      <p class="muted">${t("order_no")}: <b>№ ${order.id}</b><br>${t("total")}: <b>${money(order.total)}</b><br>${t("prepaid")}: <b>${money(order.prepay)}</b></p>
+      <p class="muted small">${t("sent_wait")}</p></div>`,
+      main: () => [t("ok"), closeAll] });
   } catch (e) {
     F.err = e.message; notifyH("error");
-    if (/sotuvda|omborda|karta/i.test(e.message)) loadCatalog().then(refresh); else refresh();
+    if (/sotuvda|omborda|karta|продаж|наличии|карт/i.test(e.message)) loadCatalog().then(refresh); else refresh();
   } finally { sending = false; mainBusy(false); }
 }
 
@@ -911,14 +1038,14 @@ function viewAdmin() {
       <button class="btn" onclick="openProductForm()">＋ Qo'shish</button></div>
       <div class="list-card">${list.map(p => `<div class="row" onclick="openProductForm(${p.id})">
         <div class="thumb">${picHTML(p)}</div>
-        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}</div>
+        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}</div>
           <div class="small muted">${esc((d.categories.find(c => c.id === p.cat_id) || {}).name || "Kategoriyasiz")} · ${p.images.length} rasm</div>
           <div class="price">${money(p.price)}</div></div><span class="muted">›</span></div>`).join("") || `<div class="empty">Mahsulot yo'q</div>`}</div>`;
   } else if (S.adm.tab === "cats") {
     h += `<div class="list-card">${d.categories.map(c => {
       const n = d.products.filter(p => p.cat_id === c.id).length;
       return `<div class="row"><div class="thumb" style="width:42px;height:42px;font-size:22px">${esc(c.emoji || "📁")}</div>
-        <div class="grow"><b>${esc(c.name)}</b><div class="small muted">${n} ta mahsulot</div></div>
+        <div class="grow"><b>${esc(c.name)}</b>${c.name_ru ? ` <span class="muted small">· ${esc(c.name_ru)}</span>` : ""}<div class="small muted">${n} ta mahsulot</div></div>
         <button class="btn ghost sm" onclick="openCatForm(${c.id})">✏️</button>
         <button class="btn danger sm" onclick="deleteCat(${c.id})">🗑</button></div>`; }).join("")}</div>
       <div style="padding:0 12px"><button class="btn block" onclick="openCatForm()">＋ Yangi kategoriya</button></div>`;
@@ -927,7 +1054,7 @@ function viewAdmin() {
     if (!c) return h + `<div class="section"><div class="skeleton" style="height:120px"></div></div>`;
     const cs = c.stats;
     h += `<div class="stats" style="grid-template-columns:repeat(3,1fr)">
-        <div class="stat"><b>${cs.total.toLocaleString("ru-RU")}</b><span>Jami mijozlar</span></div>
+        <div class="stat"><b>${cs.total.toLocaleString("ru-RU")}</b><span>Jami mijozlar · 🇷🇺 ${cs.ru || 0}</span></div>
         <div class="stat"><b>${cs.today}</b><span>Bugun qo'shildi</span></div>
         <div class="stat"><b>${cs.week}</b><span>Shu hafta</span></div>
         <div class="stat"><b>${cs.active7.toLocaleString("ru-RU")}</b><span>Faol (7 kun)</span></div>
@@ -940,7 +1067,7 @@ function viewAdmin() {
         const nm = [u.first_name, u.last_name].filter(Boolean).join(" ") || "—";
         return `<div class="row">
           <div class="thumb avatar">${esc((nm[0] || "?").toUpperCase())}</div>
-          <div class="grow"><div class="pname">${esc(nm)} ${u.username ? `<a class="tel small" href="#" onclick="openUrl('https://t.me/${esc(u.username)}');return false">@${esc(u.username)}</a>` : ""}</div>
+          <div class="grow"><div class="pname">${u.lang === "ru" ? "🇷🇺 " : u.lang === "uz" ? "🇺🇿 " : ""}${esc(nm)} ${u.username ? `<a class="tel small" href="#" onclick="openUrl('https://t.me/${esc(u.username)}');return false">@${esc(u.username)}</a>` : ""}</div>
             ${u.phone ? `<div class="small"><a class="tel" href="tel:${esc(u.phone)}">${esc(u.phone)}</a></div>` : ""}
             <div class="small muted">Qo'shilgan: ${dateStr(u.created)} · oxirgi kirish: ${dateStr(u.last_seen)}</div>
             <div class="small">${u.orders ? `🛒 ${u.orders} ta buyurtma · ${money(u.spent)}` : `<span class="muted">Hali buyurtma bermagan</span>`}</div></div>
@@ -1048,6 +1175,9 @@ function openProductForm(id) {
     description: p ? p.description : "", specs: p ? p.specs.map(s => s.join(": ")).join("\n") : "",
     in_stock: p ? p.in_stock : true, active: p ? p.active : true, delivery_days: p ? (p.delivery_days || "") : "",
     imgs: p ? p.images.map(src => ({ kind: "k", src })) : [],   // k — saqlangan, n — yangi tanlangan
+    name_ru: p ? p.name_ru || "" : "", description_ru: p ? p.description_ru || "" : "",
+    specs_ru: p ? (p.specs_ru || []).map(s => s.join(": ")).join("\n") : "", delivery_days_ru: p ? p.delivery_days_ru || "" : "",
+    ru_edited: false, ru_open: false,
     err: "", busy: false, loading: 0 };
   openSheet({ title: p ? "Mahsulotni tahrirlash" : "Yangi mahsulot", rerender: productFormHTML,
     onClose: () => PF.imgs.forEach(im => im.kind === "n" && URL.revokeObjectURL(im.src)) });
@@ -1087,6 +1217,19 @@ function productFormHTML() {
       <label class="f">Xususiyatlar (har qatorda «Nomi: qiymati»)</label>
       <textarea class="in" rows="4" oninput="PF.specs=this.value" placeholder="O'lcham: 220×90 sm&#10;Material: Velyur&#10;Kafolat: 18 oy">${esc(PF.specs)}</textarea>
       <label class="f">Rasm bo'lmasa ko'rinadigan belgi</label><input class="in" value="${esc(PF.emoji)}" oninput="PF.emoji=this.value" style="width:80px">
+    </div>
+    <div class="section">
+      <div class="ohead" style="margin:0" onclick="PF.ru_open=!PF.ru_open; refresh()">
+        <b>🇷🇺 Ruscha tarjima ${PF.id ? (PF.name_ru ? `<span class="tag">avtomatik</span>` : `<span class="tag red">tayyorlanmoqda</span>`) : ""}</b>
+        <span class="muted">${PF.ru_open ? "▲" : "▼"}</span></div>
+      <div class="small muted" style="margin-top:6px">Faqat o'zbekcha yozing — saqlaganingizda ruschaga avtomatik tarjima qilinadi.
+        Xohlasangiz, tarjimani shu yerda tuzatishingiz mumkin.</div>
+      ${PF.ru_open ? `
+        <label class="f">Nomi (RU)</label><input class="in" value="${esc(PF.name_ru)}" oninput="PF.name_ru=this.value; PF.ru_edited=true" placeholder="Avtomatik tarjima qilinadi">
+        <label class="f">Yetkazib berish muddati (RU)</label><input class="in" value="${esc(PF.delivery_days_ru)}" oninput="PF.delivery_days_ru=this.value; PF.ru_edited=true" placeholder="Masalan: 3-7 дней">
+        <label class="f">Tavsif (RU)</label><textarea class="in" oninput="PF.description_ru=this.value; PF.ru_edited=true">${esc(PF.description_ru)}</textarea>
+        <label class="f">Xususiyatlar (RU)</label><textarea class="in" rows="4" oninput="PF.specs_ru=this.value; PF.ru_edited=true">${esc(PF.specs_ru)}</textarea>
+        ${PF.id ? `<button class="btn ghost block" style="margin-top:10px" onclick="retranslate()">🔄 Qaytadan avtomatik tarjima qilish</button>` : ""}` : ""}
     </div>
     <div class="section">
       <label class="switch"><span>Omborda bor</span><input type="checkbox" ${PF.in_stock ? "checked" : ""} onchange="PF.in_stock=this.checked"></label>
@@ -1135,6 +1278,8 @@ async function saveProduct() {
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
     description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0,
     delivery_days: PF.delivery_days };
+  if (PF.ru_edited) Object.assign(fields, { ru_edited: 1, name_ru: PF.name_ru, description_ru: PF.description_ru,
+    specs_ru: PF.specs_ru, delivery_days_ru: PF.delivery_days_ru });
   let n = 0;
   const order = PF.imgs.map(im => im.kind === "k" ? "k:" + im.src : "n:" + (n++));
   fields.keep_images = JSON.stringify(PF.imgs.filter(im => im.kind === "k").map(im => im.src));
@@ -1144,6 +1289,13 @@ async function saveProduct() {
   try { await api("/api/admin/product", { form: fd }); notifyH("success"); toast("Saqlandi ✓");
         closeAll(); await Promise.all([loadAdmin(), loadCatalog()]); render(); }
   catch (e) { PF.err = e.message; PF.busy = false; refresh(); }
+}
+async function retranslate() {
+  try { toast("Tarjima qilinmoqda…"); const r = await api(`/api/admin/product/${PF.id}/translate`, { method: "POST" });
+        const p = r.product; Object.assign(PF, { name_ru: p.name_ru, description_ru: p.description_ru, delivery_days_ru: p.delivery_days_ru,
+          specs_ru: (p.specs_ru || []).map(s => s.join(": ")).join("\n"), ru_edited: false });
+        toast("Tarjima yangilandi ✓"); refresh(); loadCatalog().catch(() => {}); }
+  catch (e) { alertBox("Tarjima qilib bo'lmadi: " + e.message); }
 }
 async function deleteProduct() {
   if (!await confirmBox("Mahsulot butunlay o'chirilsinmi? (Vaqtincha yashirish uchun «Katalogda ko'rsatish»ni o'chiring)")) return;
@@ -1156,15 +1308,17 @@ async function deleteProduct() {
 let CF = {};
 function openCatForm(id) {
   const c = id ? S.adm.data.categories.find(x => x.id === id) : null;
-  CF = { id: c ? c.id : 0, name: c ? c.name : "", emoji: c ? c.emoji : "", err: "" };
+  CF = { id: c ? c.id : 0, name: c ? c.name : "", name_ru: c ? c.name_ru || "" : "", emoji: c ? c.emoji : "", err: "" };
   openSheet({ title: c ? "Kategoriyani tahrirlash" : "Yangi kategoriya", rerender: () => `<div class="section">
       <label class="f">Nomi</label><input class="in" value="${esc(CF.name)}" oninput="CF.name=this.value" placeholder="Masalan: Ofis mebellari">
+      <label class="f">Nomi ruscha (bo'sh qoldirsangiz, avtomatik tarjima qilinadi)</label>
+      <input class="in" value="${esc(CF.name_ru)}" oninput="CF.name_ru=this.value" placeholder="${esc(CF.name_ru || "Avtomatik")}">
       <label class="f">Belgi (emoji)</label><input class="in" value="${esc(CF.emoji)}" oninput="CF.emoji=this.value" placeholder="💼" style="width:80px">
       ${CF.err ? `<div class="err">⚠️ ${esc(CF.err)}</div>` : ""}</div>
     <div style="padding:0 12px"><button class="btn block" onclick="saveCat()">💾 Saqlash</button></div>` });
 }
 async function saveCat() {
-  try { await api("/api/admin/category", { json: { id: CF.id, name: CF.name, emoji: CF.emoji } }); toast("Saqlandi ✓"); closeAll();
+  try { await api("/api/admin/category", { json: { id: CF.id, name: CF.name, name_ru: CF.name_ru, emoji: CF.emoji } }); toast("Saqlandi ✓"); closeAll();
         await Promise.all([loadAdmin(), loadCatalog()]); renderCats(); render(); }
   catch (e) { CF.err = e.message; refresh(); }
 }
@@ -1201,18 +1355,39 @@ if (IN_TG) {
 
 /* ------------------------------------------------ yuklash */
 async function loadCatalog() {
-  const d = await api("/api/catalog");
+  const d = await api("/api/catalog?lang=" + LANG);
   S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
+  S.paymentsRu = d.payments_ru || {};
 }
+async function setLang(l, save = true) {
+  l = normLang(l);
+  const changed = l !== LANG;
+  LANG = l; store.set("lang", l); applyStatic();
+  if (save && IN_TG) await api("/api/lang", { json: { lang: l } }).catch(() => {});
+  if (changed) {
+    try { await Promise.all([loadCatalog(), loadMe()]); } catch (e) { toast(e.message); }
+    renderCats(); refresh();
+  }
+}
+function askLang() {
+  openSheet({ title: "", body: `<div class="langpick"><div class="big">🌐</div>
+      <h2>Tilni tanlang<br><span class="muted" style="font-size:16px">Выберите язык</span></h2>
+      <button class="btn" onclick="closeSheet(); setLang('uz')">🇺🇿 O'zbekcha</button>
+      <button class="btn soft" onclick="closeSheet(); setLang('ru')">🇷🇺 Русский</button></div>` });
+}
+$("#langsw").onclick = e => { const b = e.target.closest("[data-l]"); if (b) { haptic(); setLang(b.dataset.l); } };
 async function loadMe() {
   try { S.me = await api("/api/me", { method: "POST" }); } catch (e) { /* Telegram'dan tashqarida */ }
   $("#adminTab").classList.toggle("hidden", !S.me.is_admin);
 }
 (async function init() {
+  applyStatic();
   $("#view").innerHTML = `<div class="grid">${"<div class='skeleton'></div>".repeat(4)}</div>`;
   try { await Promise.all([loadCatalog(), loadMe()]); }
   catch (e) { $("#view").innerHTML = `<div class="empty"><div class="big">⚠️</div>${esc(e.message)}<br><br>
-    <button class="btn" onclick="location.reload()">Qayta urinish</button></div>`; return; }
+    <button class="btn" onclick="location.reload()">${t("retry")}</button></div>`; return; }
+  // serverda saqlangan til (bot orqali tanlangan) ustun turadi
+  if (S.me.lang && S.me.lang !== LANG) { LANG = S.me.lang; store.set("lang", LANG); applyStatic(); await loadCatalog().catch(() => {}); }
   document.title = S.shop.name;
   $("#shopName").textContent = "🛋 " + S.shop.name;
   if (S.shop.phone) { const a = $("#shopPhone"); a.textContent = "📞 " + S.shop.phone; a.href = "tel:" + S.shop.phone.replace(/[^\d+]/g, ""); a.classList.remove("hidden"); }
@@ -1222,6 +1397,7 @@ async function loadMe() {
   if (start === "admin" && S.me.is_admin) go("admin");
   else if (/^p\d+$/.test(start)) { render(); openProduct(+start.slice(1)); }
   else render();
+  if (IN_TG && !S.me.lang && !urlLang) askLang();  // til hali tanlanmagan — birinchi kirishda so'raymiz
   if (S.me.is_admin && S.tab !== "admin") api("/api/admin/data?status=active").then(d => { S.adm.data = d; render(); }).catch(() => {});
 })();
 </script>

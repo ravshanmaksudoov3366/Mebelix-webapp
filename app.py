@@ -27,9 +27,13 @@ from aiogram.types import (
     WebAppInfo,
 )
 
+import aiohttp
+
 from shop import (
     ACTIONS,
     FLOW,
+    STATUS_MESSAGES_RU,
+    norm_lang,
     STATUS_MESSAGES,
     STATUSES,
     AuthError,
@@ -39,6 +43,7 @@ from shop import (
     fmt_price,
     order_text,
 )
+from translate import translate, translate_many
 
 BASE = Path(__file__).resolve().parent
 
@@ -94,6 +99,46 @@ dp = Dispatcher()
 
 def is_admin(uid: int) -> bool:
     return uid in ADMIN_IDS
+
+
+# ------------------------------------------------------------------ mijoz tili (uz / ru)
+TX = {
+    "uz": {
+        "hello": "Assalomu alaykum, <b>{name}</b>! 👋\n\n<b>{shop}</b> ga xush kelibsiz.\n"
+                 "Tayyor mebellar katalogini ko'ring va bir necha bosishda buyurtma bering 👇",
+        "ask": "\n\nSavolingiz bo'lsa, shu yerga yozing, menejer javob beradi.",
+        "open": "🛋 Katalogni ochish",
+        "menu": "🛋 Do'kon",
+        "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
+        "manager": "💬 <b>Menejer:</b>",
+        "lang_set": "✅ Til: O'zbekcha",
+        "order_sent": "📨 <b>Buyurtmangiz va to'lov chekingiz yuborildi!</b>",
+        "order_wait": "🧾 Chekingiz tekshirilgach, buyurtma qabul qilingani haqida shu yerga xabar keladi.",
+        "auth": "Ruxsat yo'q. Ilovani bot orqali qayta oching.",
+    },
+    "ru": {
+        "hello": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
+                 "Смотрите каталог готовой мебели и оформляйте заказ в пару нажатий 👇",
+        "ask": "\n\nЕсли есть вопросы — пишите сюда, менеджер ответит.",
+        "open": "🛋 Открыть каталог",
+        "menu": "🛋 Магазин",
+        "sent": "Ваше сообщение отправлено менеджеру. Скоро ответим 🙏",
+        "manager": "💬 <b>Менеджер:</b>",
+        "lang_set": "✅ Язык: Русский",
+        "order_sent": "📨 <b>Ваш заказ и чек об оплате отправлены!</b>",
+        "order_wait": "🧾 После проверки чека сюда придёт сообщение о том, что заказ принят.",
+        "auth": "Нет доступа. Откройте приложение заново через бота.",
+    },
+}
+LANG_PICK = "🇺🇿 Tilni tanlang\n🇷🇺 Выберите язык"
+
+
+def lang_of(uid: int) -> str:
+    return shop.user_lang(uid) or "uz"
+
+
+def tx(lang: str, key: str, **kw) -> str:
+    return TX[norm_lang(lang)][key].format(**kw)
 
 
 # ------------------------------------------------------------------ bildirishnomalar
@@ -189,8 +234,8 @@ async def notify_new_order(o: dict):
     try:
         await bot.send_message(
             o["user_id"],
-            "📨 <b>Buyurtmangiz va to'lov chekingiz yuborildi!</b>\n\n" + order_text(o, for_admin=False)
-            + "\n\n🧾 Chekingiz tekshirilgach, buyurtma qabul qilingani haqida shu yerga xabar keladi.")
+            tx(lang_of(o["user_id"]), "order_sent") + "\n\n" + order_text(o, False, lang_of(o["user_id"]))
+            + "\n\n" + tx(lang_of(o["user_id"]), "order_wait"))
     except TelegramAPIError as e:
         log.warning("mijozga yuborilmadi: %s", e)
 
@@ -211,7 +256,7 @@ async def notify_status(o: dict):
                                             reply_markup=status_keyboard(o, chat_id))
         except TelegramAPIError:
             pass
-    text = STATUS_MESSAGES.get(o["status"])
+    text = (STATUS_MESSAGES_RU if lang_of(o["user_id"]) == "ru" else STATUS_MESSAGES).get(o["status"])
     if text:
         try:
             await bot.send_message(o["user_id"], text.format(id=o["id"]))
@@ -236,26 +281,60 @@ async def register_user(user: dict):
 
 
 # ------------------------------------------------------------------ bot
-def shop_button(text="🛋 Katalogni ochish", suffix="") -> InlineKeyboardMarkup:
+def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
+    lang = norm_lang(lang)
+    sep = "&" if "?" in suffix else "?"
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=text, web_app=WebAppInfo(url=WEBAPP_URL + suffix))]])
+        InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{WEBAPP_URL}{suffix}{sep}lang={lang}"))]])
+
+
+def lang_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang:uz"),
+        InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang:ru")]])
+
+
+async def send_welcome(chat_id: int, user, lang: str):
+    text = tx(lang, "hello", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
+    if SHOP["phone"]:
+        text += f"\n\n📞 {esc(SHOP['phone'])}"
+    if SHOP["address"]:
+        text += f"\n📍 {esc(SHOP['address'])}"
+    text += tx(lang, "ask")
+    await bot.send_message(chat_id, text, reply_markup=shop_button(lang=lang))
+    try:  # pastdagi menyu tugmasi ham mijoz tilida
+        await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonWebApp(
+            text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}")))
+    except TelegramAPIError:
+        pass
+    if is_admin(user.id):
+        await bot.send_message(chat_id, "Siz adminsiz. Mahsulot va buyurtmalarni boshqarish:",
+                               reply_markup=shop_button("🗂 Admin panel", "?admin=1"))
 
 
 @dp.message(CommandStart())
 async def cmd_start(m: Message):
     await register_user(m.from_user.model_dump())
-    text = (f"Assalomu alaykum, <b>{esc(m.from_user.first_name or '')}</b>! 👋\n\n"
-            f"<b>{esc(SHOP['name'])}</b> ga xush kelibsiz.\n"
-            "Tayyor mebellar katalogini ko'ring va bir necha bosishda buyurtma bering 👇")
-    if SHOP["phone"]:
-        text += f"\n\n📞 {esc(SHOP['phone'])}"
-    if SHOP["address"]:
-        text += f"\n📍 {esc(SHOP['address'])}"
-    text += "\n\nSavolingiz bo'lsa, shu yerga yozing, menejer javob beradi."
-    await m.answer(text, reply_markup=shop_button())
-    if is_admin(m.from_user.id):
-        await m.answer("Siz adminsiz. Mahsulot va buyurtmalarni boshqarish:",
-                       reply_markup=shop_button("🗂 Admin panel", "?admin=1"))
+    lang = shop.user_lang(m.from_user.id)
+    if not lang:  # birinchi marta — avval tilni tanlaydi
+        return await m.answer(LANG_PICK, reply_markup=lang_keyboard())
+    await send_welcome(m.chat.id, m.from_user, lang)
+
+
+@dp.message(Command("lang", "til", "language"))
+async def cmd_lang(m: Message):
+    await m.answer(LANG_PICK, reply_markup=lang_keyboard())
+
+
+@dp.callback_query(F.data.startswith("lang:"))
+async def cb_lang(c: CallbackQuery):
+    lang = shop.set_user_lang(c.from_user.id, c.data.split(":", 1)[1])
+    await c.answer(tx(lang, "lang_set"))
+    try:
+        await c.message.edit_text(tx(lang, "lang_set"))
+    except TelegramAPIError:
+        pass
+    await send_welcome(c.message.chat.id, c.from_user, lang)
 
 
 @dp.message(Command("admin"))
@@ -294,7 +373,8 @@ async def admin_reply(m: Message):
     if not found:
         return await m.answer("Javob berish uchun mijoz xabariga «Reply» qiling.")
     try:
-        await bot.send_message(int(found.group(1)), f"💬 <b>Menejer:</b>\n{esc(m.text)}")
+        uid = int(found.group(1))
+        await bot.send_message(uid, f"{tx(lang_of(uid), 'manager')}\n{esc(m.text)}")
         await m.answer("✅ Yuborildi")
     except TelegramAPIError as e:
         await m.answer(f"Yuborilmadi: {e}")
@@ -311,11 +391,12 @@ async def user_message(m: Message):
     who = esc(u.full_name) + (f" (@{u.username})" if u.username else "")
     for aid in ADMIN_IDS:
         try:
-            await bot.send_message(aid, f"💬 <b>{who}</b> #u{u.id}\n\n{esc(m.text)}\n\n"
+            await bot.send_message(aid, f"💬 <b>{who}</b> #u{u.id}{' 🇷🇺' if lang_of(u.id) == 'ru' else ''}\n\n{esc(m.text)}\n\n"
                                         "<i>Javob berish uchun shu xabarga «Reply» qiling.</i>")
         except TelegramAPIError:
             pass
-    await m.answer("Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏", reply_markup=shop_button())
+    lang = lang_of(u.id)
+    await m.answer(tx(lang, "sent"), reply_markup=shop_button(lang=lang))
 
 
 # ------------------------------------------------------------------ web API
@@ -339,9 +420,9 @@ async def errors(request, handler):
     try:
         return await handler(request)
     except ShopError as e:
-        return web.json_response({"error": str(e)}, status=400)
+        return web.json_response({"error": e.text(norm_lang(request.headers.get("X-Lang")))}, status=400)
     except AuthError as e:
-        return web.json_response({"error": "Ruxsat yo'q. Ilovani bot orqali qayta oching.", "detail": str(e)},
+        return web.json_response({"error": tx(norm_lang(request.headers.get("X-Lang")), "auth"), "detail": str(e)},
                                  status=401)
 
 
@@ -350,7 +431,19 @@ async def page_index(request):
 
 
 async def api_catalog(request):
-    return web.json_response({"shop": SHOP, **shop.catalog()})
+    return web.json_response({"shop": SHOP, **shop.catalog(norm_lang(request.query.get("lang")))})
+
+
+async def api_lang(request):
+    u = get_user(request)
+    lang = shop.set_user_lang(u["id"], (await request.json()).get("lang"))
+    if bot:
+        try:
+            await bot.set_chat_menu_button(chat_id=u["id"], menu_button=MenuButtonWebApp(
+                text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}")))
+        except TelegramAPIError:
+            pass
+    return web.json_response({"lang": lang})
 
 
 def public(o: dict) -> dict:
@@ -364,8 +457,11 @@ def public(o: dict) -> dict:
 async def api_me(request):
     u = get_user(request)
     await register_user(u)
+    lang = shop.user_lang(u["id"])
+    show = lang or norm_lang(request.headers.get("X-Lang") or u.get("language_code"))
     return web.json_response({"user": u, "is_admin": is_admin(u["id"]), "profile": shop.last_profile(u["id"]),
-                              "orders": [public(o) for o in shop.user_orders(u["id"])]})
+                              "lang": lang, "orders": [public(shop.localize_order(o, show))
+                                                       for o in shop.user_orders(u["id"])]})
 
 
 async def api_order(request):
@@ -383,7 +479,7 @@ async def api_order(request):
         payload = await request.json()
     o = shop.create_order(u, payload, receipt)
     asyncio.create_task(notify_new_order(o))
-    return web.json_response({"order": public(o)})
+    return web.json_response({"order": public(shop.localize_order(o, norm_lang(request.headers.get("X-Lang"))))})
 
 
 async def api_order_cancel(request):
@@ -432,7 +528,13 @@ async def api_admin_product(request):
                 images.append(shop.save_image(bytes(raw)))
         elif part.name:
             data[part.name] = await part.text()
-    return web.json_response({"product": shop.save_product(data, images)})
+    p = shop.save_product(data, images)
+    try:  # ruscha tarjimani darhol qilamiz (bo'lmasa fon jarayoni keyinroq qayta urinadi)
+        await asyncio.wait_for(translate_products([p]), 15)
+        p = shop.product(p["id"])
+    except Exception as e:  # noqa: BLE001
+        log.warning("tarjima kechiktirildi: %s", e)
+    return web.json_response({"product": p})
 
 
 async def api_admin_product_delete(request):
@@ -443,7 +545,12 @@ async def api_admin_product_delete(request):
 
 async def api_admin_category(request):
     get_admin(request)
-    return web.json_response({"category": shop.save_category(await request.json())})
+    c = shop.save_category(await request.json())
+    try:
+        await asyncio.wait_for(translate_categories(), 10)
+    except Exception as e:  # noqa: BLE001
+        log.warning("kategoriya tarjimasi kechiktirildi: %s", e)
+    return web.json_response({"category": c})
 
 
 async def api_admin_category_delete(request):
@@ -465,13 +572,22 @@ async def api_admin_broadcast(request):
     text = ((await request.json()).get("text") or "").strip()
     if not text:
         raise ShopError("Xabar matnini yozing")
-    ids = shop.user_ids()
+    groups = shop.user_ids_by_lang()
+    ids = groups["uz"] + groups["ru"]
 
     async def run():
         sent = 0
-        for uid in ids:
+        text_ru = ""
+        if groups["ru"]:
             try:
-                await bot.send_message(uid, esc(text), reply_markup=shop_button())
+                text_ru = await translate(http(), text)
+            except Exception as e:  # noqa: BLE001
+                log.warning("xabar tarjima qilinmadi: %s", e)
+        for uid in ids:
+            lang = "ru" if uid in ru_set else "uz"
+            try:
+                await bot.send_message(uid, esc(text_ru if lang == "ru" and text_ru else text),
+                                       reply_markup=shop_button(lang=lang))
                 sent += 1
             except TelegramAPIError:
                 pass
@@ -482,9 +598,64 @@ async def api_admin_broadcast(request):
             except TelegramAPIError:
                 pass
 
+    ru_set = set(groups["ru"])
     if bot:
         asyncio.create_task(run())
     return web.json_response({"queued": len(ids)})
+
+
+# ------------------------------------------------------------------ avtomatik tarjima (uz -> ru)
+_http: aiohttp.ClientSession = None
+
+
+def http() -> aiohttp.ClientSession:
+    global _http
+    if _http is None or _http.closed:
+        _http = aiohttp.ClientSession()
+    return _http
+
+
+async def translate_products(products: list = None):
+    for p in (products if products is not None else shop.products_to_translate()):
+        p = shop.product(p["id"])
+        src = shop.product_src(p)
+        if p.get("tr_src") == src:
+            continue
+        specs = p["specs"]
+        texts = [p["name"], p["description"], p.get("delivery_days") or ""] + [x for kv in specs for x in kv]
+        out = await translate_many(http(), texts)
+        if p["name"] and not out[0]:
+            raise RuntimeError("bo'sh tarjima")
+        specs_ru = [[out[3 + 2 * i] or k, out[4 + 2 * i] or v] for i, (k, v) in enumerate(specs)]
+        shop.set_product_ru(p["id"], out[0], out[1], specs_ru, out[2], src)
+        log.info("tarjima qilindi: #%s %s -> %s", p["id"], p["name"], out[0])
+
+
+async def translate_categories():
+    for c in shop.categories_to_translate():
+        ru = await translate(http(), c["name"])
+        if ru:
+            shop.set_category_ru(c["id"], ru)
+
+
+async def translation_loop():
+    """Tarjimasi yo'q yoki eskirgan mahsulot/kategoriyalarni vaqti-vaqti bilan tarjima qiladi."""
+    while True:
+        try:
+            await translate_categories()
+            await translate_products()
+        except Exception as e:  # noqa: BLE001
+            log.warning("fon tarjimasi: %s", e)
+        await asyncio.sleep(600)
+
+
+async def api_admin_translate(request):
+    """Admin: «Qayta tarjima qilish» — avtomatik tarjimani majburan yangilash."""
+    get_admin(request)
+    p = shop.product(int(request.match_info["id"]))
+    shop.set_product_ru(p["id"], p["name_ru"], p["description_ru"], p["specs_ru"], p["delivery_days_ru"], "")
+    await asyncio.wait_for(translate_products([p]), 15)
+    return web.json_response({"product": shop.product(p["id"])})
 
 
 async def upload_headers(request, response):
@@ -513,6 +684,8 @@ def make_app() -> web.Application:
     app.router.add_get("/api/admin/receipt/{id}", api_admin_receipt)
     app.router.add_post("/api/admin/settings", api_admin_settings)
     app.router.add_get("/api/admin/customers", api_admin_customers)
+    app.router.add_post("/api/lang", api_lang)
+    app.router.add_post("/api/admin/product/{id}/translate", api_admin_translate)
     return app
 
 
@@ -521,6 +694,7 @@ async def main():
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     log.info("Web server: http://0.0.0.0:%s", PORT)
+    asyncio.create_task(translation_loop())
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
         await asyncio.Event().wait()
