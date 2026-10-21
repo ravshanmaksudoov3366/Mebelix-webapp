@@ -24,14 +24,6 @@
 html, body { margin: 0; background: var(--bg2); color: var(--text);
   font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
-/* to'liq ekran rejimi: yuqoridagi Telegram tugmalari (yopish, menyu) uchun joy qoldiramiz */
-:root { --top: 0px; }
-body.fs { --top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); padding-top: var(--top); }
-body.fs::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: var(--top); background: var(--bg); z-index: 7; }
-body.fs header { top: var(--top); }
-body.fs .sheet { max-height: calc(100% - var(--top) - 6px); }
-body.fs .vbar { padding-top: calc(10px + var(--top)); }
-body.fs .toast { top: calc(16px + var(--top)); }
 button { font: inherit; color: inherit; cursor: pointer; }
 input, textarea, select { font: inherit; color: var(--text); }
 .hidden { display: none !important; }
@@ -281,15 +273,6 @@ a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
 const tg = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(tg && tg.initData);
 if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
-/* To'liq ekran: telefonlarda Telegram sarlavhasisiz, butun ekranni egallaydi (Telegram 8.0+) */
-function syncFullscreen() { document.body.classList.toggle("fs", !!(tg && tg.isFullscreen)); }
-if (IN_TG && ["ios", "android"].includes(tg.platform) && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
-  try {
-    tg.onEvent("fullscreenChanged", syncFullscreen);
-    tg.onEvent("fullscreenFailed", syncFullscreen);
-    if (!tg.isFullscreen) tg.requestFullscreen(); else syncFullscreen();
-  } catch (e) { /* qo'llab-quvvatlanmasa — oddiy kengaytirilgan rejimda qoladi */ }
-}
 if (IN_TG) document.body.classList.add("tg");
 
 /* ------------------------------------------------ yordamchilar */
