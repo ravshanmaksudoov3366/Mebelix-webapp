@@ -91,6 +91,17 @@ def normalize_phone(raw: str) -> str:
     return "+" + digits
 
 
+def youtube_id(url: str) -> str:
+    """YouTube havolasidan video ID: watch?v=, youtu.be/, shorts/, embed/ ko'rinishlari."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    m = re.search(r"(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))([A-Za-z0-9_-]{11})", url)
+    if not m:
+        raise ShopError("YouTube havolasi noto'g'ri. Masalan: https://youtu.be/xxxxxxxxxxx")
+    return m.group(1)
+
+
 def check_init_data(init_data: str, bot_token: str, max_age: int = 86400) -> dict:
     """Telegram Mini App initData imzosini tekshiradi va foydalanuvchini qaytaradi."""
     if not init_data:
@@ -136,7 +147,9 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 # Eski bazaga qo'shiladigan ustunlar
 # *_ru — avtomatik (yoki admin tuzatgan) ruscha tarjima; tr_src — tarjima qilingan o'zbekcha matn "izi"
 PRODUCT_COLUMNS = {"delivery_days": "TEXT DEFAULT ''", "name_ru": "TEXT DEFAULT ''", "description_ru": "TEXT DEFAULT ''",
-                   "specs_ru": "TEXT DEFAULT '[]'", "delivery_days_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''"}
+                   "specs_ru": "TEXT DEFAULT '[]'", "delivery_days_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''",
+                   # video: {"status": "processing|ready|error", "src": "uploads/..mp4", "poster": "uploads/..jpg"}
+                   "video": "TEXT DEFAULT ''", "youtube": "TEXT DEFAULT ''"}
 CATEGORY_COLUMNS = {"name_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''"}
 USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER", "lang": "TEXT DEFAULT ''"}
 ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''"}
@@ -214,6 +227,7 @@ class Shop:
         d["images"] = json.loads(d["images"] or "[]")
         d["in_stock"] = bool(d["in_stock"])
         d["active"] = bool(d["active"])
+        d["video"] = json.loads(d.get("video") or "{}")
         return d
 
     @staticmethod
@@ -235,6 +249,8 @@ class Shop:
     @staticmethod
     def localize_product(p: dict, lang: str) -> dict:
         """Mijozga ko'rsatish uchun: ruscha tanlangan bo'lsa, tarjima qilingan maydonlar."""
+        if p.get("video") and p["video"].get("status") != "ready":
+            p = {**p, "video": {}}  # tayyor bo'lmagan videoni mijozga ko'rsatmaymiz
         if lang != "ru":
             return p
         p = dict(p)
@@ -400,6 +416,7 @@ class Shop:
             specs=json.dumps(specs, ensure_ascii=False), images=json.dumps(images[:10]),
             emoji=(data.get("emoji") or "🪑").strip()[:4] or "🪑",
             delivery_days=(data.get("delivery_days") or "").strip()[:40],
+            youtube=youtube_id(data.get("youtube") or ""),
             in_stock=1 if str(data.get("in_stock", "1")) in ("1", "true", "on") else 0,
             active=1 if str(data.get("active", "1")) in ("1", "true", "on") else 0,
         )
@@ -417,6 +434,8 @@ class Shop:
                                   tuple(fields.values()))
             pid = cur.lastrowid
         self.db.commit()
+        if str(data.get("video_action", "")) == "remove":
+            self.set_product_video(pid, {})
         if ru_edited:  # admin ruscha tarjimani o'zi tuzatdi — avtomatik tarjima ustidan yozmaydi
             specs_ru = []
             for line in str(data.get("specs_ru") or "").splitlines():
@@ -433,7 +452,27 @@ class Shop:
         p = self.product(pid)
         self.db.execute("DELETE FROM products WHERE id=?", (pid,))
         self.db.commit()
-        self._remove_unused_files(set(p["images"]))
+        self._remove_unused_files(set(p["images"]) | {p["video"].get("src", ""), p["video"].get("poster", "")} - {""})
+
+    def set_product_video(self, pid: int, video: dict):
+        """Videoni yangilaydi va eski video fayllarini o'chiradi."""
+        r = self.db.execute("SELECT video FROM products WHERE id=?", (pid,)).fetchone()
+        if not r:
+            return
+        old = json.loads(r["video"] or "{}")
+        self.db.execute("UPDATE products SET video=? WHERE id=?", (json.dumps(video) if video else "", pid))
+        self.db.commit()
+        stale = {old.get("src", ""), old.get("poster", "")} - {video.get("src", ""), video.get("poster", ""), ""}
+        self._remove_unused_files(stale)
+
+    def reset_stuck_videos(self):
+        """Server qayta ishga tushganda yarim qolgan videolarni «xato» deb belgilaydi."""
+        for p in self.products(include_hidden=True):
+            v = p["video"]
+            if v.get("status") == "processing":
+                fixed = {**v, "status": "ready"} if v.get("src") else {"status": "error"}
+                self.db.execute("UPDATE products SET video=? WHERE id=?", (json.dumps(fixed), p["id"]))
+        self.db.commit()
 
     def _remove_unused_files(self, paths):
         for p in paths:

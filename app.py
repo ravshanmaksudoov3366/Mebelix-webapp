@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from pathlib import Path
 
 from aiohttp import web
@@ -517,18 +518,91 @@ async def api_admin_settings(request):
     return web.json_response({"settings": shop.save_settings(await request.json())})
 
 
+VIDEO_MAX_BYTES = 400 * 1024 * 1024   # yuklanadigan asl video (telefondan) — 400 MB gacha
+VIDEO_MAX_SECONDS = 90                 # mijozga ko'rsatiladigan uzunlik
+TMP_DIR = os.path.join(os.path.dirname(UPLOAD_DIR.rstrip("/")), "tmp")
+_ffmpeg_lock = asyncio.Semaphore(1)    # bir vaqtda bitta video siqiladi (server kuchi kichik)
+
+
+async def _run(*cmd) -> tuple:
+    proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    out, err = await proc.communicate()
+    return proc.returncode, err.decode(errors="ignore")[-600:]
+
+
+async def process_video(pid: int, src_path: str, prev: dict = None):
+    """Telefondan kelgan videoni 720p H.264 ga siqadi (taxminan 3–6 MB/daqiqa) va poster rasm yaratadi."""
+    name = uuid.uuid4().hex[:16]
+    out_mp4 = os.path.join(UPLOAD_DIR, name + ".mp4")
+    out_jpg = os.path.join(UPLOAD_DIR, name + ".jpg")
+    try:
+        async with _ffmpeg_lock:
+            code, err = await _run(
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", src_path, "-t", str(VIDEO_MAX_SECONDS),
+                "-vf", "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,"
+                       "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-pix_fmt", "yuv420p", "-r", "30",
+                "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart", out_mp4)
+            if code != 0 or not os.path.isfile(out_mp4):
+                raise RuntimeError(f"ffmpeg: {err}")
+            for ss in ("1", "0"):  # poster: 1-soniya (juda qisqa videoda — boshidan)
+                code, _ = await _run("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ss", ss, "-i", out_mp4,
+                                     "-frames:v", "1", "-q:v", "4", out_jpg)
+                if code == 0 and os.path.isfile(out_jpg):
+                    break
+        size = os.path.getsize(out_mp4)
+        shop.set_product_video(pid, {"status": "ready", "src": "uploads/" + name + ".mp4",
+                                     "poster": "uploads/" + name + ".jpg" if os.path.isfile(out_jpg) else "",
+                                     "size": size})
+        log.info("video tayyor: mahsulot #%s, %.1f MB", pid, size / 1e6)
+    except Exception as e:  # noqa: BLE001
+        log.warning("video siqilmadi (#%s): %s", pid, e)
+        for f in (out_mp4, out_jpg):
+            if os.path.isfile(f):
+                os.remove(f)
+        try:  # avvalgi tayyor video bo'lsa — uni saqlab qolamiz, aks holda «xato»
+            shop.set_product_video(pid, {**prev, "status": "ready", "last_error": 1} if prev and prev.get("src")
+                                   else {"status": "error"})
+        except ShopError:
+            pass
+    finally:
+        if os.path.isfile(src_path):
+            os.remove(src_path)
+
+
 async def api_admin_product(request):
     get_admin(request)
-    data, images = {}, []
+    data, images, video_tmp = {}, [], ""
     reader = await request.multipart()
     async for part in reader:
         if part.name == "images" and part.filename:
             raw = await part.read(decode=False)
             if raw:
                 images.append(shop.save_image(bytes(raw)))
+        elif part.name == "video" and part.filename:
+            # katta faylni xotiraga emas, to'g'ridan-to'g'ri diskka yozamiz
+            os.makedirs(TMP_DIR, exist_ok=True)
+            video_tmp = os.path.join(TMP_DIR, uuid.uuid4().hex)
+            size = 0
+            with open(video_tmp, "wb") as f:
+                while chunk := await part.read_chunk(1024 * 1024):
+                    size += len(chunk)
+                    if size > VIDEO_MAX_BYTES:
+                        f.close()
+                        os.remove(video_tmp)
+                        raise ShopError("Video juda katta (400 MB dan oshmasin). Qisqaroq video tanlang.")
+                    f.write(chunk)
+            if not size:
+                os.remove(video_tmp)
+                video_tmp = ""
         elif part.name:
             data[part.name] = await part.text()
     p = shop.save_product(data, images)
+    if video_tmp:
+        prev = p["video"] if p["video"].get("status") == "ready" else {}
+        shop.set_product_video(p["id"], {**prev, "status": "processing"} if prev.get("src") else {"status": "processing"})
+        app_tasks.append(asyncio.create_task(process_video(p["id"], video_tmp, prev)))
+        p = shop.product(p["id"])
     try:  # ruscha tarjimani darhol qilamiz (bo'lmasa fon jarayoni keyinroq qayta urinadi)
         await asyncio.wait_for(translate_products([p]), 15)
         p = shop.product(p["id"])
@@ -670,7 +744,7 @@ async def upload_headers(request, response):
 
 
 def make_app() -> web.Application:
-    app = web.Application(middlewares=[errors], client_max_size=60 * 1024 * 1024)
+    app = web.Application(middlewares=[errors], client_max_size=450 * 1024 * 1024)
     app.on_response_prepare.append(upload_headers)
     app.router.add_get("/", page_index)
     app.router.add_static("/uploads/", UPLOAD_DIR)
@@ -701,7 +775,8 @@ async def main():
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     log.info("Web server: http://0.0.0.0:%s", PORT)
-    app_tasks.append(asyncio.create_task(translation_loop()))  # havolani saqlaymiz (GC o'chirib yubormasin)
+    app_tasks.append(asyncio.create_task(translation_loop()))
+    shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
         await asyncio.Event().wait()

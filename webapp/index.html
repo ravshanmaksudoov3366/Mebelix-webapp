@@ -141,6 +141,14 @@ body.tg nav.in-sheet { display: none; }
   font-size: 110px; background: linear-gradient(140deg, #efe2d3, #dcc5ad); }
 .gallery img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
 .gallery > div { position: relative; }
+.gallery > .vid { background: #000; display: block; position: relative; overflow: hidden; min-height: 0; }
+.gallery video, .gallery iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block;
+  background: #000; object-fit: contain; }
+.dots i.v { background: #e0453a55; }
+.dots i.v.on { background: var(--danger); }
+.vbadge { position: absolute; right: 8px; top: 8px; z-index: 1; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.55);
+  color: #fff; font-size: 12px; display: grid; place-items: center; }
+.vprev { width: 100%; max-height: 260px; border-radius: 12px; background: #000; display: block; }
 .zoom-hint { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.5); color: #fff; font-size: 15px;
   width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; pointer-events: none; }
 
@@ -348,7 +356,7 @@ const I18N = {
     e_rc_busy: "Chek rasmi yuklanmoqda, biroz kuting", e_rc: "Oldindan to'lov ({sum}) chekining rasmini yuklang",
     sent_title: "Buyurtmangiz yuborildi!", order_no: "Buyurtma raqami", prepaid: "Oldindan to'langan",
     sent_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.",
-    ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm",
+    ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
   },
   ru: {
     nav_catalog: "Каталог", nav_cart: "Корзина", nav_orders: "Мои заказы", search_ph: "Диван, шкаф, стол...",
@@ -395,7 +403,7 @@ const I18N = {
     e_rc_busy: "Фото чека загружается, подождите немного", e_rc: "Загрузите фото чека предоплаты ({sum})",
     sent_title: "Заказ отправлен!", order_no: "Номер заказа", prepaid: "Предоплачено",
     sent_wait: "🧾 Ваш чек проверяется. После подтверждения заказ будет принят — мы сообщим в боте.",
-    ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум",
+    ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
   },
 };
 const CITY_RU = { "Toshkent shahri": "г. Ташкент", "Toshkent viloyati": "Ташкентская обл.", "Andijon": "Андижан",
@@ -436,7 +444,7 @@ function alertBox(msg) { return new Promise(r => { if (IN_TG && tg.showAlert) tg
 function confirmBox(msg) { return new Promise(r => { if (IN_TG && tg.showConfirm) tg.showConfirm(msg, r); else r(confirm(msg)); }); }
 const dateStr = ts => { const d = new Date(ts * 1000); return d.toLocaleDateString("ru-RU") + " " + d.toTimeString().slice(0, 5); };
 const picHTML = (p, cls = "ph") => {
-  const img = (p.images && p.images[0]) || p.image;
+  const img = (p.images && p.images[0]) || p.image || (p.video && p.video.poster);  // rasm bo'lmasa — video posteri
   return img ? `<img src="${esc(img)}" loading="lazy" alt="">` : esc(p.emoji || "🪑");
 };
 
@@ -528,7 +536,7 @@ function viewCatalog() {
   if (!list.length) return tools + `<div class="empty"><div class="big">🔎</div>${t("nothing")}</div>`;
   return tools + `<div class="grid">` + list.map(p => `
     <div class="card" onclick="openProduct(${p.id})">
-      <div class="ph">${discount(p) ? `<span class="badge">−${discount(p)}%</span>` : ""}${picHTML(p)}
+      <div class="ph">${discount(p) ? `<span class="badge">−${discount(p)}%</span>` : ""}${(p.video && p.video.src) || p.youtube ? `<span class="vbadge">▶</span>` : ""}${picHTML(p)}
         ${!p.in_stock ? `<span class="oos">${t("oos")}</span>` : ""}</div>
       <div class="body"><div class="pname">${esc(p.name)}</div>
         <div><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<br><span class="old" style="margin:0">${money(p.old_price)}</span>` : ""}</div>
@@ -644,13 +652,20 @@ function mainBusy(on) { if (IN_TG) on ? tg.MainButton.showProgress(false) : tg.M
 function openProduct(id) {
   const p = prod(id); if (!p) return;
   const cat = S.cats.find(c => c.id === p.cat_id);
-  const imgs = p.images.length ? p.images : [null];
+  const imgs = p.images.length || !(p.video && p.video.src) && !p.youtube ? (p.images.length ? p.images : [null]) : p.images;
+  // slaydlar: rasmlar, keyin video (bo'lsa) va YouTube (bo'lsa)
+  const slides = imgs.map((src, k) => `<div>${src ? `<img src="${esc(src)}" alt="" onclick="openViewer(${p.id}, ${k})"><span class="zoom-hint">🔍</span>` : esc(p.emoji)}</div>`);
+  if (p.video && p.video.src) slides.push(`<div class="vid"><video src="${esc(p.video.src)}" ${p.video.poster ? `poster="${esc(p.video.poster)}"` : ""}
+      controls playsinline preload="metadata"></video></div>`);
+  if (p.youtube) slides.push(`<div class="vid"><iframe src="https://www.youtube-nocookie.com/embed/${esc(p.youtube)}?playsinline=1&rel=0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>`);
+  const hasVid = (p.video && p.video.src) || p.youtube;
   openSheet({
     title: "",
     rerender: () => `
-      <div class="gallery" onscroll="const i=Math.round(this.scrollLeft/this.clientWidth);this.nextElementSibling&&this.nextElementSibling.querySelectorAll('i').forEach((d,k)=>d.classList.toggle('on',k===i))">
-        ${imgs.map((src, k) => `<div>${src ? `<img src="${esc(src)}" alt="" onclick="openViewer(${p.id}, ${k})"><span class="zoom-hint">🔍</span>` : esc(p.emoji)}</div>`).join("")}</div>
-      ${imgs.length > 1 ? `<div class="dots">${imgs.map((_, k) => `<i class="${k ? "" : "on"}"></i>`).join("")}</div>` : ""}
+      <div class="gallery" onscroll="galleryScroll(this)">${slides.join("")}</div>
+      ${slides.length > 1 ? `<div class="dots">${slides.map((_, k) => `<i class="${k ? "" : "on"}${k >= imgs.length ? " v" : ""}"></i>`).join("")}</div>` : ""}
+      ${hasVid && imgs.length ? `<div style="text-align:center;margin-top:8px"><button class="btn soft sm" onclick="toVideo(this)">▶ ${t("watch_video")}</button></div>` : ""}
       <div class="section">
         ${cat ? `<div class="small muted">${esc(cat.emoji)} ${esc(cat.name)}</div>` : ""}
         <h2 style="margin:4px 0 8px;font-size:20px">${esc(p.name)}</h2>
@@ -674,6 +689,17 @@ function openProduct(id) {
       <div style="width:130px">${stepper(p.id)}</div></div></div>` : "");
     sh.el.querySelector(".sb").innerHTML = sh.rerender();
   }
+}
+
+function galleryScroll(g) {
+  const i = Math.round(g.scrollLeft / g.clientWidth);
+  const d = g.nextElementSibling; d && d.classList.contains("dots") && d.querySelectorAll("i").forEach((x, k) => x.classList.toggle("on", k === i));
+  // ko'rinmay qolgan videoni to'xtatamiz
+  g.querySelectorAll("video").forEach(v => { const k = [...g.children].indexOf(v.parentElement); if (k !== i && !v.paused) v.pause(); });
+}
+function toVideo(btn) {
+  const g = btn.closest(".sb").querySelector(".gallery"); const v = g.querySelector(".vid");
+  if (v) g.scrollTo({ left: v.offsetLeft, behavior: "smooth" });
 }
 
 /* ------------------------------------------------ rasm ko'ruvchi (kattalashtirish va saqlash) */
@@ -1055,7 +1081,7 @@ function viewAdmin() {
       <button class="btn" onclick="openProductForm()">＋ Qo'shish</button></div>
       <div class="list-card">${list.map(p => `<div class="row" onclick="openProductForm(${p.id})">
         <div class="thumb">${picHTML(p)}</div>
-        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}</div>
+        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}${p.video && p.video.status === "ready" ? `<span class="tag">🎬</span>` : p.video && p.video.status === "processing" ? `<span class="tag">🎬⏳</span>` : p.video && p.video.status === "error" ? `<span class="tag red">🎬✕</span>` : ""}${p.youtube ? `<span class="tag">YouTube</span>` : ""}</div>
           <div class="small muted">${esc((d.categories.find(c => c.id === p.cat_id) || {}).name || "Kategoriyasiz")} · ${p.images.length} rasm</div>
           <div class="price">${money(p.price)}</div></div><span class="muted">›</span></div>`).join("") || `<div class="empty">Mahsulot yo'q</div>`}</div>`;
   } else if (S.adm.tab === "cats") {
@@ -1191,6 +1217,8 @@ function openProductForm(id) {
     price: p ? p.price : "", old_price: p && p.old_price ? p.old_price : "", emoji: p ? p.emoji : "🛋",
     description: p ? p.description : "", specs: p ? p.specs.map(s => s.join(": ")).join("\n") : "",
     in_stock: p ? p.in_stock : true, active: p ? p.active : true, delivery_days: p ? (p.delivery_days || "") : "",
+    video: p ? (p.video || {}) : {}, videoFile: null, videoUrl: "", videoAction: "",
+    youtube: p && p.youtube ? "https://youtu.be/" + p.youtube : "", progress: 0,
     imgs: p ? p.images.map(src => ({ kind: "k", src })) : [],   // k — saqlangan, n — yangi tanlangan
     name_ru: p ? p.name_ru || "" : "", description_ru: p ? p.description_ru || "" : "",
     specs_ru: p ? (p.specs_ru || []).map(s => s.join(": ")).join("\n") : "", delivery_days_ru: p ? p.delivery_days_ru || "" : "",
@@ -1215,6 +1243,23 @@ function productFormHTML() {
           <input type="file" accept="image/*" multiple onchange="addFiles(this.files); this.value=''"></label>
         <div class="small muted" style="margin-top:6px">Galereyadan bir vaqtning o'zida ${left} tagacha rasm belgilashingiz mumkin.
           Asosiy rasmni almashtirish uchun ★ ni bosing.</div>` : `<div class="small muted" style="margin-top:8px">Ko'pi bilan ${MAX_IMGS} ta rasm.</div>`}
+    </div>
+    <div class="section"><h3>🎬 Video <span class="muted small">(ixtiyoriy)</span></h3>
+      ${PF.videoFile ? `<video class="vprev" src="${PF.videoUrl}" controls playsinline></video>
+          <div class="small muted" style="margin-top:6px">${esc(PF.videoFile.name || "video")} · ${(PF.videoFile.size / 1e6).toFixed(1)} MB —
+            saqlangach server uni siqib, 1–3 daqiqada tayyorlaydi.</div>
+          <button class="btn ghost sm" style="margin-top:8px" onclick="clearVideo()">✕ Bekor qilish</button>`
+        : PF.video.src && PF.videoAction !== "remove" ? `<video class="vprev" src="${esc(PF.video.src)}" ${PF.video.poster ? `poster="${esc(PF.video.poster)}"` : ""} controls playsinline preload="metadata"></video>
+          ${PF.video.status === "processing" ? `<div class="small" style="margin-top:6px">⏳ Yangi video tayyorlanmoqda...</div>` : ""}
+          ${PF.video.last_error ? `<div class="small err">Oxirgi yuklangan video siqilmadi, avvalgisi qoldi.</div>` : ""}
+          <div class="inrow" style="margin-top:8px"><label class="btn soft sm upl" style="flex:1">🔄 Almashtirish<input type="file" accept="video/*" onchange="setVideo(this.files[0])"></label>
+            <button class="btn danger sm" style="flex:1" onclick="PF.videoAction='remove'; refresh()">🗑 O'chirish</button></div>`
+        : PF.video.status === "processing" && PF.videoAction !== "remove" ? `<div class="ddbox">⏳ Video tayyorlanmoqda (1–3 daqiqa). Tayyor bo'lgach, mijozlarga avtomatik ko'rinadi.</div>`
+        : `${PF.video.status === "error" && PF.videoAction !== "remove" ? `<div class="err" style="margin-bottom:8px">Video siqilmadi. Boshqa video tanlab ko'ring.</div>` : ""}
+          <label class="btn soft block upl">🎬 Video qo'shish<input type="file" accept="video/*" onchange="setVideo(this.files[0])"></label>
+          <div class="small muted" style="margin-top:6px">Telefondan video tanlang (1,5 daqiqagacha). Server uni avtomatik siqadi — mijozga tez ochiladi.</div>`}
+      <label class="f">yoki YouTube havolasi</label>
+      <input class="in" value="${esc(PF.youtube)}" oninput="PF.youtube=this.value.trim()" placeholder="https://youtu.be/... yoki https://youtube.com/shorts/...">
     </div>
     <div class="section">
       <label class="f">Nomi *</label><input class="in" value="${esc(PF.name)}" oninput="PF.name=this.value" placeholder="Masalan: Burchak divan «Roma»">
@@ -1254,11 +1299,30 @@ function productFormHTML() {
     </div>
     ${PF.err ? `<div class="err" style="margin:0 16px 10px">⚠️ ${esc(PF.err)}</div>` : ""}
     <div style="padding:0 12px;display:grid;gap:8px">
-      <button class="btn block" onclick="saveProduct()" ${PF.busy ? "disabled" : ""}>${PF.busy ? "Saqlanmoqda..." : "💾 Saqlash"}</button>
+      <button class="btn block" onclick="saveProduct()" ${PF.busy ? "disabled" : ""}>${PF.busy ? (PF.videoFile ? `Video yuklanmoqda... ${PF.progress}%` : "Saqlanmoqda...") : "💾 Saqlash"}</button>
       ${PF.id ? `<button class="btn danger block" onclick="deleteProduct()">🗑 O'chirish</button>` : ""}
     </div>`;
 }
 const MAX_IMGS = 10;
+function setVideo(f) {
+  if (!f) return;
+  if (f.size > 400e6) return alertBox("Video juda katta (400 MB dan oshmasin). Qisqaroq video tanlang.");
+  if (PF.videoUrl) URL.revokeObjectURL(PF.videoUrl);
+  PF.videoFile = f; PF.videoUrl = URL.createObjectURL(f); PF.videoAction = ""; refresh();
+}
+function clearVideo() { if (PF.videoUrl) URL.revokeObjectURL(PF.videoUrl); PF.videoFile = null; PF.videoUrl = ""; refresh(); }
+// katta fayl yuklashda foizni ko'rsatish uchun XHR
+function uploadForm(path, fd, onProgress) {
+  return new Promise((ok, fail) => {
+    const x = new XMLHttpRequest(); x.open("POST", path);
+    x.setRequestHeader("X-Init-Data", (tg && tg.initData) || ""); x.setRequestHeader("X-Lang", LANG);
+    x.upload.onprogress = e => e.lengthComputable && onProgress(Math.round(e.loaded / e.total * 100));
+    x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) {}
+      x.status < 300 ? ok(d) : fail(new Error(d.error || "Xatolik yuz berdi")); };
+    x.onerror = () => fail(new Error("Internet aloqasini tekshiring"));
+    x.send(fd);
+  });
+}
 function mainImg(i) { const [im] = PF.imgs.splice(i, 1); PF.imgs.unshift(im); haptic(); refresh(); }
 function removeImg(i) { const [im] = PF.imgs.splice(i, 1); if (im.kind === "n") URL.revokeObjectURL(im.src); refresh(); }
 // Telefondagi katta rasmni yuklashdan oldin kichraytiramiz (tezroq yuklanadi, internet tejaladi)
@@ -1294,7 +1358,7 @@ async function saveProduct() {
   const fd = new FormData();
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
     description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0,
-    delivery_days: PF.delivery_days };
+    delivery_days: PF.delivery_days, youtube: PF.youtube, video_action: PF.videoAction };
   if (PF.ru_edited) Object.assign(fields, { ru_edited: 1, name_ru: PF.name_ru, description_ru: PF.description_ru,
     specs_ru: PF.specs_ru, delivery_days_ru: PF.delivery_days_ru });
   let n = 0;
@@ -1303,7 +1367,14 @@ async function saveProduct() {
   fields.order = JSON.stringify(order);
   Object.entries(fields).forEach(([k, v]) => fd.append(k, v ?? ""));
   PF.imgs.filter(im => im.kind === "n").forEach(im => fd.append("images", im.file, im.file.name || "photo.jpg"));
-  try { await api("/api/admin/product", { form: fd }); notifyH("success"); toast("Saqlandi ✓");
+  if (PF.videoFile) fd.append("video", PF.videoFile, PF.videoFile.name || "video.mp4");
+  try {
+    if (PF.videoFile) {
+      let last = -1;
+      await uploadForm("/api/admin/product", fd, pct => { PF.progress = pct; if (pct - last >= 2) { last = pct; refresh(); } });
+      toast("Saqlandi ✓ Video 1–3 daqiqada tayyor bo'ladi");
+    } else { await api("/api/admin/product", { form: fd }); toast("Saqlandi ✓"); }
+    notifyH("success");
         closeAll(); await Promise.all([loadAdmin(), loadCatalog()]); render(); }
   catch (e) { PF.err = e.message; PF.busy = false; refresh(); }
 }
