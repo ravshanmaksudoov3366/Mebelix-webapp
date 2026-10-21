@@ -2,3 +2,5 @@
 data/
 __pycache__/
 .git/
+server.js
+package.json

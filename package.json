@@ -1,0 +1,9 @@
+{
+  "name": "mebelix-redirect",
+  "version": "1.0.0",
+  "description": "Eski manzildan yangi Mebelix do'koniga yo'naltirish",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
