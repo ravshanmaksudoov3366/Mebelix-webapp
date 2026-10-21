@@ -640,6 +640,10 @@ async def translate_categories():
 
 async def translation_loop():
     """Tarjimasi yo'q yoki eskirgan mahsulot/kategoriyalarni vaqti-vaqti bilan tarjima qiladi."""
+    try:  # ishga tushganda tarjima xizmati ishlayotganini tekshiramiz (loglarda ko'rinadi)
+        log.info("tarjima tekshiruvi: 'Yumshoq divan' -> %r", await translate(http(), "Yumshoq divan"))
+    except Exception as e:  # noqa: BLE001
+        log.warning("tarjima xizmatiga ulanib bo'lmadi: %s", e)
     while True:
         try:
             await translate_categories()
@@ -689,12 +693,15 @@ def make_app() -> web.Application:
     return app
 
 
+app_tasks: list = []
+
+
 async def main():
     runner = web.AppRunner(make_app())
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     log.info("Web server: http://0.0.0.0:%s", PORT)
-    asyncio.create_task(translation_loop())
+    app_tasks.append(asyncio.create_task(translation_loop()))  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
         await asyncio.Event().wait()
