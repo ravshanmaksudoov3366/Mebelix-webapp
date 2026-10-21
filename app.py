@@ -29,12 +29,14 @@ from aiogram.types import (
 
 from shop import (
     ACTIONS,
+    FLOW,
     STATUS_MESSAGES,
     STATUSES,
     AuthError,
     Shop,
     ShopError,
     check_init_data,
+    fmt_price,
     order_text,
 )
 
@@ -79,6 +81,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("shop")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 shop = Shop(DB_PATH, UPLOAD_DIR)
+# Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
+if os.getenv("PAY_CARD") and not shop.settings()["pay_card"]:
+    shop.save_settings({"pay_card": os.getenv("PAY_CARD"), "pay_owner": os.getenv("PAY_OWNER", ""),
+                        "prepay_pct": os.getenv("PREPAY_PCT", "10")})
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML)) if BOT_TOKEN else None
 dp = Dispatcher()
 
@@ -89,26 +95,23 @@ def is_admin(uid: int) -> bool:
 
 # ------------------------------------------------------------------ bildirishnomalar
 def status_keyboard(o: dict, chat_id: int = 1) -> InlineKeyboardMarkup:
-    flow = {"new": ["confirmed", "cancelled"], "confirmed": ["delivering", "cancelled"],
-            "delivering": ["done", "cancelled"], "done": [], "cancelled": ["new"]}
     btns = [InlineKeyboardButton(text=ACTIONS[s], callback_data=f"st:{o['id']}:{s}")
-            for s in flow.get(o["status"], [])]
+            for s in FLOW.get(o["status"], [])]
     rows = [btns[i:i + 2] for i in range(0, len(btns), 2)]
     if chat_id > 0:  # Mini App tugmasi guruhlarda ishlamaydi
         rows.append([InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=WEBAPP_URL + "?admin=1"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def order_photos(o: dict) -> list:
-    """Buyurtmadagi mahsulotlar rasmlari: [[fayl yo'li, izoh], ...] (ko'pi bilan 10 ta)."""
-    out = []
+def order_photo(o: dict) -> str:
+    """Guruhga faqat bitta rasm: birinchi mahsulotning asosiy rasmi (bo'lsa)."""
     for i in o["items"]:
         img = i.get("image")
         if img:
             path = os.path.join(UPLOAD_DIR, os.path.basename(img))
             if os.path.isfile(path):
-                out.append([path, f"{i['name']} × {i['qty']}"])
-    return out[:10]
+                return path
+    return ""
 
 
 def _media(m: str):
@@ -116,35 +119,36 @@ def _media(m: str):
     return FSInputFile(m) if os.path.isfile(m) else m
 
 
-async def send_order_to(chat_id: int, o: dict, photos: list) -> list:
+async def send_order_to(chat_id: int, o: dict, media: dict) -> list:
+    """Buyurtma: mahsulot rasmi + ma'lumot + tugmalar, keyin chek rasmi javob sifatida."""
     text = "🔔 " + order_text(o, for_admin=True)
     kb = status_keyboard(o, chat_id)
-    if len(photos) == 1 and len(text) <= 1024:
-        # bitta mahsulot: rasm + buyurtma matni bitta xabarda
-        m = await bot.send_photo(chat_id, _media(photos[0][0]), caption=text, reply_markup=kb)
-        photos[0][0] = m.photo[-1].file_id
-        return [chat_id, m.message_id, "photo"]
-    if len(photos) == 1:
-        m = await bot.send_photo(chat_id, _media(photos[0][0]), caption=esc(photos[0][1]))
-        photos[0][0] = m.photo[-1].file_id
-    elif photos:
-        sent = await bot.send_media_group(
-            chat_id, [InputMediaPhoto(media=_media(p), caption=esc(c)) for p, c in photos])
-        for ph, sm in zip(photos, sent):
-            if sm.photo:
-                ph[0] = sm.photo[-1].file_id
-    m = await bot.send_message(chat_id, text, reply_markup=kb)
-    return [chat_id, m.message_id, "text"]
+    if media.get("photo") and len(text) <= 1024:
+        m = await bot.send_photo(chat_id, _media(media["photo"]), caption=text, reply_markup=kb)
+        media["photo"] = m.photo[-1].file_id
+        entry = [chat_id, m.message_id, "photo"]
+    else:
+        m = await bot.send_message(chat_id, text, reply_markup=kb)
+        entry = [chat_id, m.message_id, "text"]
+    if media.get("receipt"):
+        try:
+            r = await bot.send_photo(chat_id, _media(media["receipt"]), reply_to_message_id=m.message_id,
+                                     caption=f"🧾 Buyurtma #{o['id']} — oldindan to'lov cheki "
+                                             f"({fmt_price(o['prepay'])})")
+            media["receipt"] = r.photo[-1].file_id
+        except TelegramAPIError as e:
+            log.warning("chek yuborilmadi %s: %s", chat_id, e)
+    return entry
 
 
 async def notify_new_order(o: dict):
     if not bot:
         return
     msgs = []
-    photos = order_photos(o)
+    media = {"photo": order_photo(o), "receipt": shop.receipt_path(o)}
     for aid in NOTIFY_CHATS:
         try:
-            msgs.append(await send_order_to(aid, o, photos))
+            msgs.append(await send_order_to(aid, o, media))
         except TelegramAPIError as e:
             log.warning("rasmli xabar yuborilmadi %s: %s", aid, e)
             try:  # rasm bilan muammo bo'lsa, hech bo'lmasa matn borsin
@@ -157,8 +161,8 @@ async def notify_new_order(o: dict):
     try:
         await bot.send_message(
             o["user_id"],
-            "✅ <b>Buyurtmangiz qabul qilindi!</b>\n\n" + order_text(o, for_admin=False)
-            + "\n\nMenejerimiz tez orada siz bilan bog'lanadi.")
+            "📨 <b>Buyurtmangiz va to'lov chekingiz yuborildi!</b>\n\n" + order_text(o, for_admin=False)
+            + "\n\n🧾 Chekingiz tekshirilgach, buyurtma qabul qilingani haqida shu yerga xabar keladi.")
     except TelegramAPIError as e:
         log.warning("mijozga yuborilmadi: %s", e)
 
@@ -305,32 +309,65 @@ async def api_catalog(request):
     return web.json_response({"shop": SHOP, **shop.catalog()})
 
 
+def public(o: dict) -> dict:
+    """Javobga ichki maydonlarni (chek fayli, admin xabarlari) qo'shmaymiz."""
+    o = dict(o)
+    o["has_receipt"] = bool(o.pop("receipt", ""))
+    o.pop("admin_msgs", None)
+    return o
+
+
 async def api_me(request):
     u = get_user(request)
     shop.touch_user(u)
-    return web.json_response({"user": u, "is_admin": is_admin(u["id"]),
-                              "profile": shop.last_profile(u["id"]), "orders": shop.user_orders(u["id"])})
+    return web.json_response({"user": u, "is_admin": is_admin(u["id"]), "profile": shop.last_profile(u["id"]),
+                              "orders": [public(o) for o in shop.user_orders(u["id"])]})
 
 
 async def api_order(request):
+    """Buyurtma: multipart — "data" (JSON) va "receipt" (chek rasmi)."""
     u = get_user(request)
-    o = shop.create_order(u, await request.json())
+    payload, receipt = {}, b""
+    if request.content_type.startswith("multipart/"):
+        reader = await request.multipart()
+        async for part in reader:
+            if part.name == "data":
+                payload = json.loads(await part.text() or "{}")
+            elif part.name == "receipt":
+                receipt = bytes(await part.read(decode=False))
+    else:
+        payload = await request.json()
+    o = shop.create_order(u, payload, receipt)
     asyncio.create_task(notify_new_order(o))
-    return web.json_response({"order": o})
+    return web.json_response({"order": public(o)})
 
 
 async def api_order_cancel(request):
     u = get_user(request)
     o = shop.cancel_by_user(u["id"], int(request.match_info["id"]))
     asyncio.create_task(notify_status(o))
-    return web.json_response({"order": o})
+    return web.json_response({"order": public(o)})
 
 
 async def api_admin_data(request):
     get_admin(request)
-    return web.json_response({"stats": shop.stats(), "orders": shop.orders(request.query.get("status", "")),
+    return web.json_response({"stats": shop.stats(),
+                              "orders": [public(o) for o in shop.orders(request.query.get("status", ""))],
                               "products": shop.products(include_hidden=True), "categories": shop.categories(),
-                              "statuses": STATUSES})
+                              "statuses": STATUSES, "actions": ACTIONS, "flow": FLOW, "settings": shop.settings()})
+
+
+async def api_admin_receipt(request):
+    get_admin(request)
+    path = shop.receipt_path(shop.order(int(request.match_info["id"])))
+    if not path:
+        raise ShopError("Chek topilmadi")
+    return web.FileResponse(path, headers={"Cache-Control": "private, no-store"})
+
+
+async def api_admin_settings(request):
+    get_admin(request)
+    return web.json_response({"settings": shop.save_settings(await request.json())})
 
 
 async def api_admin_product(request):
@@ -369,7 +406,7 @@ async def api_admin_status(request):
     body = await request.json()
     o = shop.set_status(int(request.match_info["id"]), body.get("status", ""))
     asyncio.create_task(notify_status(o))
-    return web.json_response({"order": o})
+    return web.json_response({"order": public(o)})
 
 
 async def api_admin_broadcast(request):
@@ -422,6 +459,8 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/category/{id}/delete", api_admin_category_delete)
     app.router.add_post("/api/admin/order/{id}/status", api_admin_status)
     app.router.add_post("/api/admin/broadcast", api_admin_broadcast)
+    app.router.add_get("/api/admin/receipt/{id}", api_admin_receipt)
+    app.router.add_post("/api/admin/settings", api_admin_settings)
     return app
 
 

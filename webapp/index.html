@@ -97,7 +97,7 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .status { font-size: 13px; padding: 3px 9px; border-radius: 10px; background: var(--bg2); white-space: nowrap; }
 .status.new { background: #fff1d6; color: #9a6400; } .status.confirmed { background: #dff3e4; color: #1f7a3a; }
 .status.delivering { background: #dcebff; color: #1d5fb8; } .status.done { background: #e9e6ff; color: #4b3fb3; }
-.status.cancelled { background: #fde3e1; color: #b3261e; }
+.status.cancelled, .status.rejected { background: #fde3e1; color: #b3261e; }
 .track { display: flex; gap: 4px; margin: 10px 0 4px; }
 .track span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .track span.on { background: var(--accent); }
@@ -201,6 +201,27 @@ textarea.in { resize: vertical; min-height: 72px; }
 .list-card { background: var(--card); border-radius: var(--r); margin: 10px 12px; padding: 4px 14px; }
 .tag { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--bg2); color: var(--hint); margin-left: 4px; }
 .tag.red { background: #fde3e1; color: #b3261e; }
+
+/* checkout */
+.stepno { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+  color: var(--accent-text); font-size: 13px; margin-right: 8px; vertical-align: 1px; }
+.geo-ok { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--soft); border-radius: 12px; padding: 10px 12px; }
+.paybox { background: var(--bg2); border-radius: 14px; padding: 12px 14px; margin-top: 10px; }
+.payamt { font-size: 24px; font-weight: 800; }
+.cardrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cardno { font-size: 17px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.upl { position: relative; overflow: hidden; }
+.upl input { position: absolute; inset: 0; opacity: 0; }
+.rcpt { display: flex; align-items: center; gap: 12px; margin-top: 12px; background: var(--soft); border-radius: 12px; padding: 8px; }
+.rcpt-big { text-align: center; color: var(--hint); font-size: 14px; }
+.rcpt-big img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 12px; background: var(--bg2); display: block; margin-bottom: 6px; }
+.rcpt img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+.mapwrap { position: relative; margin: 0 12px; border-radius: 16px; overflow: hidden; }
+#map { height: 58vh; min-height: 300px; background: #e8e4dc; }
+.pin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%); font-size: 40px; z-index: 500; pointer-events: none;
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,.35)); }
+.locbtn { position: absolute; right: 10px; bottom: 10px; z-index: 500; box-shadow: 0 3px 10px rgba(0,0,0,.25); }
+.chips.adm { margin: 0; padding: 12px 12px 0; }
 
 /* success */
 .done { text-align: center; padding: 30px 20px 10px; }
@@ -391,11 +412,13 @@ function orderCard(o, admin = false) {
   return `<div class="order" ${admin ? `onclick="openAdminOrder(${o.id})"` : ""}>
     <div class="ohead"><b>№ ${o.id}${admin ? " · " + esc(o.name) : ""}</b><span class="status ${o.status}">${esc(o.status_text)}</span></div>
     <div class="small muted">${dateStr(o.created)}${admin ? " · " + esc(o.phone) : ""}</div>
-    ${o.status !== "cancelled" ? `<div class="track">${TRACK.map((_, i) => `<span class="${i <= step ? "on" : ""}"></span>`).join("")}</div>` : ""}
+    ${step >= 0 ? `<div class="track">${TRACK.map((_, i) => `<span class="${i <= step ? "on" : ""}"></span>`).join("")}</div>` : ""}
     <div class="olines">${names}</div>
-    <div class="ohead" style="margin:0"><b>${money(o.total)}</b>
-      ${!admin && o.status === "new" ? `<button class="btn danger sm" onclick="cancelOrder(${o.id})">Bekor qilish</button>` : ""}
-      ${!admin && (o.status === "done" || o.status === "cancelled") ? `<button class="btn soft sm" onclick="repeatOrder(${o.id})">🔁 Qayta buyurtma</button>` : ""}
+    ${o.prepay ? `<div class="small muted">💰 Oldindan to'lov: ${money(o.prepay)} · Qolgan: ${money(o.total - o.prepay)}</div>` : ""}
+    ${!admin && o.status === "new" ? `<div class="small" style="margin-top:6px">🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, bot orqali xabar keladi.</div>` : ""}
+    ${!admin && o.status === "rejected" ? `<div class="small err" style="margin-top:6px">To'lov cheki tasdiqlanmadi. Iltimos, do'kon bilan bog'laning.</div>` : ""}
+    <div class="ohead" style="margin:6px 0 0"><b>${money(o.total)}</b>
+      ${!admin && ["done", "cancelled", "rejected"].includes(o.status) ? `<button class="btn soft sm" onclick="repeatOrder(${o.id})">🔁 Qayta buyurtma</button>` : ""}
     </div></div>`;
 }
 function viewOrders() {
@@ -502,12 +525,15 @@ function openProduct(id) {
 }
 
 /* ------------------------------------------------ rasm ko'ruvchi (kattalashtirish va saqlash) */
-var V = { open: false, p: null, idx: 0, s: 1, x: 0, y: 0 };
+var V = { open: false, srcs: [], name: "", idx: 0, s: 1, x: 0, y: 0 };
 function openViewer(pid, idx) {
   const p = prod(pid); if (!p || !p.images.length) return;
-  Object.assign(V, { open: true, p, idx, s: 1, x: 0, y: 0 });
+  showViewer(p.images, idx, p.name);
+}
+function showViewer(srcs, idx = 0, name = "mebelix") {
+  Object.assign(V, { open: true, srcs, name, idx, s: 1, x: 0, y: 0 });
   const tr = $("#vtrack");
-  tr.innerHTML = p.images.map(src => `<div class="vslide"><img src="${esc(src)}" alt="" draggable="false"></div>`).join("");
+  tr.innerHTML = srcs.map(src => `<div class="vslide"><img src="${esc(src)}" alt="" draggable="false"></div>`).join("");
   $("#viewer").classList.remove("hidden");
   requestAnimationFrame(() => { tr.scrollLeft = idx * tr.clientWidth; vCount(); });
   tr.querySelectorAll(".vslide").forEach(bindZoom);
@@ -522,7 +548,7 @@ function closeViewer() {
 function vCount() {
   const tr = $("#vtrack");
   V.idx = Math.round(tr.scrollLeft / Math.max(1, tr.clientWidth));
-  $("#vcount").textContent = V.p && V.p.images.length > 1 ? `${V.idx + 1} / ${V.p.images.length}` : "";
+  $("#vcount").textContent = V.srcs.length > 1 ? `${V.idx + 1} / ${V.srcs.length}` : "";
 }
 function vApply(img, anim) {
   img.classList.toggle("drag", !anim);
@@ -570,9 +596,12 @@ function bindZoom(slide) {
   slide.addEventListener("pointercancel", up);
 }
 async function saveImage() {
-  const src = V.p && V.p.images[V.idx]; if (!src) return;
+  const src = V.srcs[V.idx]; if (!src) return;
+  if (src.startsWith("blob:")) {  // admin: chek rasmi (brauzer xotirasida)
+    const a = document.createElement("a"); a.href = src; a.download = "chek.jpg"; document.body.appendChild(a); a.click(); a.remove(); return;
+  }
   const url = new URL(src, location.href).href;
-  const name = (V.p.name || "mebelix").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
+  const name = (V.name || "mebelix").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
   try {
     if (IN_TG && tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
       tg.downloadFile({ url, file_name: name }, ok => ok && toast("Rasm saqlanmoqda…"));
@@ -594,45 +623,92 @@ $("#vtrack").addEventListener("scroll", () => {
 const CITIES = ["Toshkent shahri", "Toshkent viloyati", "Andijon", "Buxoro", "Farg'ona", "Jizzax", "Xorazm", "Namangan",
   "Navoiy", "Qashqadaryo", "Qoraqalpog'iston", "Samarqand", "Sirdaryo", "Surxondaryo"];
 let F = {};
+const prepayOf = total => Math.ceil(total * ((S.prepay && S.prepay.pct) || 10) / 100 / 1000) * 1000;
 function openCheckout() {
   cleanCart();
   if (!cartCount()) { render(); return alertBox("Savatchadagi mahsulotlar sotuvda qolmadi"); }
   const pr = S.me.profile || {};
   const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
   F = { name: pr.name || [u.first_name, u.last_name].filter(Boolean).join(" "), phone: pr.phone || "",
-        delivery: pr.delivery || "delivery", city: pr.city || CITIES[0], address: pr.address || "",
-        pay: pr.pay || S.payments[0], note: "", err: "" };
+        delivery: pr.delivery || "delivery", city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
+        lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? "Oldingi buyurtmadagi manzil" : "",
+        pay: S.payments.includes(pr.pay) ? pr.pay : S.payments[0], note: "",
+        receipt: null, receiptUrl: "", receiptBusy: false, err: "" };
   openSheet({ title: "Buyurtmani rasmiylashtirish", rerender: checkoutHTML,
-    main: () => [`Buyurtma berish · ${money(cartTotal())}`, submitOrder] });
+    main: () => [`Chekni yuborish va buyurtma berish`, submitOrder],
+    onClose: () => F.receiptUrl && URL.revokeObjectURL(F.receiptUrl) });
 }
 function checkoutHTML() {
+  const total = cartTotal(), pre = prepayOf(total), pp = S.prepay || {};
+  const step = (n, t) => `<h3><span class="stepno">${n}</span>${t}</h3>`;
   return `<div class="section">
       <div class="seg">${[["delivery", "🚚 Yetkazib berish"], ["pickup", "🏬 Olib ketish"]].map(([k, t]) =>
         `<button class="${F.delivery === k ? "on" : ""}" onclick="F.delivery='${k}'; refresh()">${t}</button>`).join("")}</div>
       ${F.delivery === "pickup" && S.shop.address ? `<div class="small muted" style="margin-top:8px">📍 ${esc(S.shop.address)}</div>` : ""}
     </div>
-    <div class="section">
+    <div class="section">${step(1, "Aloqa ma'lumotlari")}
       <label class="f">Ismingiz</label>
       <input class="in" value="${esc(F.name)}" oninput="F.name=this.value" placeholder="Ism Familiya" autocomplete="name">
       <label class="f">Telefon raqam</label>
       <div class="inrow"><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" oninput="F.phone=this.value" placeholder="+998 90 123 45 67" autocomplete="tel" id="phoneIn">
         ${IN_TG && tg.requestContact ? `<button class="btn soft" onclick="shareContact()" title="Telegram raqamini yuborish">📱</button>` : ""}</div>
-      ${F.delivery === "delivery" ? `
-        <label class="f">Viloyat / shahar</label>
-        <select class="in" onchange="F.city=this.value">${CITIES.map(c => `<option ${F.city === c ? "selected" : ""}>${c}</option>`).join("")}</select>
-        <label class="f">Manzil</label>
-        <textarea class="in" oninput="F.address=this.value" placeholder="Tuman, ko'cha, uy, xonadon, mo'ljal">${esc(F.address)}</textarea>` : ""}
     </div>
-    <div class="section"><h3>To'lov usuli</h3>
+    ${F.delivery === "delivery" ? `<div class="section">${step(2, "Yetkazib berish manzili")}
+      ${F.lat != null ? `<div class="geo-ok"><div>📍 <b>Manzil belgilandi</b><div class="small muted">${esc(F.geo || (F.lat.toFixed(5) + ", " + F.lon.toFixed(5)))}</div></div>
+          <button class="btn soft sm" onclick="openMapPicker()">O'zgartirish</button></div>`
+        : `<button class="btn block" onclick="openMapPicker()">🗺 Xaritada belgilash</button>
+          <div class="small muted" style="margin-top:6px">Mahsulot qayerga yetkazilishini xaritada ko'rsating — joylashuvingizni avtomatik aniqlash ham mumkin.</div>`}
+      <label class="f">Viloyat / shahar</label>
+      <select class="in" onchange="F.city=this.value">${CITIES.map(c => `<option ${F.city === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+      <label class="f">Uy, xonadon, mo'ljal (ixtiyoriy)</label>
+      <textarea class="in" oninput="F.address=this.value" placeholder="Masalan: 12-uy, 45-xonadon, 3-qavat, maktab yonida">${esc(F.address)}</textarea>
+    </div>` : ""}
+    <div class="section">${step(F.delivery === "delivery" ? 3 : 2, `Oldindan to'lov — ${pp.pct || 10}%`)}
+      ${!pp.card ? `<div class="err">Do'kon hali to'lov kartasini kiritmagan. Iltimos, keyinroq urinib ko'ring yoki ${esc(S.shop.phone || "do'konga")} qo'ng'iroq qiling.</div>` : `
+      <div class="small muted">Buyurtma berish uchun quyidagi summani kartaga o'tkazing va to'lov chekining rasmini (skrinshot) yuklang.</div>
+      <div class="paybox">
+        <div class="small muted">O'tkaziladigan summa</div>
+        <div class="payamt">${money(pre)}</div>
+        <div class="small muted" style="margin-top:10px">Karta raqami</div>
+        <div class="cardrow"><span class="cardno">${esc(pp.card)}</span><button class="btn soft sm" onclick="copyCard()">📋 Nusxa</button></div>
+        ${pp.owner ? `<div class="small">${esc(pp.owner)}</div>` : ""}
+      </div>
+      ${F.receiptUrl ? `<div class="rcpt"><img src="${F.receiptUrl}" alt="" onclick="showViewer(['${F.receiptUrl}'],0,'chek')">
+          <div class="grow"><b>✅ Chek yuklandi</b><div class="small muted">Rasmni bosib tekshiring</div></div>
+          <label class="btn ghost sm upl">Almashtirish<input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label></div>`
+        : `<label class="btn block upl" style="margin-top:12px">${F.receiptBusy ? "⏳ Yuklanmoqda..." : "🧾 Chek rasmini yuklash"}
+          <input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label>`}`}
+    </div>
+    <div class="section"><h3>Qolgan summani to'lash</h3>
       <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(p)}</button>`).join("")}</div>
       <label class="f">Izoh (ixtiyoriy)</label>
-      <textarea class="in" oninput="F.note=this.value" placeholder="Masalan: 3-qavat, lift yo'q, yig'ib berish kerak">${esc(F.note)}</textarea>
+      <textarea class="in" oninput="F.note=this.value" placeholder="Masalan: lift yo'q, yig'ib berish kerak">${esc(F.note)}</textarea>
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}</span><span>${money(p.price * qty)}</span></div>`).join("")}
-      <div class="sum total"><span>Jami</span><span>${money(cartTotal())}</span></div>
-      <div class="small muted">Buyurtmadan so'ng menejer siz bilan bog'lanib, yetkazish vaqtini kelishib oladi.</div>
+      <div class="sum total"><span>Jami</span><span>${money(total)}</span></div>
+      <div class="sum"><span class="muted">Oldindan to'lov (${pp.pct || 10}%)</span><span>${money(pre)}</span></div>
+      <div class="sum"><span class="muted">Qabul qilganda to'lanadi</span><span>${money(total - pre)}</span></div>
+      <div class="small muted" style="margin-top:6px">Chekingiz tekshirilgach, buyurtma qabul qilinadi va bot orqali xabar beramiz.</div>
       ${F.err ? `<div class="err">⚠️ ${esc(F.err)}</div>` : ""}
     </div>`;
+}
+async function setReceipt(file) {
+  if (!file) return;
+  F.receiptBusy = true; refresh();
+  const small = await shrink(file, 1800);
+  if (F.receiptUrl) URL.revokeObjectURL(F.receiptUrl);
+  F.receipt = small; F.receiptUrl = URL.createObjectURL(small); F.receiptBusy = false; F.err = "";
+  haptic(); refresh();
+}
+function copyCard() {
+  const digits = ((S.prepay && S.prepay.card) || "").replace(/\s/g, "");
+  const done = () => { toast("Karta raqami nusxalandi"); notifyH("success"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(digits).then(done, () => fallbackCopy(digits, done));
+  else fallbackCopy(digits, done);
+}
+function fallbackCopy(text, done) {
+  const t = document.createElement("textarea"); t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+  document.body.appendChild(t); t.select(); try { document.execCommand("copy"); done(); } catch (e) { alertBox(text); } t.remove();
 }
 function shareContact() {
   tg.requestContact((ok, res) => {
@@ -641,30 +717,112 @@ function shareContact() {
     else if (ok) toast("Raqam yuborildi");
   });
 }
+
+/* --- xaritada manzil tanlash (Leaflet + OpenStreetMap) --- */
+let leafletReady = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((ok, fail) => {
+    const css = document.createElement("link"); css.rel = "stylesheet";
+    css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+    const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+    js.onload = ok; js.onerror = () => { leafletReady = null; fail(new Error("Xaritani yuklab bo'lmadi. Internetni tekshiring.")); };
+    document.head.appendChild(js);
+  });
+  return leafletReady;
+}
+const MP = { map: null, lat: 41.3111, lon: 69.2797, label: "", timer: 0 };
+async function openMapPicker() {
+  const has = F.lat != null;
+  if (has) { MP.lat = F.lat; MP.lon = F.lon; MP.label = F.geo; } else MP.label = "";
+  openSheet({ title: "Yetkazib berish manzili", body: `
+    <div class="mapwrap"><div id="map"></div><div class="pin">📍</div>
+      <button class="btn locbtn" onclick="locateMe()">🎯 Mening joylashuvim</button></div>
+    <div class="section" style="margin-top:10px"><div class="small muted">Xaritani surib, 📍 belgisini uyingiz ustiga qo'ying</div>
+      <div id="mpLabel" style="margin-top:6px;font-weight:600">${esc(MP.label || "Manzil aniqlanmoqda...")}</div></div>`,
+    main: () => ["✅ Shu manzilni tanlash", pickPlace],
+    onClose: () => { if (MP.map) { MP.map.remove(); MP.map = null; } } });
+  try { await loadLeaflet(); } catch (e) { return alertBox(e.message); }
+  setTimeout(() => {
+    const el = document.getElementById("map"); if (!el) return;
+    MP.map = L.map(el, { zoomControl: true, attributionControl: true }).setView([MP.lat, MP.lon], has ? 17 : 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(MP.map);
+    MP.map.on("move", () => { const c = MP.map.getCenter(); MP.lat = c.lat; MP.lon = c.lng; });
+    MP.map.on("moveend", () => { clearTimeout(MP.timer); MP.timer = setTimeout(reverseGeo, 500); });
+    if (!has) locateMe(); else reverseGeo();
+  }, 280);
+}
+function locateMe() {
+  const go = (lat, lon) => { if (MP.map) MP.map.setView([lat, lon], 17); haptic(); };
+  const fallback = () => {
+    if (!navigator.geolocation) return toast("Joylashuvni aniqlab bo'lmadi. Xaritada qo'lda belgilang");
+    navigator.geolocation.getCurrentPosition(p => go(p.coords.latitude, p.coords.longitude),
+      () => toast("Joylashuvga ruxsat berilmadi. Xaritada qo'lda belgilang"), { enableHighAccuracy: true, timeout: 12000 });
+  };
+  try {
+    const LM = tg && tg.LocationManager;
+    if (IN_TG && LM && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
+      return LM.init(() => {
+        if (!LM.isLocationAvailable) return fallback();
+        LM.getLocation(d => d ? go(d.latitude, d.longitude) : (LM.isAccessRequested && !LM.isAccessGranted
+          ? confirmBox("Joylashuvga ruxsat berilmagan. Sozlamalarni ochamizmi?").then(y => y && LM.openSettings())
+          : fallback()));
+      });
+    }
+  } catch (e) { /* eski Telegram */ }
+  fallback();
+}
+async function reverseGeo() {
+  const lab = document.getElementById("mpLabel"); if (!lab) return;
+  const coords = MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5);
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=uz&lat=${MP.lat}&lon=${MP.lon}`);
+    const d = await r.json(); const a = d.address || {};
+    const parts = [a.road, a.house_number, a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county].filter(Boolean);
+    MP.label = parts.length ? parts.join(", ") : (d.display_name || coords);
+  } catch (e) { MP.label = coords; }
+  lab.textContent = MP.label;
+}
+function pickPlace() {
+  F.lat = MP.lat; F.lon = MP.lon; F.geo = MP.label || (MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5)); F.err = "";
+  notifyH("success"); closeSheet(); refresh();
+}
+
 let sending = false;
 async function submitOrder() {
   if (sending) return;
   const digits = (F.phone || "").replace(/\D/g, "");
   F.err = F.name.trim().length < 2 ? "Ismingizni kiriting"
     : digits.length < 9 ? "Telefon raqamni to'g'ri kiriting"
-    : F.delivery === "delivery" && F.address.trim().length < 5 ? "Yetkazib berish manzilini kiriting" : "";
-  if (F.err) { notifyH("error"); return refresh(); }
+    : F.delivery === "delivery" && F.lat == null ? "Yetkazib berish manzilini xaritada belgilang"
+    : !(S.prepay && S.prepay.card) ? "Do'kon hali to'lov kartasini kiritmagan"
+    : F.receiptBusy ? "Chek rasmi yuklanmoqda, biroz kuting"
+    : !F.receipt ? `Oldindan to'lov (${money(prepayOf(cartTotal()))}) chekining rasmini yuklang` : "";
+  if (F.err) { notifyH("error"); refresh(); const e = document.querySelector(".sheet.on .err:last-of-type"); e && e.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
   sending = true; mainBusy(true);
   try {
-    const { order } = await api("/api/order", { json: {
+    const fd = new FormData();
+    fd.append("data", JSON.stringify({
       items: cartItems().map(({ p, qty }) => ({ id: p.id, qty })),
-      customer: { name: F.name, phone: F.phone, delivery: F.delivery, city: F.city, address: F.address, pay: F.pay, note: F.note } } });
+      // shaharga xaritadan aniqlangan manzil nomini ham qo'shamiz (admin ko'rishi uchun)
+      customer: { name: F.name, phone: F.phone, delivery: F.delivery,
+                  city: F.delivery === "delivery" && F.geo && !/^Oldingi/.test(F.geo) ? `${F.city} — ${F.geo}` : F.city, address: F.address,
+                  lat: F.lat, lon: F.lon, pay: F.pay, note: F.note } }));
+    fd.append("receipt", F.receipt, "chek.jpg");
+    const { order } = await api("/api/order", { form: fd });
     notifyH("success");
     S.cart = {}; store.set("cart", {});
     closeAll(); loadMe().then(render);
     go("orders");
-    openSheet({ title: "", body: `<div class="done"><div class="big">🎉</div><h2>Rahmat! Buyurtma qabul qilindi</h2>
-      <p class="muted">Buyurtma raqami: <b>№ ${order.id}</b><br>Jami: <b>${money(order.total)}</b></p>
-      <p class="muted small">Menejerimiz tez orada <b>${esc(order.phone)}</b> raqamiga qo'ng'iroq qiladi. Holat o'zgarsa, bot orqali xabar beramiz.</p></div>`,
+    openSheet({ title: "", body: `<div class="done"><div class="big">📨</div><h2>Buyurtmangiz yuborildi!</h2>
+      <p class="muted">Buyurtma raqami: <b>№ ${order.id}</b><br>Jami: <b>${money(order.total)}</b><br>Oldindan to'langan: <b>${money(order.prepay)}</b></p>
+      <p class="muted small">🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.</p></div>`,
       main: () => ["Yaxshi", closeAll] });
   } catch (e) {
     F.err = e.message; notifyH("error");
-    if (/sotuvda|omborda/.test(e.message)) loadCatalog().then(refresh); else refresh();
+    if (/sotuvda|omborda|karta/i.test(e.message)) loadCatalog().then(refresh); else refresh();
   } finally { sending = false; mainBusy(false); }
 }
 
@@ -678,15 +836,17 @@ function viewAdmin() {
   const d = S.adm.data;
   if (!d) return `<div class="section"><div class="skeleton"></div></div>`;
   const st = d.stats;
-  const tabs = [["orders", "📦 Buyurtmalar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriya"], ["msg", "📣 Xabar"]];
+  const tabs = [["orders", "📦 Buyurtmalar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
   let h = `<div class="stats">
-    <div class="stat"><b>${st.new}</b><span>Yangi buyurtma</span></div>
+    <div class="stat"><b>${st.new}</b><span>Chek kutmoqda</span></div>
     <div class="stat"><b>${short(st.today_sum)}</b><span>Bugun · ${st.today_orders} ta</span></div>
     <div class="stat"><b>${short(st.month_sum)}</b><span>Shu oy · ${st.month_orders} ta</span></div></div>
-    <div class="seg adm-tabs">${tabs.map(([k, t]) => `<button class="${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; render()">${t}</button>`).join("")}</div>`;
+    <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; render()">${t}</button>`).join("")}</div>
+    ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
+      <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;
   if (S.adm.tab === "orders") {
-    const f = [["active", "Faol"], ["new", "Yangi"], ["confirmed", "Tasdiqlangan"], ["delivering", "Yo'lda"], ["done", "Yetkazilgan"], ["cancelled", "Bekor"], ["", "Barchasi"]];
-    h += `<div class="chips" style="margin:0;padding:12px 12px 0">${f.map(([k, t]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; loadAdmin()">${t}</button>`).join("")}</div>`;
+    const f = [["active", "Faol"], ["new", "🧾 Chek kutmoqda"], ["confirmed", "Qabul qilingan"], ["delivering", "Yo'lda"], ["done", "Yetkazilgan"], ["rejected", "Chek rad etilgan"], ["cancelled", "Bekor"], ["", "Barchasi"]];
+    h += `<div class="chips" style="margin:0;padding:8px 12px 0">${f.map(([k, t]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; loadAdmin()">${t}</button>`).join("")}</div>`;
     h += d.orders.length ? d.orders.map(o => orderCard(o, true)).join("") : `<div class="empty"><div class="big">📭</div>Buyurtmalar yo'q</div>`;
   } else if (S.adm.tab === "products") {
     const q = S.adm.pq.toLowerCase();
@@ -707,6 +867,18 @@ function viewAdmin() {
         <button class="btn ghost sm" onclick="openCatForm(${c.id})">✏️</button>
         <button class="btn danger sm" onclick="deleteCat(${c.id})">🗑</button></div>`; }).join("")}</div>
       <div style="padding:0 12px"><button class="btn block" onclick="openCatForm()">＋ Yangi kategoriya</button></div>`;
+  } else if (S.adm.tab === "settings") {
+    const st2 = d.settings;
+    h += `<div class="section"><h3>💳 Oldindan to'lov</h3>
+      <div class="small muted" style="margin-bottom:6px">Mijoz buyurtma berishdan oldin shu kartaga to'lov qilib, chek rasmini yuklaydi.</div>
+      <label class="f">Karta raqami</label>
+      <input class="in" id="setCard" inputmode="numeric" value="${esc((st2.pay_card || "").replace(/(\d{4})(?=\d)/g, "$1 "))}"
+        oninput="this.value=this.value.replace(/\\D/g,'').slice(0,19).replace(/(\\d{4})(?=\\d)/g,'$1 ')" placeholder="8600 0000 0000 0000">
+      <label class="f">Karta egasi</label>
+      <input class="in" id="setOwner" value="${esc(st2.pay_owner || "")}" placeholder="Masalan: Maksudov R">
+      <label class="f">Oldindan to'lov foizi (%)</label>
+      <input class="in" id="setPct" inputmode="numeric" value="${esc(st2.prepay_pct || "10")}" style="width:100px">
+      <button class="btn block" style="margin-top:14px" onclick="saveSettings()">💾 Saqlash</button></div>`;
   } else {
     h += `<div class="section"><h3>Barcha mijozlarga xabar</h3>
       <div class="small muted" style="margin-bottom:10px">Botdan foydalangan ${st.customers} ta mijozga yuboriladi. Aksiya, yangi mahsulot yoki chegirma haqida yozing.</div>
@@ -717,29 +889,56 @@ function viewAdmin() {
 }
 
 function openAdminOrder(id) {
-  const o = S.adm.data.orders.find(x => x.id === id); if (!o) return;
-  const flow = { new: ["confirmed", "cancelled"], confirmed: ["delivering", "cancelled"], delivering: ["done", "cancelled"], done: [], cancelled: ["new"] };
+  const d = S.adm.data, o = d.orders.find(x => x.id === id); if (!o) return;
   const telHref = o.phone.replace(/[^\d+]/g, "");
+  const gmap = o.lat != null ? `https://www.google.com/maps?q=${o.lat},${o.lon}` : "";
+  const ymap = o.lat != null ? `https://yandex.uz/maps/?pt=${o.lon},${o.lat}&z=17&l=map` : "";
   openSheet({ title: `Buyurtma № ${o.id}`, body: `
     <div class="section"><div class="ohead"><span class="status ${o.status}">${esc(o.status_text)}</span><span class="small muted">${dateStr(o.created)}</span></div>
       <div style="margin-top:8px">👤 <b>${esc(o.name)}</b>${o.username ? ` · <a class="tel" href="https://t.me/${esc(o.username)}">@${esc(o.username)}</a>` : ""}</div>
       <div style="margin-top:6px">📞 <a class="tel" href="tel:${esc(telHref)}">${esc(o.phone)}</a></div>
-      <div style="margin-top:6px">${o.delivery === "pickup" ? "🏬 Do'kondan olib ketadi" : `🚚 ${esc(o.city)}, ${esc(o.address)}`}</div>
-      <div style="margin-top:6px">💳 ${esc(o.pay)}</div>
+      <div style="margin-top:6px">${o.delivery === "pickup" ? "🏬 Do'kondan olib ketadi" : `🚚 ${esc([o.city, o.address].filter(Boolean).join(", "))}`}</div>
+      ${gmap ? `<div class="inrow" style="margin-top:8px"><button class="btn soft sm" onclick="openUrl('${gmap}')">🗺 Google xarita</button>
+        <button class="btn soft sm" onclick="openUrl('${ymap}')">🗺 Yandex xarita</button></div>` : ""}
+      <div style="margin-top:6px">💳 Qolgan summa: ${esc(o.pay)}</div>
       ${o.note ? `<div style="margin-top:6px">📝 ${esc(o.note)}</div>` : ""}</div>
+    ${o.prepay ? `<div class="section"><h3>🧾 Oldindan to'lov cheki</h3>
+      <div class="sum"><span class="muted">To'lanishi kerak</span><b>${money(o.prepay)}</b></div>
+      <div class="rcpt-big" id="rcpt${o.id}">${o.has_receipt ? "⏳ Chek yuklanmoqda..." : "Chek yo'q"}</div></div>` : ""}
     <div class="section">${o.items.map(i => `<div class="row"><div class="thumb">${picHTML(i)}</div><div class="grow">
       <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div></div><b>${money(i.price * i.qty)}</b></div>`).join("")}
-      <div class="sum total"><span>Jami</span><span>${money(o.total)}</span></div></div>
+      <div class="sum total"><span>Jami</span><span>${money(o.total)}</span></div>
+      ${o.prepay ? `<div class="sum"><span class="muted">Qabul qilganda olinadi</span><span>${money(o.total - o.prepay)}</span></div>` : ""}</div>
     <div style="padding:0 12px;display:grid;gap:8px">
+      ${(d.flow[o.status] || []).map(s => `<button class="btn ${["cancelled", "rejected"].includes(s) ? "danger" : ""} block" onclick="setStatus(${o.id}, '${s}')">${esc(d.actions[s])}</button>`).join("")}
       <a class="btn soft block" style="text-decoration:none" href="tel:${esc(telHref)}">📞 Qo'ng'iroq qilish</a>
-      ${flow[o.status].map(s => `<button class="btn ${s === "cancelled" ? "danger" : ""} block" onclick="setStatus(${o.id}, '${s}')">${ACTIONS[s]}</button>`).join("")}
     </div>` });
+  if (o.has_receipt) loadReceipt(o.id);
 }
+async function loadReceipt(id) {
+  const box = document.getElementById("rcpt" + id);
+  try {
+    const r = await fetch(`/api/admin/receipt/${id}`, { headers: { "X-Init-Data": (tg && tg.initData) || "" } });
+    if (!r.ok) throw new Error();
+    const url = URL.createObjectURL(await r.blob());
+    if (box) box.innerHTML = `<img src="${url}" alt="Chek" onclick="showViewer(['${url}'],0,'chek')"><div class="small muted">Kattalashtirish uchun bosing</div>`;
+  } catch (e) { if (box) box.textContent = "Chekni yuklab bo'lmadi"; }
+}
+function openUrl(u) { if (IN_TG && tg.openLink) tg.openLink(u); else window.open(u, "_blank"); }
 async function setStatus(id, status) {
-  if (status === "cancelled" && !await confirmBox("Buyurtmani bekor qilasizmi? Mijozga xabar boradi.")) return;
+  const ask = { cancelled: "Buyurtmani bekor qilasizmi? Mijozga xabar boradi.",
+                rejected: "Chekni rad etasizmi? Mijozga «to'lov cheki tasdiqlanmadi» degan xabar boradi.",
+                confirmed: "Chekni tasdiqlaysizmi? Mijozga «To'lov chekingiz tekshirildi va buyurtmangiz qabul qilindi» degan xabar boradi." };
+  if (ask[status] && !await confirmBox(ask[status])) return;
   try { await api(`/api/admin/order/${id}/status`, { json: { status } }); notifyH("success");
         toast("Holat o'zgardi, mijozga xabar yuborildi"); closeAll(); loadAdmin(); }
   catch (e) { alertBox(e.message); }
+}
+async function saveSettings() {
+  try {
+    const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value } });
+    S.adm.data.settings = r.settings; await loadCatalog(); notifyH("success"); toast("Saqlandi ✓"); render();
+  } catch (e) { alertBox(e.message); }
 }
 
 /* --- mahsulot formasi --- */
@@ -900,7 +1099,7 @@ if (IN_TG) {
 /* ------------------------------------------------ yuklash */
 async function loadCatalog() {
   const d = await api("/api/catalog");
-  S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments;
+  S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
 }
 async function loadMe() {
   try { S.me = await api("/api/me", { method: "POST" }); } catch (e) { /* Telegram'dan tashqarida */ }

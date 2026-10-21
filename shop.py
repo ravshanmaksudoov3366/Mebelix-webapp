@@ -7,6 +7,7 @@ import hmac
 import html
 import io
 import json
+import math
 import os
 import re
 import sqlite3
@@ -15,21 +16,35 @@ import uuid
 from urllib.parse import parse_qsl
 
 STATUSES = {
-    "new": "🆕 Yangi",
-    "confirmed": "✅ Tasdiqlandi",
+    "new": "🧾 Chek tekshirilmoqda",
+    "confirmed": "✅ Qabul qilindi",
     "delivering": "🚚 Yo'lda",
     "done": "📦 Yetkazildi",
+    "rejected": "⛔ Chek rad etildi",
     "cancelled": "❌ Bekor qilindi",
 }
 ACTIONS = {
-    "new": "🔄 Qayta ochish",
-    "confirmed": "✅ Tasdiqlash",
+    "new": "🔄 Qayta tekshirish",
+    "confirmed": "✅ Chekni tasdiqlash",
     "delivering": "🚚 Yo'lga chiqarish",
     "done": "📦 Yetkazildi",
+    "rejected": "⛔ Chekni rad etish",
     "cancelled": "❌ Bekor qilish",
 }
+# Har bir holatdan qaysi holatlarga o'tish mumkin (admin tugmalari)
+FLOW = {
+    "new": ["confirmed", "rejected"],
+    "confirmed": ["delivering", "cancelled"],
+    "delivering": ["done", "cancelled"],
+    "done": [],
+    "rejected": ["confirmed", "cancelled"],
+    "cancelled": ["new"],
+}
+ACTIVE = ("new", "confirmed", "delivering")
 DELIVERY = {"delivery": "🚚 Yetkazib berish", "pickup": "🏬 Do'kondan olib ketish"}
-PAYMENTS = ["Naqd (qabul qilganda)", "Karta orqali (qabul qilganda)", "Click / Payme"]
+# Qolgan summani to'lash usullari (naqd olib tashlangan)
+PAYMENTS = ["Karta orqali (qabul qilganda)", "Click / Payme"]
+DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10"}
 
 
 class ShopError(Exception):
@@ -94,7 +109,10 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, created INTEGER
 );
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 """
+# Eski bazaga qo'shiladigan ustunlar
+ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''"}
 
 SEED_CATEGORIES = [("Divanlar", "🛋"), ("Yotoqxona", "🛏"), ("Oshxona", "🍳"),
                    ("Stol-stullar", "🪑"), ("Shkaflar", "🚪"), ("Bolalar", "🧸")]
@@ -124,12 +142,20 @@ SEED_PRODUCTS = [
 
 
 class Shop:
-    def __init__(self, db_path: str, upload_dir: str):
+    def __init__(self, db_path: str, upload_dir: str, receipt_dir: str = ""):
         self.upload_dir = upload_dir
+        # cheklar ommaga ochiq emas: alohida papkada, faqat admin ko'ra oladi
+        self.receipt_dir = receipt_dir or os.path.join(os.path.dirname(upload_dir.rstrip("/")), "receipts")
         os.makedirs(upload_dir, exist_ok=True)
+        os.makedirs(self.receipt_dir, exist_ok=True)
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        have = {r[1] for r in self.db.execute("PRAGMA table_info(orders)").fetchall()}
+        for col, typ in ORDER_COLUMNS.items():
+            if col not in have:
+                self.db.execute(f"ALTER TABLE orders ADD COLUMN {col} {typ}")
+        self.db.commit()
         if not self.db.execute("SELECT 1 FROM categories LIMIT 1").fetchone():
             self._seed()
 
@@ -177,23 +203,67 @@ class Shop:
             raise ShopError("Mahsulot topilmadi")
         return self._product(r)
 
+    # ------------------------------------------------ sozlamalar
+    def settings(self) -> dict:
+        d = dict(DEFAULT_SETTINGS)
+        d.update({r[0]: r[1] for r in self.db.execute("SELECT key, value FROM settings").fetchall()})
+        return d
+
+    def save_settings(self, data: dict) -> dict:
+        card = re.sub(r"\D", "", str(data.get("pay_card") or ""))
+        if card and not 12 <= len(card) <= 19:
+            raise ShopError("Karta raqamini to'g'ri kiriting (16 ta raqam)")
+        owner = str(data.get("pay_owner") or "").strip()[:60]
+        try:
+            pct = int(re.sub(r"\D", "", str(data.get("prepay_pct") or "10")) or 10)
+        except ValueError:
+            pct = 10
+        if not 1 <= pct <= 100:
+            raise ShopError("Oldindan to'lov foizi 1 dan 100 gacha bo'lishi kerak")
+        for k, v in {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct)}.items():
+            self.db.execute("INSERT INTO settings(key, value) VALUES (?,?) "
+                            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+        self.db.commit()
+        return self.settings()
+
+    def prepay_info(self) -> dict:
+        st = self.settings()
+        card = st["pay_card"]
+        return {"card": " ".join(card[i:i + 4] for i in range(0, len(card), 4)), "owner": st["pay_owner"],
+                "pct": int(st["prepay_pct"] or 10)}
+
+    @staticmethod
+    def prepay_amount(total: int, pct: int) -> int:
+        """Oldindan to'lov: foiz, yuqoriga 1000 so'mgacha yaxlitlangan."""
+        return int(math.ceil(total * pct / 100 / 1000) * 1000)
+
     def catalog(self) -> dict:
         return {"categories": self.categories(), "products": self.products(),
-                "payments": PAYMENTS}
+                "payments": PAYMENTS, "prepay": self.prepay_info()}
 
     # ------------------------------------------------ admin: mahsulotlar
-    def save_image(self, data: bytes) -> str:
-        """Rasmni siqib (max 1280px, JPEG) saqlaydi va URL yo'lini qaytaradi."""
+    @staticmethod
+    def _save_jpeg(data: bytes, folder: str, max_side: int, quality: int) -> str:
         from PIL import Image, ImageOps
         try:
             img = Image.open(io.BytesIO(data))
             img = ImageOps.exif_transpose(img).convert("RGB")
         except Exception:
-            raise ShopError("Rasm faylini o'qib bo'lmadi")
-        img.thumbnail((1280, 1280))
+            raise ShopError("Rasm faylini o'qib bo'lmadi. Iltimos, rasm (JPG/PNG) yuklang.")
+        img.thumbnail((max_side, max_side))
         name = uuid.uuid4().hex[:16] + ".jpg"
-        img.save(os.path.join(self.upload_dir, name), "JPEG", quality=82, optimize=True)
-        return "uploads/" + name
+        img.save(os.path.join(folder, name), "JPEG", quality=quality, optimize=True)
+        return name
+
+    def save_image(self, data: bytes) -> str:
+        """Mahsulot rasmini siqib (max 1280px, JPEG) saqlaydi va URL yo'lini qaytaradi."""
+        return "uploads/" + self._save_jpeg(data, self.upload_dir, 1280, 82)
+
+    def receipt_path(self, o: dict) -> str:
+        if not o.get("receipt"):
+            return ""
+        path = os.path.join(self.receipt_dir, os.path.basename(o["receipt"]))
+        return path if os.path.isfile(path) else ""
 
     def save_product(self, data: dict, new_images: list = ()) -> dict:
         name = (data.get("name") or "").strip()
@@ -301,12 +371,12 @@ class Shop:
         return [r[0] for r in self.db.execute("SELECT id FROM users").fetchall()]
 
     def last_profile(self, user_id: int) -> dict:
-        r = self.db.execute("SELECT name, phone, city, address, delivery, pay FROM orders "
+        r = self.db.execute("SELECT name, phone, city, address, delivery, pay, lat, lon FROM orders "
                             "WHERE user_id=? ORDER BY id DESC LIMIT 1", (user_id,)).fetchone()
         return dict(r) if r else {}
 
     # ------------------------------------------------ buyurtmalar
-    def create_order(self, user: dict, payload: dict) -> dict:
+    def create_order(self, user: dict, payload: dict, receipt: bytes = b"") -> dict:
         raw_items = payload.get("items") or []
         if not raw_items:
             raise ShopError("Savatcha bo'sh")
@@ -333,19 +403,34 @@ class Shop:
             raise ShopError("Ismingizni kiriting")
         phone = normalize_phone(c.get("phone"))
         delivery = c.get("delivery") if c.get("delivery") in DELIVERY else "delivery"
-        city = (c.get("city") or "").strip()[:60]
+        city = (c.get("city") or "").strip()[:200]
         address = (c.get("address") or "").strip()[:300]
-        if delivery == "delivery" and len(address) < 5:
-            raise ShopError("Yetkazib berish manzilini kiriting")
+        lat = lon = None
+        if delivery == "delivery":
+            try:
+                lat, lon = float(c.get("lat")), float(c.get("lon"))
+            except (TypeError, ValueError):
+                raise ShopError("Yetkazib berish manzilini xaritada belgilang")
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ShopError("Joylashuv noto'g'ri. Xaritada qayta belgilang.")
         pay = c.get("pay") if c.get("pay") in PAYMENTS else PAYMENTS[0]
         note = (c.get("note") or "").strip()[:500]
+
+        info = self.prepay_info()
+        if not info["card"]:
+            raise ShopError("Do'kon hali to'lov kartasini kiritmagan. Iltimos, keyinroq urinib ko'ring "
+                            "yoki do'konga qo'ng'iroq qiling.")
+        prepay = self.prepay_amount(total, info["pct"])
+        if not receipt:
+            raise ShopError(f"Oldindan to'lov ({fmt_price(prepay)}) chekining rasmini yuklang")
+        receipt_name = self._save_jpeg(receipt, self.receipt_dir, 1600, 85)
 
         now = int(time.time())
         cur = self.db.execute(
             "INSERT INTO orders(user_id,username,name,phone,delivery,city,address,pay,note,items,total,"
-            "status,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "status,created,updated,lat,lon,prepay,receipt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username", ""), name, phone, delivery, city, address, pay, note,
-             json.dumps(items, ensure_ascii=False), total, "new", now, now))
+             json.dumps(items, ensure_ascii=False), total, "new", now, now, lat, lon, prepay, receipt_name))
         self.db.commit()
         return self.order(cur.lastrowid)
 
@@ -365,7 +450,7 @@ class Shop:
             rows = self.db.execute("SELECT * FROM orders WHERE status=? ORDER BY id DESC LIMIT ?",
                                    (status, limit)).fetchall()
         elif status == "active":
-            rows = self.db.execute("SELECT * FROM orders WHERE status IN ('new','confirmed','delivering') "
+            rows = self.db.execute(f"SELECT * FROM orders WHERE status IN {ACTIVE} "
                                    "ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         else:
             rows = self.db.execute("SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
@@ -383,9 +468,7 @@ class Shop:
         o = self.order(oid)
         if o["user_id"] != user_id:
             raise ShopError("Buyurtma topilmadi")
-        if o["status"] != "new":
-            raise ShopError("Bu buyurtmani endi bekor qilib bo'lmaydi. Iltimos, do'konga qo'ng'iroq qiling.")
-        return self.set_status(oid, "cancelled")
+        raise ShopError("Oldindan to'lov qilingan buyurtmani bekor qilish uchun do'konga qo'ng'iroq qiling.")
 
     def set_admin_msgs(self, oid: int, msgs: list):
         self.db.execute("UPDATE orders SET admin_msgs=? WHERE id=?", (json.dumps(msgs), oid))
@@ -398,10 +481,10 @@ class Shop:
         day_start = calendar.timegm((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0)) - off
         month_start = calendar.timegm((t.tm_year, t.tm_mon, 1, 0, 0, 0)) - off
         q = lambda sql, *a: self.db.execute(sql, a).fetchone()[0]
-        ok = "status!='cancelled'"
+        ok = "status NOT IN ('cancelled','rejected')"
         return {
             "new": q("SELECT COUNT(*) FROM orders WHERE status='new'"),
-            "active": q("SELECT COUNT(*) FROM orders WHERE status IN ('new','confirmed','delivering')"),
+            "active": q(f"SELECT COUNT(*) FROM orders WHERE status IN {ACTIVE}"),
             "today_orders": q(f"SELECT COUNT(*) FROM orders WHERE created>=? AND {ok}", day_start),
             "today_sum": q(f"SELECT COALESCE(SUM(total),0) FROM orders WHERE created>=? AND {ok}", day_start),
             "month_orders": q(f"SELECT COUNT(*) FROM orders WHERE created>=? AND {ok}", month_start),
@@ -420,17 +503,35 @@ def order_text(o: dict, for_admin: bool) -> str:
         user = f"@{e(o['username'])}" if o.get("username") else f"<a href=\"tg://user?id={o['user_id']}\">profil</a>"
         place = DELIVERY.get(o["delivery"], "")
         if o["delivery"] == "delivery":
-            place += f"\n📍 {e(o['city'])}, {e(o['address'])}"
+            addr = ", ".join(e(x) for x in (o.get("city"), o.get("address")) if x)
+            if addr:
+                place += f"\n🏠 {addr}"
+            if o.get("lat") is not None:
+                g, y = (html.escape(u) for u in map_links(o))  # & -> &amp; (Telegram HTML talabi)
+                place += f"\n📍 Xaritada: <a href=\"{g}\">Google</a> · <a href=\"{y}\">Yandex</a>"
         return (f"<b>Buyurtma #{o['id']}</b> — {o['status_text']}\n🕒 {when}\n\n"
-                f"👤 {e(o['name'])} ({user})\n📞 {e(o['phone'])}\n{place}\n💳 {e(o['pay'])}\n"
+                f"👤 {e(o['name'])} ({user})\n📞 {e(o['phone'])}\n{place}\n💳 Qolgan summa: {e(o['pay'])}\n"
                 + (f"📝 {e(o['note'])}\n" if o.get("note") else "")
-                + f"\n{lines}\n\n<b>Jami: {fmt_price(o['total'])}</b>")
+                + f"\n{lines}\n\n<b>Jami: {fmt_price(o['total'])}</b>"
+                + (f"\n💰 Oldindan to'lov: <b>{fmt_price(o['prepay'])}</b> (chek ilova qilingan)"
+                   f"\n💵 Qolgan: {fmt_price(o['total'] - o['prepay'])}" if o.get("prepay") else ""))
     return (f"<b>Buyurtma #{o['id']}</b>\nHolati: {o['status_text']}\n\n{lines}\n\n"
-            f"<b>Jami: {fmt_price(o['total'])}</b>")
+            f"<b>Jami: {fmt_price(o['total'])}</b>"
+            + (f"\nOldindan to'langan: {fmt_price(o['prepay'])}\nQolgan: {fmt_price(o['total'] - o['prepay'])}"
+               if o.get("prepay") else ""))
+
+
+def map_links(o: dict) -> tuple:
+    lat, lon = o["lat"], o["lon"]
+    return (f"https://www.google.com/maps?q={lat:.6f},{lon:.6f}",
+            f"https://yandex.uz/maps/?pt={lon:.6f},{lat:.6f}&z=17&l=map")
 
 
 STATUS_MESSAGES = {
-    "confirmed": "✅ Buyurtmangiz #{id} tasdiqlandi! Tez orada yetkazib berish vaqtini kelishib olamiz.",
+    "confirmed": "✅ To'lov chekingiz tekshirildi va buyurtmangiz #{id} qabul qilindi! "
+                 "Tez orada yetkazib berish vaqtini kelishib olamiz.",
+    "rejected": "⛔ Buyurtma #{id} uchun yuborilgan to'lov cheki tasdiqlanmadi. "
+                "Iltimos, do'kon bilan bog'laning yoki shu botga yozing.",
     "delivering": "🚚 Buyurtmangiz #{id} yo'lga chiqdi.",
     "done": "📦 Buyurtmangiz #{id} yetkazib berildi. Xaridingiz uchun rahmat! 🙏",
     "cancelled": "❌ Buyurtmangiz #{id} bekor qilindi. Savollar bo'lsa, biz bilan bog'laning.",
