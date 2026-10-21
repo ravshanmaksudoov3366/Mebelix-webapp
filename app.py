@@ -64,7 +64,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 ADMIN_IDS = {int(x) for x in re.findall(r"\d+", os.getenv("ADMIN_IDS", ""))}
 # Buyurtmalar qo'shimcha yuboriladigan guruh (ixtiyoriy, masalan -1001234567890)
 GROUP_ID = int(os.getenv("GROUP_ID") or 0)
-NOTIFY_CHATS = list(ADMIN_IDS) + ([GROUP_ID] if GROUP_ID else [])
+# Buyurtmalar faqat guruhga keladi; guruh sozlanmagan bo'lsa — adminlarga
+NOTIFY_CHATS = [GROUP_ID] if GROUP_ID else list(ADMIN_IDS)
 # Render o'zi RENDER_EXTERNAL_URL beradi, shuning uchun u yerda WEBAPP_URL shart emas
 WEBAPP_URL = (os.getenv("WEBAPP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/") + "/"
 SHOP = {
@@ -176,6 +177,14 @@ async def notify_new_order(o: dict):
                 msgs.append([aid, m.message_id, "text"])
             except TelegramAPIError as e2:
                 log.warning("adminga yuborilmadi %s: %s", aid, e2)
+    if not msgs and GROUP_ID:
+        # guruhga yetib bormadi (bot guruhdan chiqarilgan va h.k.) — buyurtma yo'qolmasin, adminlarga yuboramiz
+        for aid in ADMIN_IDS:
+            try:
+                await bot.send_message(aid, "⚠️ Buyurtma guruhga yuborilmadi (bot guruhda a'zo ekanini tekshiring).")
+                msgs.append(await send_order_to(aid, o, media))
+            except TelegramAPIError as e:
+                log.warning("zaxira: adminga yuborilmadi %s: %s", aid, e)
     shop.set_admin_msgs(o["id"], msgs)
     try:
         await bot.send_message(
