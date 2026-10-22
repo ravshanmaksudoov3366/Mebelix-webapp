@@ -1136,7 +1136,7 @@ function viewAdmin() {
   const d = S.adm.data;
   if (!d) return `<div class="section"><div class="skeleton"></div></div>`;
   const st = d.stats;
-  const tabs = [["orders", "📦 Buyurtmalar"], ["customers", "👥 Mijozlar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
+  const tabs = [["orders", "📦 Buyurtmalar"], ["customers", "👥 Mijozlar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["sups", "🏭 Ta'minotchilar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
   let h = `<div class="stats">
     <div class="stat"><b>${st.new}</b><span>Chek kutmoqda</span></div>
     <div class="stat"><b>${short(st.today_sum)}</b><span>Bugun · ${st.today_orders} ta</span></div>
@@ -1157,7 +1157,7 @@ function viewAdmin() {
       <div class="list-card">${list.map(p => `<div class="row" onclick="openProductForm(${p.id})">
         <div class="thumb">${picHTML(p)}</div>
         <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}${p.video && p.video.status === "ready" ? `<span class="tag">🎬</span>` : p.video && p.video.status === "processing" ? `<span class="tag">🎬⏳</span>` : p.video && p.video.status === "error" ? `<span class="tag red">🎬✕</span>` : ""}${p.youtube ? `<span class="tag">YouTube</span>` : ""}</div>
-          <div class="small muted">${esc((d.categories.find(c => c.id === p.cat_id) || {}).name || "Kategoriyasiz")} · ${p.images.length} rasm</div>
+          <div class="small muted">${esc((d.categories.find(c => c.id === p.cat_id) || {}).name || "Kategoriyasiz")} · ${p.images.length} rasm · 🏭 ${esc(supName(p.supplier_id) || "ta'minotchi yo'q")}</div>
           <div class="price">${money(p.price)}</div></div><span class="muted">›</span></div>`).join("") || `<div class="empty">Mahsulot yo'q</div>`}</div>`;
   } else if (S.adm.tab === "cats") {
     h += `<div class="list-card">${d.categories.map(c => {
@@ -1167,6 +1167,16 @@ function viewAdmin() {
         <button class="btn ghost sm" onclick="openCatForm(${c.id})">✏️</button>
         <button class="btn danger sm" onclick="deleteCat(${c.id})">🗑</button></div>`; }).join("")}</div>
       <div style="padding:0 12px"><button class="btn block" onclick="openCatForm()">＋ Yangi kategoriya</button></div>`;
+  } else if (S.adm.tab === "sups") {
+    const sups = d.suppliers || [];
+    h += `<div class="section small muted" style="margin-bottom:0">🔒 Ta'minotchilar faqat sizga va buyurtmalar guruhiga ko'rinadi — mijozlar ko'rmaydi.</div>
+      <div class="list-card">${sups.map(x => `<div class="row"><div class="thumb" style="width:42px;height:42px;font-size:22px">🏭</div>
+        <div class="grow"><b>${esc(x.name)}</b>
+          ${x.phone ? `<div class="small"><a class="tel" href="tel:${esc(x.phone)}">${esc(x.phone)}</a></div>` : ""}
+          <div class="small muted">${x.note ? esc(x.note) + " · " : ""}${x.products} ta mahsulot</div></div>
+        <button class="btn ghost sm" onclick="openSupForm(${x.id})">✏️</button>
+        <button class="btn danger sm" onclick="deleteSup(${x.id})">🗑</button></div>`).join("") || `<div class="empty">Hali ta'minotchi yo'q</div>`}</div>
+      <div style="padding:0 12px"><button class="btn block" onclick="openSupForm()">＋ Yangi ta'minotchi</button></div>`;
   } else if (S.adm.tab === "customers") {
     const c = S.adm.cust;
     if (!c) return h + `<div class="section"><div class="skeleton" style="height:120px"></div></div>`;
@@ -1233,8 +1243,9 @@ function openAdminOrder(id) {
       <div class="rcpt-big" id="rcpt${o.id}">${o.has_receipt ? "⏳ Chek yuklanmoqda..." : "Chek yo'q"}</div></div>` : ""}
     <div class="section">${o.items.map(i => `<div class="row"><div class="thumb">${picHTML(i)}</div><div class="grow">
       <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div>
-      ${i.delivery_days ? `<div class="dd">🚚 ${esc(i.delivery_days)}</div>` : ""}</div><b>${money(i.price * i.qty)}</b></div>`).join("")}
+      ${i.delivery_days ? `<div class="dd">🚚 ${esc(i.delivery_days)}</div>` : ""}${supInfoHTML(i)}</div><b>${money(i.price * i.qty)}</b></div>`).join("")}
       <div class="sum total"><span>Jami</span><span>${money(o.total)}</span></div>
+      ${orderProfit(o) !== null ? `<div class="sum"><span class="muted">📈 Foyda</span><b>${money(orderProfit(o))}</b></div>` : ""}
       ${o.prepay ? `<div class="sum"><span class="muted">Qabul qilganda olinadi</span><span>${money(o.total - o.prepay)}</span></div>` : ""}</div>
     <div style="padding:0 12px;display:grid;gap:8px">
       ${(d.flow[o.status] || []).map(s => `<button class="btn ${["cancelled", "rejected"].includes(s) ? "danger" : ""} block" onclick="setStatus(${o.id}, '${s}')">${esc(d.actions[s])}</button>`).join("")}
@@ -1298,6 +1309,8 @@ function openProductForm(id) {
     name_ru: p ? p.name_ru || "" : "", description_ru: p ? p.description_ru || "" : "",
     specs_ru: p ? (p.specs_ru || []).map(s => s.join(": ")).join("\n") : "", delivery_days_ru: p ? p.delivery_days_ru || "" : "",
     ru_edited: false, ru_open: false,
+    supplier_id: p && p.supplier_id ? p.supplier_id : "", sup_new: false, sup_name: "", sup_phone: "", sup_note: "",
+    supplier_sku: p ? p.supplier_sku || "" : "", cost: p && p.cost ? p.cost : "",
     err: "", busy: false, loading: 0 };
   openSheet({ title: p ? "Mahsulotni tahrirlash" : "Yangi mahsulot", rerender: productFormHTML,
     onClose: () => PF.imgs.forEach(im => im.kind === "n" && URL.revokeObjectURL(im.src)) });
@@ -1342,7 +1355,7 @@ function productFormHTML() {
       <select class="in" onchange="PF.cat_id=+this.value">${cats.map(c => `<option value="${c.id}" ${PF.cat_id === c.id ? "selected" : ""}>${esc(c.emoji)} ${esc(c.name)}</option>`).join("")}</select>
       <div class="inrow" style="margin-top:12px">
         <div style="flex:1"><label class="f" style="margin-top:0">Narxi (so'm) *</label>
-          <input class="in" inputmode="numeric" value="${numFmt(PF.price)}" oninput="this.value=numFmt(this.value); PF.price=this.value"></div>
+          <input class="in" inputmode="numeric" value="${numFmt(PF.price)}" oninput="this.value=numFmt(this.value); PF.price=this.value; const g=document.getElementById('pfGain'); if(g) g.innerHTML=gainHTML()"></div>
         <div style="flex:1"><label class="f" style="margin-top:0">Eski narx (chegirma)</label>
           <input class="in" inputmode="numeric" value="${numFmt(PF.old_price)}" oninput="this.value=numFmt(this.value); PF.old_price=this.value" placeholder="ixtiyoriy"></div>
       </div>
@@ -1355,6 +1368,7 @@ function productFormHTML() {
       <textarea class="in" rows="4" oninput="PF.specs=this.value" placeholder="O'lcham: 220×90 sm&#10;Material: Velyur&#10;Kafolat: 18 oy">${esc(PF.specs)}</textarea>
       <label class="f">Rasm bo'lmasa ko'rinadigan belgi</label><input class="in" value="${esc(PF.emoji)}" oninput="PF.emoji=this.value" style="width:80px">
     </div>
+    ${supplierSectionHTML()}
     <div class="section">
       <div class="ohead" style="margin:0" onclick="PF.ru_open=!PF.ru_open; refresh()">
         <b>🇷🇺 Ruscha tarjima ${PF.id ? (PF.name_ru ? `<span class="tag">avtomatik</span>` : `<span class="tag red">tayyorlanmoqda</span>`) : ""}</b>
@@ -1426,14 +1440,17 @@ async function addFiles(list) {
   }
 }
 async function saveProduct() {
-  PF.err = !PF.name.trim() ? "Nomini kiriting" : !String(PF.price).replace(/\D/g, "") ? "Narxini kiriting" : "";
+  PF.err = !PF.name.trim() ? "Nomini kiriting" : !String(PF.price).replace(/\D/g, "") ? "Narxini kiriting"
+    : PF.sup_new && !PF.sup_name.trim() ? "Yangi ta'minotchi nomini kiriting" : "";
   if (PF.err) return refresh();
   if (PF.loading) { PF.err = "Rasmlar tayyorlanmoqda, biroz kuting"; return refresh(); }
   PF.busy = true; refresh();
   const fd = new FormData();
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
     description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0,
-    delivery_days: PF.delivery_days, youtube: PF.youtube, video_action: PF.videoAction };
+    delivery_days: PF.delivery_days, youtube: PF.youtube, video_action: PF.videoAction,
+    supplier_id: PF.sup_new ? "" : PF.supplier_id, supplier_sku: PF.supplier_sku, cost: PF.cost };
+  if (PF.sup_new) Object.assign(fields, { supplier_new_name: PF.sup_name, supplier_new_phone: PF.sup_phone, supplier_new_note: PF.sup_note });
   if (PF.ru_edited) Object.assign(fields, { ru_edited: 1, name_ru: PF.name_ru, description_ru: PF.description_ru,
     specs_ru: PF.specs_ru, delivery_days_ru: PF.delivery_days_ru });
   let n = 0;
@@ -1464,6 +1481,72 @@ async function deleteProduct() {
   if (!await confirmBox("Mahsulot butunlay o'chirilsinmi? (Vaqtincha yashirish uchun «Katalogda ko'rsatish»ni o'chiring)")) return;
   try { await api(`/api/admin/product/${PF.id}/delete`, { method: "POST" }); toast("O'chirildi"); closeAll();
         await Promise.all([loadAdmin(), loadCatalog()]); render(); }
+  catch (e) { alertBox(e.message); }
+}
+
+/* --- ta'minotchilar (faqat admin) --- */
+const supName = id => ((S.adm.data && S.adm.data.suppliers || []).find(x => x.id === id) || {}).name || "";
+const toNum = v => +String(v ?? "").replace(/\D/g, "") || 0;
+function supInfoHTML(i) {
+  const s = i.sup; if (!s) return "";
+  const parts = [];
+  if (s.name || s.phone) parts.push(`🏭 ${esc(s.name || "")}${s.phone ? ` — <a class="tel" href="tel:${esc(s.phone)}">${esc(s.phone)}</a>` : ""}${s.note ? ` <span class="muted">(${esc(s.note)})</span>` : ""}`);
+  if (s.sku) parts.push(`🔖 Kodi: ${esc(s.sku)}`);
+  if (s.cost) parts.push(`💰 Kirim: ${money(s.cost)} → foyda ${money((i.price - s.cost) * i.qty)}`);
+  return `<div class="small" style="margin-top:4px">${parts.length ? parts.join("<br>") : `<span class="muted">🏭 Ta'minotchi kiritilmagan</span>`}</div>`;
+}
+function orderProfit(o) {
+  const known = o.items.filter(i => i.sup && i.sup.cost);
+  return known.length ? known.reduce((a, i) => a + (i.price - i.sup.cost) * i.qty, 0) : null;
+}
+function supplierSectionHTML() {
+  const sups = S.adm.data.suppliers || [];
+  const price = toNum(PF.price), cost = toNum(PF.cost);
+  const gain = price && cost ? price - cost : null;
+  return `<div class="section"><h3>🏭 Ta'minotchi <span class="muted small">🔒 mijozlarga ko'rinmaydi</span></h3>
+      <select class="in" onchange="if(this.value==='new'){PF.sup_new=true}else{PF.sup_new=false; PF.supplier_id=+this.value||''} refresh()">
+        <option value="">— tanlanmagan —</option>
+        ${sups.map(x => `<option value="${x.id}" ${!PF.sup_new && PF.supplier_id === x.id ? "selected" : ""}>${esc(x.name)}${x.phone ? " · " + esc(x.phone) : ""}</option>`).join("")}
+        <option value="new" ${PF.sup_new ? "selected" : ""}>＋ Yangi ta'minotchi qo'shish</option>
+      </select>
+      ${PF.sup_new ? `<div style="border-left:3px solid var(--accent);padding-left:10px;margin-top:8px">
+        <label class="f" style="margin-top:4px">Ta'minotchi nomi *</label><input class="in" value="${esc(PF.sup_name)}" oninput="PF.sup_name=this.value" placeholder="Masalan: Ali aka (divanlar)">
+        <label class="f">Telefon</label><input class="in" inputmode="tel" value="${esc(PF.sup_phone)}" oninput="PF.sup_phone=this.value" placeholder="+998 90 123 45 67">
+        <label class="f">Manzil yoki izoh</label><input class="in" value="${esc(PF.sup_note)}" oninput="PF.sup_note=this.value" placeholder="Masalan: Chilonzor bozori, 12-do'kon">
+        <div class="small muted" style="margin-top:6px">Saqlaganda ro'yxatga ham qo'shiladi — keyingi safar tanlab qo'yasiz.</div></div>` : ""}
+      <label class="f">Ta'minotchidagi kodi / modeli</label>
+      <input class="in" value="${esc(PF.supplier_sku)}" oninput="PF.supplier_sku=this.value" placeholder="Masalan: DM-204 yoki «Milano» kulrang">
+      <label class="f">Kirim narxi (so'm) — ta'minotchidan olish narxi</label>
+      <input class="in" inputmode="numeric" value="${numFmt(PF.cost)}" oninput="this.value=numFmt(this.value); PF.cost=this.value; const g=document.getElementById('pfGain'); if(g) g.innerHTML=gainHTML()" placeholder="ixtiyoriy">
+      <div class="small" id="pfGain" style="margin-top:6px">${gainHTML()}</div>
+    </div>`;
+}
+function gainHTML() {
+  const price = toNum(PF.price), cost = toNum(PF.cost);
+  if (!price || !cost) return "";
+  const g = price - cost, pct = Math.round(g / price * 100);
+  return g >= 0 ? `📈 Har biridan foyda: <b>${money(g)}</b> (${pct}%)` : `<span class="err">⚠️ Kirim narxi sotuv narxidan yuqori: ${money(-g)} zarar</span>`;
+}
+let SF = {};
+function openSupForm(id) {
+  const x = id ? (S.adm.data.suppliers || []).find(v => v.id === id) : null;
+  SF = { id: x ? x.id : 0, name: x ? x.name : "", phone: x ? x.phone : "", note: x ? x.note : "", err: "" };
+  openSheet({ title: x ? "Ta'minotchini tahrirlash" : "Yangi ta'minotchi", rerender: () => `<div class="section">
+      <label class="f">Nomi *</label><input class="in" value="${esc(SF.name)}" oninput="SF.name=this.value" placeholder="Masalan: Ali aka (divanlar)">
+      <label class="f">Telefon</label><input class="in" inputmode="tel" value="${esc(SF.phone)}" oninput="SF.phone=this.value" placeholder="+998 90 123 45 67">
+      <label class="f">Manzil yoki izoh</label><input class="in" value="${esc(SF.note)}" oninput="SF.note=this.value" placeholder="Masalan: Chilonzor bozori, 12-do'kon">
+      ${SF.err ? `<div class="err">⚠️ ${esc(SF.err)}</div>` : ""}</div>
+    <div style="padding:0 12px"><button class="btn block" onclick="saveSup()">💾 Saqlash</button></div>` });
+}
+async function saveSup() {
+  try { const r = await api("/api/admin/supplier", { json: { id: SF.id, name: SF.name, phone: SF.phone, note: SF.note } });
+        S.adm.data.suppliers = r.suppliers; toast("Saqlandi ✓"); closeAll(); render(); }
+  catch (e) { SF.err = e.message; refresh(); }
+}
+async function deleteSup(id) {
+  if (!await confirmBox("Ta'minotchi o'chirilsinmi?")) return;
+  try { const r = await api(`/api/admin/supplier/${id}/delete`, { method: "POST" }); S.adm.data.suppliers = r.suppliers;
+        toast("O'chirildi"); render(); }
   catch (e) { alertBox(e.message); }
 }
 

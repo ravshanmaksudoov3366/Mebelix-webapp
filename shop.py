@@ -143,13 +143,19 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, created INTEGER
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS suppliers (
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT DEFAULT '', note TEXT DEFAULT '', created INTEGER
+);
 """
 # Eski bazaga qo'shiladigan ustunlar
 # *_ru — avtomatik (yoki admin tuzatgan) ruscha tarjima; tr_src — tarjima qilingan o'zbekcha matn "izi"
 PRODUCT_COLUMNS = {"delivery_days": "TEXT DEFAULT ''", "name_ru": "TEXT DEFAULT ''", "description_ru": "TEXT DEFAULT ''",
                    "specs_ru": "TEXT DEFAULT '[]'", "delivery_days_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''",
                    # video: {"status": "processing|ready|error", "src": "uploads/..mp4", "poster": "uploads/..jpg"}
-                   "video": "TEXT DEFAULT ''", "youtube": "TEXT DEFAULT ''"}
+                   "video": "TEXT DEFAULT ''", "youtube": "TEXT DEFAULT ''",
+                   # faqat admin uchun: ta'minotchi, kirim narxi, ta'minotchidagi kodi (mijozga hech qachon yuborilmaydi)
+                   "supplier_id": "INTEGER", "cost": "INTEGER DEFAULT 0", "supplier_sku": "TEXT DEFAULT ''"}
+PRIVATE_PRODUCT_FIELDS = ("supplier_id", "cost", "supplier_sku")
 CATEGORY_COLUMNS = {"name_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''"}
 USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER", "lang": "TEXT DEFAULT ''"}
 ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''"}
@@ -248,12 +254,13 @@ class Shop:
 
     @staticmethod
     def localize_product(p: dict, lang: str) -> dict:
-        """Mijozga ko'rsatish uchun: ruscha tanlangan bo'lsa, tarjima qilingan maydonlar."""
+        """Mijozga ko'rsatish uchun: ruscha tanlangan bo'lsa, tarjima qilingan maydonlar.
+        Ta'minotchi, kirim narxi va kodi bu yerda olib tashlanadi — mijozga umuman yuborilmaydi."""
+        p = {k: v for k, v in p.items() if k not in PRIVATE_PRODUCT_FIELDS}
         if p.get("video") and p["video"].get("status") != "ready":
-            p = {**p, "video": {}}  # tayyor bo'lmagan videoni mijozga ko'rsatmaymiz
+            p["video"] = {}  # tayyor bo'lmagan videoni mijozga ko'rsatmaymiz
         if lang != "ru":
             return p
-        p = dict(p)
         p["name"] = p.get("name_ru") or p["name"]
         p["description"] = p.get("description_ru") or p["description"]
         p["specs"] = p.get("specs_ru") or p["specs"]
@@ -387,6 +394,9 @@ class Shop:
         if old_price and old_price <= price:
             old_price = 0
         cat_id = int(data.get("cat_id") or 0) or None
+        cost_raw = re.sub(r"\D", "", str(data.get("cost") or ""))
+        cost = int(cost_raw) if cost_raw else 0
+        supplier_id = self._supplier_for_product(data)
         specs = []
         for line in str(data.get("specs") or "").splitlines():
             if ":" in line:
@@ -419,6 +429,7 @@ class Shop:
             youtube=youtube_id(data.get("youtube") or ""),
             in_stock=1 if str(data.get("in_stock", "1")) in ("1", "true", "on") else 0,
             active=1 if str(data.get("active", "1")) in ("1", "true", "on") else 0,
+            supplier_id=supplier_id, cost=cost, supplier_sku=(data.get("supplier_sku") or "").strip()[:60],
         )
         pid = int(data.get("id") or 0)
         ru_edited = str(data.get("ru_edited", "")) in ("1", "true")
@@ -479,6 +490,66 @@ class Shop:
             fn = os.path.join(self.upload_dir, os.path.basename(p))
             if os.path.isfile(fn):
                 os.remove(fn)
+
+    # ------------------------------------------------ admin: ta'minotchilar (faqat admin ko'radi)
+    def suppliers(self) -> list:
+        rows = self.db.execute(
+            "SELECT s.*, (SELECT COUNT(*) FROM products p WHERE p.supplier_id=s.id) AS products "
+            "FROM suppliers s ORDER BY s.name COLLATE NOCASE").fetchall()
+        return [dict(r) for r in rows]
+
+    def supplier(self, sid) -> dict:
+        r = self.db.execute("SELECT * FROM suppliers WHERE id=?", (sid,)).fetchone() if sid else None
+        return dict(r) if r else {}
+
+    def save_supplier(self, data: dict) -> dict:
+        name = (data.get("name") or "").strip()[:80]
+        if not name:
+            raise ShopError("Ta'minotchi nomini kiriting")
+        raw_phone = (data.get("phone") or "").strip()
+        phone = ""
+        if raw_phone:
+            try:
+                phone = normalize_phone(raw_phone)
+            except ShopError:
+                raise ShopError("Ta'minotchi telefon raqamini to'g'ri kiriting")
+        note = (data.get("note") or "").strip()[:120]
+        sid = int(data.get("id") or 0)
+        if sid:
+            if not self.supplier(sid):
+                raise ShopError("Ta'minotchi topilmadi")
+            self.db.execute("UPDATE suppliers SET name=?, phone=?, note=? WHERE id=?", (name, phone, note, sid))
+        else:
+            same = self.db.execute("SELECT id FROM suppliers WHERE name=? COLLATE NOCASE AND phone=?",
+                                   (name, phone)).fetchone()
+            if same:  # bir xil ta'minotchini ikki marta yaratmaymiz
+                sid = same["id"]
+                if note:
+                    self.db.execute("UPDATE suppliers SET note=? WHERE id=?", (note, sid))
+            else:
+                sid = self.db.execute("INSERT INTO suppliers(name, phone, note, created) VALUES (?,?,?,?)",
+                                      (name, phone, note, int(time.time()))).lastrowid
+        self.db.commit()
+        return self.supplier(sid)
+
+    def delete_supplier(self, sid: int):
+        n = self.db.execute("SELECT COUNT(*) FROM products WHERE supplier_id=?", (sid,)).fetchone()[0]
+        if n:
+            raise ShopError(f"Bu ta'minotchida {n} ta mahsulot bor. Avval ularni boshqa ta'minotchiga o'tkazing.")
+        self.db.execute("DELETE FROM suppliers WHERE id=?", (sid,))
+        self.db.commit()
+
+    def _supplier_for_product(self, data: dict):
+        """Mahsulot formasidan: ro'yxatdan tanlangan ID yoki shu yerda yozilgan yangi ta'minotchi."""
+        new_name = (data.get("supplier_new_name") or "").strip()
+        if new_name:
+            return self.save_supplier({"name": new_name, "phone": data.get("supplier_new_phone"),
+                                       "note": data.get("supplier_new_note")})["id"]
+        try:
+            sid = int(data.get("supplier_id") or 0)
+        except ValueError:
+            sid = 0
+        return sid if sid and self.supplier(sid) else None
 
     # ------------------------------------------------ admin: kategoriyalar
     def save_category(self, data: dict) -> dict:
@@ -601,7 +672,9 @@ class Shop:
                 raise ShopError(f"«{r['name']}» hozir omborda yo'q", f"«{r['name_ru'] or r['name']}» сейчас нет в наличии")
             items.append({"id": pid, "name": r["name"], "name_ru": r["name_ru"] or "", "price": r["price"], "qty": qty,
                           "image": (json.loads(r["images"]) or [None])[0], "emoji": r["emoji"],
-                          "delivery_days": r["delivery_days"] or "", "delivery_days_ru": r["delivery_days_ru"] or ""})
+                          "delivery_days": r["delivery_days"] or "", "delivery_days_ru": r["delivery_days_ru"] or "",
+                          # buyurtma paytidagi ta'minotchi ma'lumoti (faqat admin/guruh uchun, mijozga yuborilmaydi)
+                          "sup": self._supplier_snapshot(r)})
             total += r["price"] * qty
 
         c = payload.get("customer") or {}
@@ -642,6 +715,12 @@ class Shop:
              json.dumps(items, ensure_ascii=False), total, "new", now, now, lat, lon, prepay, receipt_name))
         self.db.commit()
         return self.order(cur.lastrowid)
+
+    def _supplier_snapshot(self, r) -> dict:
+        s = self.supplier(r["supplier_id"])
+        snap = {"name": s.get("name", ""), "phone": s.get("phone", ""), "note": s.get("note", ""),
+                "sku": r["supplier_sku"] or "", "cost": int(r["cost"] or 0)}
+        return {k: v for k, v in snap.items() if v}
 
     def order(self, oid: int) -> dict:
         r = self.db.execute("SELECT * FROM orders WHERE id=?", (oid,)).fetchone()
@@ -718,6 +797,7 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
                    if o.get("prepay") else ""))
     lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'])}"
                       + (f"\n   🚚 Yetkazish: {e(i['delivery_days'])}" if i.get("delivery_days") else "")
+                      + (supplier_lines(i, e) if for_admin else "")
                       for i in o["items"])
     when = time.strftime("%d.%m.%Y %H:%M", time.gmtime(o["created"] + 5 * 3600))
     if for_admin:
@@ -734,12 +814,41 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
                 f"👤 {e(o['name'])} ({user})\n📞 {e(o['phone'])}\n{place}\n💳 Qolgan summa: {e(o['pay'])}\n"
                 + (f"📝 {e(o['note'])}\n" if o.get("note") else "")
                 + f"\n{lines}\n\n<b>Jami: {fmt_price(o['total'])}</b>"
+                + profit_line(o)
                 + (f"\n💰 Oldindan to'lov: <b>{fmt_price(o['prepay'])}</b> (chek ilova qilingan)"
                    f"\n💵 Qolgan: {fmt_price(o['total'] - o['prepay'])}" if o.get("prepay") else ""))
     return (f"<b>Buyurtma #{o['id']}</b>\nHolati: {o['status_text']}\n\n{lines}\n\n"
             f"<b>Jami: {fmt_price(o['total'])}</b>"
             + (f"\nOldindan to'langan: {fmt_price(o['prepay'])}\nQolgan: {fmt_price(o['total'] - o['prepay'])}"
                if o.get("prepay") else ""))
+
+
+def supplier_lines(i: dict, e) -> str:
+    """Guruhdagi buyurtmada mahsulot ostida: ta'minotchi, telefon, kod va kirim narxi."""
+    if "sup" not in i:
+        return ""  # bu funksiyadan oldingi eski buyurtma
+    s = i["sup"] or {}
+    out = ""
+    if s.get("name") or s.get("phone"):
+        who = " — ".join(x for x in (e(s.get("name", "")), e(s.get("phone", ""))) if x)
+        out += f"\n   🏭 {who}" + (f" ({e(s['note'])})" if s.get("note") else "")
+    if s.get("sku"):
+        out += f"\n   🔖 Kodi: {e(s['sku'])}"
+    if s.get("cost"):
+        gain = (i["price"] - s["cost"]) * i["qty"]
+        out += f"\n   💰 Kirim: {fmt_price(s['cost'])} × {i['qty']} → foyda {fmt_price(gain)}"
+    if not out:
+        out = "\n   🏭 Ta'minotchi kiritilmagan"
+    return out
+
+
+def profit_line(o: dict) -> str:
+    known = [i for i in o["items"] if (i.get("sup") or {}).get("cost")]
+    if not known:
+        return ""
+    gain = sum((i["price"] - i["sup"]["cost"]) * i["qty"] for i in known)
+    note = "" if len(known) == len(o["items"]) else " (kirim narxi kiritilmagan mahsulotlarsiz)"
+    return f"\n📈 Foyda: <b>{fmt_price(gain)}</b>{note}"
 
 
 def map_links(o: dict) -> tuple:

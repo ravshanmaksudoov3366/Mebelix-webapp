@@ -449,11 +449,14 @@ async def api_lang(request):
     return web.json_response({"lang": lang})
 
 
-def public(o: dict) -> dict:
-    """Javobga ichki maydonlarni (chek fayli, admin xabarlari) qo'shmaymiz."""
+def public(o: dict, admin: bool = False) -> dict:
+    """Javobga ichki maydonlarni (chek fayli, admin xabarlari) qo'shmaymiz.
+    Mijozga ta'minotchi, kirim narxi va kodi ham yuborilmaydi (admin=False)."""
     o = dict(o)
     o["has_receipt"] = bool(o.pop("receipt", ""))
     o.pop("admin_msgs", None)
+    if not admin:
+        o["items"] = [{k: v for k, v in i.items() if k != "sup"} for i in o.get("items") or []]
     return o
 
 
@@ -495,8 +498,9 @@ async def api_order_cancel(request):
 async def api_admin_data(request):
     get_admin(request)
     return web.json_response({"stats": shop.stats(),
-                              "orders": [public(o) for o in shop.orders(request.query.get("status", ""))],
+                              "orders": [public(o, admin=True) for o in shop.orders(request.query.get("status", ""))],
                               "products": shop.products(include_hidden=True), "categories": shop.categories(),
+                              "suppliers": shop.suppliers(),
                               "statuses": STATUSES, "actions": ACTIONS, "flow": FLOW, "settings": shop.settings()})
 
 
@@ -640,6 +644,17 @@ async def api_admin_category(request):
     return web.json_response({"category": c})
 
 
+async def api_admin_supplier(request):
+    get_admin(request)
+    return web.json_response({"supplier": shop.save_supplier(await request.json()), "suppliers": shop.suppliers()})
+
+
+async def api_admin_supplier_delete(request):
+    get_admin(request)
+    shop.delete_supplier(int(request.match_info["id"]))
+    return web.json_response({"ok": True, "suppliers": shop.suppliers()})
+
+
 async def api_admin_category_delete(request):
     get_admin(request)
     shop.delete_category(int(request.match_info["id"]))
@@ -651,7 +666,7 @@ async def api_admin_status(request):
     body = await request.json()
     o = shop.set_status(int(request.match_info["id"]), body.get("status", ""))
     asyncio.create_task(notify_status(o))
-    return web.json_response({"order": public(o)})
+    return web.json_response({"order": public(o, admin=True)})
 
 
 async def api_admin_broadcast(request):
@@ -770,6 +785,8 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/product/{id}/delete", api_admin_product_delete)
     app.router.add_post("/api/admin/category", api_admin_category)
     app.router.add_post("/api/admin/category/{id}/delete", api_admin_category_delete)
+    app.router.add_post("/api/admin/supplier", api_admin_supplier)
+    app.router.add_post("/api/admin/supplier/{id}/delete", api_admin_supplier_delete)
     app.router.add_post("/api/admin/order/{id}/status", api_admin_status)
     app.router.add_post("/api/admin/broadcast", api_admin_broadcast)
     app.router.add_get("/api/admin/receipt/{id}", api_admin_receipt)
