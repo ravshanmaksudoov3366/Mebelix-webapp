@@ -219,6 +219,8 @@ textarea.in { resize: vertical; min-height: 72px; }
 .tag.red { background: #fde3e1; color: #b3261e; }
 
 .dd { font-size: 12px; color: var(--hint); }
+.free { color: #1f9d55; font-weight: 700; }
+.free-box { background: color-mix(in srgb, #1f9d55 12%, var(--card)); color: #1a7f46; font-weight: 600; margin-top: 8px; }
 .ddbox { margin-top: 10px; background: var(--soft); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 
 /* checkout */
@@ -324,8 +326,8 @@ const I18N = {
     net_err: "Internet aloqasini tekshiring", gen_err: "Xatolik yuz berdi", oos: "Omborda yo'q", to_cart: "Savatga",
     all: "Barchasi", n_products: "{n} ta mahsulot", sort_new: "Yangilari", sort_cheap: "Arzonroq", sort_exp: "Qimmatroq",
     sort_sale: "Chegirmalar", nothing: "Hech narsa topilmadi", cart_empty: "Savatcha hozircha bo'sh",
-    go_catalog: "Katalogga o'tish", items_n: "Mahsulotlar ({n} ta)", delivery: "Yetkazib berish",
-    by_manager: "Menejer bilan kelishiladi", total: "Jami", clear_cart: "Savatchani tozalash", clear_q: "Savatchani tozalaysizmi?",
+    go_catalog: "Katalogga o'tish", items_n: "Mahsulotlar ({n} ta)", delivery: "Yetkazib berish va o'rnatish",
+    by_manager: "Bepul", free_deliv: "🚚 Yetkazib berish va o'rnatib berish — bepul", total: "Jami", clear_cart: "Savatchani tozalash", clear_q: "Savatchani tozalaysizmi?",
     prepay_line: "💰 Oldindan to'lov: {a} · Qolgan: {b}",
     check_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, bot orqali xabar keladi.",
     check_rej: "To'lov cheki tasdiqlanmadi. Iltimos, do'kon bilan bog'laning.", repeat: "🔁 Qayta buyurtma",
@@ -372,8 +374,8 @@ const I18N = {
     net_err: "Проверьте подключение к интернету", gen_err: "Произошла ошибка", oos: "Нет в наличии", to_cart: "В корзину",
     all: "Все", n_products: "Товаров: {n}", sort_new: "Новинки", sort_cheap: "Дешевле", sort_exp: "Дороже",
     sort_sale: "Скидки", nothing: "Ничего не найдено", cart_empty: "Корзина пока пуста",
-    go_catalog: "Перейти в каталог", items_n: "Товары ({n} шт.)", delivery: "Доставка",
-    by_manager: "Согласуется с менеджером", total: "Итого", clear_cart: "Очистить корзину", clear_q: "Очистить корзину?",
+    go_catalog: "Перейти в каталог", items_n: "Товары ({n} шт.)", delivery: "Доставка и сборка",
+    by_manager: "Бесплатно", free_deliv: "🚚 Доставка и сборка — бесплатно", total: "Итого", clear_cart: "Очистить корзину", clear_q: "Очистить корзину?",
     prepay_line: "💰 Предоплата: {a} · Остаток: {b}",
     check_wait: "🧾 Ваш чек проверяется. После подтверждения придёт сообщение в боте.",
     check_rej: "Чек об оплате не подтверждён. Пожалуйста, свяжитесь с магазином.", repeat: "🔁 Повторить заказ",
@@ -568,7 +570,7 @@ function viewCart() {
       ${stepper(p.id)}
     </div>`).join("") + `</div>
     <div class="section"><div class="sum"><span class="muted">${t("items_n", { n: cartCount() })}</span><span>${money(cartTotal())}</span></div>
-      <div class="sum"><span class="muted">${t("delivery")}</span><span>${t("by_manager")}</span></div>
+      <div class="sum"><span class="muted">${t("delivery")}</span><span class="free">${t("by_manager")}</span></div>
       <div class="sum total"><span>${t("total")}</span><span>${money(cartTotal())}</span></div></div>
     <div style="padding:0 12px"><button class="btn ghost block" onclick="clearCart()">${t("clear_cart")}</button></div>`;
 }
@@ -681,6 +683,7 @@ function openProduct(id) {
         <div style="font-size:22px" class="price">${money(p.price)}
           ${p.old_price > p.price ? `<span class="old" style="font-size:14px">${money(p.old_price)}</span> <span class="badge" style="position:static">−${discount(p)}%</span>` : ""}</div>
         ${p.delivery_days ? `<div class="ddbox">${t("delivery_time")} <b>${esc(p.delivery_days)}</b></div>` : ""}
+        <div class="ddbox free-box">${t("free_deliv")}</div>
         ${!p.in_stock ? `<div class="err">${t("oos")}</div>` : ""}
       </div>
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
@@ -872,6 +875,7 @@ function checkoutHTML() {
       <textarea class="in" oninput="F.note=this.value" placeholder="${t("note_ph")}">${esc(F.note)}</textarea>
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
+      ${F.delivery === "delivery" ? `<div class="sum"><span class="muted">${t("delivery")}</span><span class="free">${t("by_manager")}</span></div>` : ""}
       <div class="sum total"><span>${t("total")}</span><span>${money(total)}</span></div>
       <div class="sum"><span class="muted">${t("prepay_sum", { p: pp.pct || 10 })}</span><span>${money(pre)}</span></div>
       <div class="sum"><span class="muted">${t("on_receive")}</span><span>${money(total - pre)}</span></div>
