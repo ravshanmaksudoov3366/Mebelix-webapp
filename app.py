@@ -526,8 +526,14 @@ TMP_DIR = os.path.join(os.path.dirname(UPLOAD_DIR.rstrip("/")), "tmp")
 _ffmpeg_lock = asyncio.Semaphore(1)    # bir vaqtda bitta video siqiladi (server kuchi kichik)
 
 
+# Xotira tugasa, server bot jarayonini emas, aynan ffmpeg'ni to'xtatsin
+# (video «xato» bo'ladi, lekin bot va Mini App ishlashda davom etadi).
+_OOM_FIRST = ("sh", "-c", 'echo 1000 > /proc/self/oom_score_adj 2>/dev/null; exec "$@"', "sh")
+
+
 async def _run(*cmd) -> tuple:
-    proc = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    proc = await asyncio.create_subprocess_exec(*_OOM_FIRST, *cmd,
+                                                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     out, err = await proc.communicate()
     return proc.returncode, err.decode(errors="ignore")[-600:]
 
@@ -539,16 +545,21 @@ async def process_video(pid: int, src_path: str, prev: dict = None):
     out_jpg = os.path.join(UPLOAD_DIR, name + ".jpg")
     try:
         async with _ffmpeg_lock:
+            # Oqimlar soni cheklangan: aks holda ffmpeg Render serveridagi barcha yadrolarni ko'rib
+            # o'nlab oqim ochadi va 4K videoda 1.5 GB+ xotira oladi (Starter tarifda 512 MB).
             code, err = await _run(
-                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", src_path, "-t", str(VIDEO_MAX_SECONDS),
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-threads", "1",
+                "-i", src_path, "-t", str(VIDEO_MAX_SECONDS), "-filter_threads", "1",
                 "-vf", "scale='min(1280,iw)':'min(1280,ih)':force_original_aspect_ratio=decrease,"
                        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "28", "-pix_fmt", "yuv420p", "-r", "30",
+                "-threads", "2", "-x264-params", "rc-lookahead=10",
                 "-c:a", "aac", "-b:a", "96k", "-ac", "2", "-movflags", "+faststart", out_mp4)
             if code != 0 or not os.path.isfile(out_mp4):
                 raise RuntimeError(f"ffmpeg: {err}")
             for ss in ("1", "0"):  # poster: 1-soniya (juda qisqa videoda — boshidan)
-                code, _ = await _run("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ss", ss, "-i", out_mp4,
+                code, _ = await _run("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-threads", "1",
+                                     "-ss", ss, "-i", out_mp4,
                                      "-frames:v", "1", "-q:v", "4", out_jpg)
                 if code == 0 and os.path.isfile(out_jpg):
                     break
