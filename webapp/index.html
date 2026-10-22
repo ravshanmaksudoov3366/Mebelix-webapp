@@ -235,6 +235,13 @@ textarea.in { resize: vertical; min-height: 72px; }
 .rcpt-big { text-align: center; color: var(--hint); font-size: 14px; }
 .rcpt-big img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: 12px; background: var(--bg2); display: block; margin-bottom: 6px; }
 .rcpt img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+.mpsearch { position: relative; margin: 0 12px 10px; display: flex; align-items: center; gap: 8px; background: var(--card);
+  border-radius: 12px; padding: 0 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.mpsearch input { flex: 1; border: 0; background: none; padding: 12px 0; outline: none; font-size: 16px; }
+.mpres { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 1000; background: var(--card); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); max-height: 46vh; overflow-y: auto; }
+.mpitem { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 15px; }
+.mpitem:last-child { border-bottom: 0; }
 .mapwrap { position: relative; margin: 0 12px; border-radius: 16px; overflow: hidden; }
 #map { height: 58vh; min-height: 300px; background: #e8e4dc; }
 .pin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%); font-size: 40px; z-index: 500; pointer-events: none;
@@ -356,6 +363,7 @@ const I18N = {
     e_rc_busy: "Chek rasmi yuklanmoqda, biroz kuting", e_rc: "Oldindan to'lov ({sum}) chekining rasmini yuklang",
     sent_title: "Buyurtmangiz yuborildi!", order_no: "Buyurtma raqami", prepaid: "Oldindan to'langan",
     sent_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.",
+    addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
   },
   ru: {
@@ -403,6 +411,7 @@ const I18N = {
     e_rc_busy: "Фото чека загружается, подождите немного", e_rc: "Загрузите фото чека предоплаты ({sum})",
     sent_title: "Заказ отправлен!", order_no: "Номер заказа", prepaid: "Предоплачено",
     sent_wait: "🧾 Ваш чек проверяется. После подтверждения заказ будет принят — мы сообщим в боте.",
+    addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
   },
 };
@@ -936,6 +945,9 @@ async function openMapPicker() {
   const has = F.lat != null;
   if (has) { MP.lat = F.lat; MP.lon = F.lon; MP.label = F.prevGeo ? "" : F.geo; } else MP.label = "";
   openSheet({ title: t("addr_title"), body: `
+    <div class="mpsearch"><span>🔍</span><input id="mpQ" type="search" autocomplete="off" enterkeyhint="search"
+        placeholder="${t("addr_search_ph")}" oninput="mpSearchSoon(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();mpSearch(this.value)}">
+      <div id="mpRes" class="mpres hidden"></div></div>
     <div class="mapwrap"><div id="map"></div><div class="pin">📍</div>
       <button class="btn locbtn" onclick="locateMe()">${t("my_loc")}</button></div>
     <div class="section" style="margin-top:10px"><div class="small muted">${t("map_drag")}</div>
@@ -1026,6 +1038,49 @@ async function reverseGeo() {
   MP.label = (label || coords).replace(/^(O[ʻ'`‘]?zbekiston|Узбекистан|Uzbekistan),\s*/i, "");
   lab.textContent = MP.label;
 }
+/* --- manzilni yozib qidirish --- */
+let mpSearchTimer = 0, mpSearchSeq = 0;
+function mpSearchSoon(q) { clearTimeout(mpSearchTimer); mpSearchTimer = setTimeout(() => mpSearch(q), 450); }
+async function mpSearch(q) {
+  q = (q || "").trim();
+  const box = document.getElementById("mpRes"); if (!box) return;
+  if (q.length < 3) { box.classList.add("hidden"); return; }
+  const seq = ++mpSearchSeq;
+  box.innerHTML = `<div class="mpitem muted">⏳ ${t("searching")}</div>`; box.classList.remove("hidden");
+  let items = [];
+  if (S.shop.ygeo_key) {  // Yandex geokoder — O'zbekiston bo'yicha
+    try {
+      const r = await fetch(`https://geocode-maps.yandex.ru/1.x/?apikey=${encodeURIComponent(S.shop.ygeo_key)}&format=json&results=7`
+        + `&lang=${LANG === "ru" ? "ru_RU" : "uz_UZ"}&bbox=55.9,37.1~73.2,45.6&rspn=1&geocode=${encodeURIComponent(q)}`);
+      const d = await r.json();
+      items = d.response.GeoObjectCollection.featureMember.map(m => {
+        const g = m.GeoObject, [lon, lat] = g.Point.pos.split(" ").map(Number);
+        return { name: g.name, desc: g.description || "", lat, lon };
+      });
+    } catch (e) { /* zaxira */ }
+  }
+  if (!items.length) {  // zaxira: OpenStreetMap
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=uz&limit=7&accept-language=${LANG}&q=${encodeURIComponent(q)}`);
+      items = (await r.json()).map(x => { const parts = x.display_name.split(", ");
+        return { name: parts.slice(0, 2).join(", "), desc: parts.slice(2, 5).join(", "), lat: +x.lat, lon: +x.lon }; });
+    } catch (e) { /* bo'sh */ }
+  }
+  if (seq !== mpSearchSeq) return;  // eskirgan javob
+  window._mpItems = items;
+  box.innerHTML = items.length
+    ? items.map((it, i) => `<div class="mpitem" onclick="mpPick(${i})"><b>${esc(it.name)}</b>${it.desc ? `<div class="small muted">${esc(it.desc.replace(/^(O[ʻ'`‘]?zbekiston|Узбекистан|Uzbekistan),?\s*|,?\s*(O[ʻ'`‘]?zbekiston|Узбекистан|Uzbekistan)$/gi, ""))}</div>` : ""}</div>`).join("")
+    : `<div class="mpitem muted">${t("nothing")}</div>`;
+}
+function mpPick(i) {
+  const it = (window._mpItems || [])[i]; if (!it) return;
+  document.getElementById("mpRes").classList.add("hidden");
+  const inp = document.getElementById("mpQ"); if (inp) { inp.value = it.name; inp.blur(); }
+  MP.label = [it.name, it.desc].filter(Boolean).join(", ");
+  const lab = document.getElementById("mpLabel"); if (lab) lab.textContent = MP.label;
+  mpSetView(it.lat, it.lon, 17); haptic();
+}
+
 function pickPlace() {
   F.lat = MP.lat; F.lon = MP.lon; F.geo = MP.label || (MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5)); F.prevGeo = false; F.err = "";
   notifyH("success"); closeSheet(); refresh();
