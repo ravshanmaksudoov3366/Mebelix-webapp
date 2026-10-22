@@ -80,6 +80,8 @@ SHOP = {
     "address": os.getenv("SHOP_ADDRESS", ""),
     # Yandex Maps JavaScript API kaliti (ixtiyoriy). Bo'lsa — mijoz manzilni Yandex xaritada belgilaydi
     "ymaps_key": os.getenv("YANDEX_MAPS_KEY", ""),
+    # Yandex HTTP Geokoder kaliti (ixtiyoriy) — xaritadagi nuqtaning aniq manzil nomi uchun
+    "ygeo_key": os.getenv("YANDEX_GEOCODER_KEY", ""),
 }
 PORT = int(os.getenv("PORT", "8080"))
 DB_PATH = os.getenv("DB_PATH", str(BASE / "data" / "shop.db"))

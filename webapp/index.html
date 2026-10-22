@@ -994,20 +994,36 @@ function locateMe() {
 async function reverseGeo() {
   const lab = document.getElementById("mpLabel"); if (!lab) return;
   const coords = MP.lat.toFixed(5) + ", " + MP.lon.toFixed(5);
-  if (MP.kind === "y" && window.ymaps) {
+  const lat = MP.lat, lon = MP.lon;
+  let label = "";
+  // 1) Yandex HTTP Geokoder (alohida kalit kiritilgan bo'lsa) — eng aniq
+  if (!label && S.shop.ygeo_key) {
     try {
-      const res = await ymaps.geocode([MP.lat, MP.lon], { results: 1 });
-      const g = res.geoObjects.get(0);
-      MP.label = g ? g.getAddressLine().replace(/^O[ʻ'`‘]?zbekiston,\s*/i, "") : coords;
-    } catch (e) { MP.label = coords; }
-    lab.textContent = MP.label; return;
+      const r = await fetch(`https://geocode-maps.yandex.ru/1.x/?apikey=${encodeURIComponent(S.shop.ygeo_key)}&geocode=${lon},${lat}&format=json&results=1&lang=${LANG === "ru" ? "ru_RU" : "uz_UZ"}`);
+      const d = await r.json();
+      const g = d.response.GeoObjectCollection.featureMember[0];
+      if (g) label = g.GeoObject.metaDataProperty.GeocoderMetaData.text || "";
+    } catch (e) { /* keyingi usul */ }
   }
-  try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG}&lat=${MP.lat}&lon=${MP.lon}`);
-    const d = await r.json(); const a = d.address || {};
-    const parts = [a.road, a.house_number, a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county].filter(Boolean);
-    MP.label = parts.length ? parts.join(", ") : (d.display_name || coords);
-  } catch (e) { MP.label = coords; }
+  // 2) Yandex JS API geokoderi (xarita kaliti ruxsat bersa)
+  if (!label && MP.kind === "y" && window.ymaps) {
+    try {
+      const res = await ymaps.geocode([lat, lon], { results: 1 });
+      const g = res.geoObjects.get(0);
+      if (g) label = g.getAddressLine();
+    } catch (e) { /* keyingi usul */ }
+  }
+  // 3) Zaxira: OpenStreetMap (Nominatim)
+  if (!label) {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=${LANG}&lat=${lat}&lon=${lon}`);
+      const d = await r.json(); const a = d.address || {};
+      const parts = [a.road, a.house_number, a.neighbourhood || a.suburb, a.city || a.town || a.village || a.county].filter(Boolean);
+      label = parts.length ? parts.join(", ") : (d.display_name || "");
+    } catch (e) { /* koordinata qoladi */ }
+  }
+  if (lat !== MP.lat || lon !== MP.lon) return;  // bu orada xarita surilgan — eski javobni ko'rsatmaymiz
+  MP.label = (label || coords).replace(/^(O[ʻ'`‘]?zbekiston|Узбекистан|Uzbekistan),\s*/i, "");
   lab.textContent = MP.label;
 }
 function pickPlace() {
