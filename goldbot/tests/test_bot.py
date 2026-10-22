@@ -98,7 +98,7 @@ class BotTests(unittest.TestCase):
         self._sleep = botmod.time.sleep
         botmod.time.sleep = lambda s: None
         self._orig = botmod.evaluate
-        botmod.evaluate = lambda h1, m15, p: Signal("buy", 2000.0, 1994.0, 2012.0, 4.0, "test")
+        botmod.evaluate = lambda h1, m15, p, enabled="ABC": Signal("buy", 2000.0, 1994.0, 2012.0, 4.0, "test")
 
     def tearDown(self):
         botmod.evaluate = self._orig
@@ -244,6 +244,32 @@ class BotTests(unittest.TestCase):
         b.tick(WED_10)
         self.assertFalse(any("rad etdi" in s for s in tg.sent))
         self.assertIn("SOTIB OLDIM", tg.sent[-1])
+
+    def test_score_scales_risk_and_is_capped(self):
+        botmod.evaluate = lambda h1, m15, p, enabled="ABC": Signal("buy", 2000.0, 1994.0, 2012.0, 4.0, "t", "B", 1.5)
+        b, api, tg = make()
+        b.tick(WED_10)
+        self.assertEqual(api.trades[-1]["volume"], 1.19)  # 7.5% × 10000 = 750$ / 630$ = 1.19 lot
+        self.assertIn("7.5%", tg.sent[-1])
+        b2, api2, _ = make()
+        b2.risk = 10
+        b2.tick(WED_10)
+        self.assertEqual(api2.trades[-1]["volume"], 1.58)  # 15% emas — 10% bilan cheklangan: 1000/630
+        b3, api3, _ = make()
+        b3.handle("balli risk yo'q")
+        b3.tick(WED_10)
+        self.assertEqual(api3.trades[-1]["volume"], 0.79)
+
+    def test_strategy_command(self):
+        seen = {}
+        botmod.evaluate = lambda h1, m15, p, enabled="ABC": seen.setdefault("e", enabled) and None
+        b, api, tg = make()
+        b.handle("strategiya c, a")
+        self.assertEqual(b.enabled, "AC")
+        b.tick(WED_10)
+        self.assertEqual(seen["e"], "AC")
+        b.handle("strategiya xyz")
+        self.assertEqual(b.enabled, "AC")
 
     def test_error_text_is_escaped(self):
         self.assertEqual(botmod.esc("<a & b>"), "&lt;a &amp; b&gt;")

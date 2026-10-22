@@ -39,7 +39,9 @@ class Config:
         self.max_drawdown = env_float("MAX_DRAWDOWN_PCT", 50)
         self.auto_start = os.getenv("AUTO_START", "0") == "1"
         self.magic = int(env_float("MAGIC", 770077))
-        self.backtest_days = int(env_float("BACKTEST_DAYS", 180))
+        self.backtest_days = int(env_float("BACKTEST_DAYS", 365))
+        self.strategies = "".join(ch for ch in os.getenv("STRATEGIES", "ABC").upper() if ch in "ABC") or "ABC"
+        self.dynamic_risk = os.getenv("DYNAMIC_RISK", "1") == "1"
         self.port = int(env_float("PORT", 10000))
 
     def missing(self):
@@ -78,6 +80,8 @@ class Bot:
         self.paused = not cfg.auto_start
         self.risk = cfg.risk
         self.max_consec = cfg.max_consec_losses
+        self.enabled = cfg.strategies
+        self.dynamic = cfg.dynamic_risk
         self.symbol = None
         self.spec = {}
         self.point = 0.01
@@ -119,7 +123,8 @@ class Bot:
             f"✅ <b>Oltin boti ulandi</b>\nServer: {acc.get('server')}, login {acc.get('login')}\n"
             f"Belgi: {self.symbol} (1 lot = {self.spec.get('contractSize')} unsiya)\n"
             f"Balans: {fmt_money(float(info.get('balance', 0)), self.currency)}\n"
-            f"Risk: {self.risk:g}% har savdoda, kunlik to'xtash: ketma-ket {self.max_consec} yutqazish"
+            f"Risk: {self.risk:g}% har savdoda, kunlik to'xtash: ketma-ket {self.max_consec} yutqazish\n"
+            f"Strategiyalar: {self.enabled}{', risk ishonch baliga qarab o‘zgaradi' if self.dynamic else ''}"
             f"{warn}\n\n"
             + ("▶️ Savdo YOQILGAN." if not self.paused else
                "⏸ Savdo hozircha PAUZADA. Sinov natijasini ko'rib, «▶️ Boshlash» ni bosing."))
@@ -263,7 +268,7 @@ class Bot:
             return
         h1 = drop_unclosed(self.api.candles(self.symbol, "1h", backtest.WIN_H1 + 2), "1h", now)
         m15 = drop_unclosed(self.api.candles(self.symbol, "15m", backtest.WIN_M15 + 2), "15m", now)
-        sig = evaluate(h1, m15, self.p)
+        sig = evaluate(h1, m15, self.p, self.enabled)
         if sig is None:
             self.status_line = f"signal yo'q (oxirgi tekshiruv {now:%H:%M} UTC)"
             return
@@ -282,7 +287,8 @@ class Bot:
         if dist <= min_stop or abs(tp - entry) <= min_stop:
             self.status_line = "stop broker ruxsat bergan masofadan yaqin — kirmadim"
             return
-        vol, risk_money, note = lot_size(equity, self.risk, dist, float(self.spec.get("contractSize", 100)),
+        risk_pct = min(10.0, self.risk * sig.score) if self.dynamic else self.risk
+        vol, risk_money, note = lot_size(equity, risk_pct, dist, float(self.spec.get("contractSize", 100)),
                                          float(self.spec.get("minVolume", 0.01)),
                                          float(self.spec.get("maxVolume", 100)),
                                          float(self.spec.get("volumeStep", 0.01)))
@@ -312,7 +318,7 @@ class Bot:
         self.status_line = f"savdo ochildi {now:%H:%M} UTC"
         self.tg.send(f"{side} {self.symbol} {vol} lot ≈ {entry:.{digits}f}\n"
                      f"Stop-loss: {body['stopLoss']}  |  Take-profit: {body['takeProfit']}\n"
-                     f"Xavf: ≈{fmt_money(risk_money, self.currency)} ({self.risk:g}%), "
+                     f"Xavf: ≈{fmt_money(risk_money, self.currency)} ({risk_pct:.1f}%, ishonch bali {sig.score:g}), "
                      f"mo'ljallangan foyda ≈{fmt_money(risk_money * self.p.rr, self.currency)}\n"
                      f"Sabab: {sig.reason}")
         log.info("savdo ochildi: %s %s %s", body, res.get("positionId"), res.get("orderId"))
@@ -357,7 +363,11 @@ class Bot:
             return self.tg.send(f"Hozirgi risk: <b>{self.risk:g}%</b> har savdoda.\n"
                                 f"Kunlik to'xtash: ketma-ket <b>{self.max_consec}</b> yutqazish.\n\n"
                                 "O'zgartirish uchun yozing, masalan:\n<code>risk 3</code> (0.5 – 10)\n"
-                                "<code>seriya 5</code> (1 – 10)")
+                                "<code>seriya 5</code> (1 – 10)\n"
+                                f"<code>strategiya ABC</code> — hozir: {self.enabled} "
+                                "(A «Qaytish», B «Osiyo diapazoni», C «Siqilish→portlash»)\n"
+                                f"<code>balli risk ha</code> / <code>balli risk yo'q</code> — hozir: "
+                                f"{'ha' if self.dynamic else 'yoq'} (kuchli signalda risk ×1.5 gacha, 10% dan oshmaydi)")
         if t.startswith("risk "):
             try:
                 v = float(t.split()[1].replace(",", ".").rstrip("%"))
@@ -376,6 +386,16 @@ class Bot:
                 return self.tg.send("1 dan 10 gacha bo'lishi mumkin.")
             self.max_consec = v
             return self.tg.send(f"✅ Endi bir kunda ketma-ket {v} yutqazishdan keyin bot o'sha kuni to'xtaydi.")
+        if t.startswith("strategiya "):
+            v = "".join(ch for ch in t.split(" ", 1)[1].upper() if ch in "ABC")
+            v = "".join(ch for ch in "ABC" if ch in v)
+            if not v:
+                return self.tg.send("Masalan: strategiya ABC yoki strategiya B")
+            self.enabled = v
+            return self.tg.send(f"✅ Endi ishlaydigan strategiyalar: {v}")
+        if t.startswith("balli risk"):
+            self.dynamic = not any(w in t for w in ("yo'q", "yoq", "yo‘q", "yo’q"))
+            return self.tg.send("✅ Ishonch baliga qarab risk " + ("YOQILDI" if self.dynamic else "O'CHIRILDI"))
         if t in ("🧪 sinov", "sinov", "/sinov"):
             return self.start_backtest()
         if t in ("📜 tarix", "tarix", "/tarix"):
@@ -436,7 +456,7 @@ class Bot:
         if self.backtest_running:
             return self.tg.send("🧪 Sinov allaqachon ketyapti, biroz kuting.")
         self.backtest_running = True
-        self.tg.send(f"🧪 Oxirgi {self.cfg.backtest_days} kunlik narxlarda sinov boshlandi (1–3 daqiqa)...")
+        self.tg.send(f"🧪 Oxirgi {self.cfg.backtest_days} kunlik narxlarda 3 ta strategiya sinovi boshlandi (3–10 daqiqa)...")
         threading.Thread(target=self._backtest_job, daemon=True).start()
 
     def _backtest_job(self):
@@ -448,10 +468,13 @@ class Bot:
             n15 = self.cfg.backtest_days * 24 * 4
             m15 = drop_unclosed(api.candles(self.symbol, "15m", n15), "15m", now)
             h1 = drop_unclosed(api.candles(self.symbol, "1h", n15 // 4 + backtest.WIN_H1), "1h", now)
-            res = backtest.run(h1, m15, self.p, backtest.Limits(self.cfg.max_trades_per_day, self.max_consec))
-            s = backtest.summary(res, risks=sorted({2, 5, 10, self.risk}))
-            log.info("sinov: %s", {k: v for k, v in s.items() if k != "by_risk"} | {"by_risk": s["by_risk"]})
-            self.tg.send(backtest.format_summary(s))
+            rows = backtest.compare(h1, m15, self.p, backtest.Limits(self.cfg.max_trades_per_day, self.max_consec),
+                                    risk=self.risk)
+            for row in rows:
+                log.info("sinov %s: hammasi=%s | tekshiruv=%s", row["variant"],
+                         {k: row["all"][k] for k in ("trades", "win_rate", "profit_factor", "total_r")},
+                         {k: row["oos"][k] for k in ("trades", "win_rate", "profit_factor", "total_r")})
+            self.tg.send(backtest.format_compare(rows, self.risk))
         except Exception as e:  # noqa: BLE001
             log.error("sinov xatosi: %s\n%s", e, traceback.format_exc())
             self.tg.send(f"⚠️ Sinov bajarilmadi: {esc(e)}")

@@ -3,7 +3,24 @@
 MT5 hisobida (XM) oltin bilan avtomatik savdo qiladi. Broker hisobiga MetaApi bulut xizmati orqali ulanadi,
 egasi esa iPad'dan Telegram orqali boshqaradi. Render'da alohida xizmat sifatida ishlaydi (`goldbot/Dockerfile`).
 
-## Strategiya qisqacha
+## Strategiyalar
+Uchta mustaqil usul bor. Ularni Telegram'da `strategiya ABC` deb yozib birga yoki alohida yoqasiz.
+
+- **A «Qaytish»:** katta trend bo'yicha, narx EMA21 ga qaytgandan keyin kirish (batafsil pastda).
+- **B «Osiyo diapazoni»:** kechasi 00:00–07:00 UTC da oltin tor oraliqda yuradi.
+  London ochilgach (07:00–11:00 UTC) narx shu oraliqdan H1 trend tomonga birinchi marta chiqsa, bot kiradi.
+  Stop diapazon o'rtasi orqasiga qo'yiladi.
+- **C «Siqilish→portlash»:** narx 8 sham davomida odatdagidan ancha tor qutida yursa, keyin trend tomonga
+  katta tanali sham bilan qutidan chiqsa, bot kiradi. Stop qutining narigi tomoniga qo'yiladi.
+- **Ishonch bali (0.5–1.5):** bot riskni shu balga ko'paytiradi, lekin bir savdoda 10% dan oshirmaydi.
+  - ball oshadi: ADX ≥ 30 bo'lsa, London–Nyu-York kesishuvida (12–16 UTC) va bir nechta usul bir yo'nalishni ko'rsatsa;
+  - ball kamayadi: kech soatlarda va usullar bir-biriga zid bo'lsa.
+  - Telegram'da `balli risk yo'q` deb yozsangiz, risk o'zgarmas bo'ladi.
+- **🧪 Sinov:** XM narxlarining oxirgi 365 kunida har bir usul alohida va birga tekshiriladi.
+  Davr ikkiga bo'linadi: birinchi 2/3 qismi «o'rganish», oxirgi 1/3 qismi «tekshiruv».
+  Faqat bot ko'rmagan tekshiruv davrida ham foyda bergan usul tavsiya qilinadi.
+
+### A usuli batafsil
 - **Trend (H1):** EMA50 EMA200 dan yuqori, narx EMA50 dan yuqori va ADX ≥ 20 bo'lsa, bot faqat sotib oladi.
   Teskari holatda faqat sotadi. Trend aniq bo'lmasa, savdo qilmaydi.
 - **Kirish (M15):** narx EMA21 ga qaytib tekkandan keyin trend tomonga kuchli yopilganda.
@@ -32,7 +49,9 @@ egasi esa iPad'dan Telegram orqali boshqaradi. Render'da alohida xizmat sifatida
 | `MAX_DRAWDOWN_PCT` | yo'q | Shuncha % pasayishda bot pauzaga o'tadi. Standart: 50 |
 | `AUTO_START` | yo'q | `1` bo'lsa, qayta ishga tushganda savdo darhol davom etadi. Standart: `0` (pauza) |
 | `SYMBOL` | yo'q | Bo'sh bo'lsa, bot GOLD/XAUUSD belgisini o'zi topadi |
-| `BACKTEST_DAYS` | yo'q | Sinov uchun olinadigan kunlar soni. Standart: 180 |
+| `BACKTEST_DAYS` | yo'q | Sinov uchun olinadigan kunlar soni. Standart: 365 |
+| `STRATEGIES` | yo'q | Yoqilgan usullar. Standart: `ABC` |
+| `DYNAMIC_RISK` | yo'q | `1` bo'lsa, risk ishonch baliga qarab o'zgaradi. Standart: `1` |
 
 Telegram'dan o'zgartirilgan risk va seriya sozlamalari server qayta ishga tushguncha amal qiladi.
 Doimiy qilish uchun ularni muhit o'zgaruvchilarida ham o'zgartiring.
@@ -42,7 +61,7 @@ Doimiy qilish uchun ularni muhit o'zgaruvchilarida ham o'zgartiring.
 - 📜 Tarix
 - ▶️ Boshlash
 - ⏸ To'xtatish
-- ⚙️ Risk — `risk 3`, `seriya 5` deb yozib o'zgartiriladi
+- ⚙️ Risk — `risk 3`, `seriya 5`, `strategiya AB`, `balli risk ha` yoki `balli risk yo'q` deb yozib o'zgartiriladi
 - 🧪 Sinov — strategiyani o'tgan narxlarda tekshiradi
 - ❌ Hammasini yopish — tasdiqlash uchun `ha yopish` deb yoziladi
 

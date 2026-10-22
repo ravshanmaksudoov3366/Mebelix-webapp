@@ -25,6 +25,8 @@ class Trade:
     exit: float = 0.0
     r: float = 0.0
     why: str = ""
+    name: str = "A"
+    score: float = 1.0
 
 
 @dataclass
@@ -40,7 +42,7 @@ class Result:
     end: object = None
 
 
-def run(h1, m15, p: Params = Params(), lim: Limits = Limits()) -> Result:
+def run(h1, m15, p: Params = Params(), lim: Limits = Limits(), enabled="ABC") -> Result:
     res = Result(start=m15[0]["time"] if m15 else None, end=m15[-1]["time"] if m15 else None)
     if len(m15) < WIN_M15 or len(h1) < 210:
         return res
@@ -104,7 +106,7 @@ def run(h1, m15, p: Params = Params(), lim: Limits = Limits()) -> Result:
             trend_cache[hi] = trend(h1[max(0, hi - WIN_H1):hi], p)
         if trend_cache[hi] is None:
             continue
-        sig = evaluate(h1[max(0, hi - WIN_H1):hi], m15[i + 1 - WIN_M15:i + 1], p)
+        sig = evaluate(h1[max(0, hi - WIN_H1):hi], m15[i + 1 - WIN_M15:i + 1], p, enabled)
         if sig is None:
             continue
         if spread > p.max_spread_frac * sig.sl_dist:
@@ -115,24 +117,30 @@ def run(h1, m15, p: Params = Params(), lim: Limits = Limits()) -> Result:
             continue
         dist = abs(entry - sig.sl)
         tp = entry + p.rr * dist if sig.side == "buy" else entry - p.rr * dist  # bot kabi: haqiqiy narxdan
-        pos = Trade(sig.side, nxt["time"], entry, sig.sl, tp)
+        pos = Trade(sig.side, nxt["time"], entry, sig.sl, tp, name=sig.name, score=sig.score)
         cur_sl = sig.sl
         day_trades += 1
     return res
 
 
-def equity_curve(rs, risk_pct, start=100.0):
+MAX_RISK = 10.0
+
+
+def equity_curve(rs, risk_pct, start=100.0, scores=None):
+    """Hisob o'sishi. scores berilsa — har savdo riski risk_pct × ball (eng ko'pi 10%)."""
     eq, peak, max_dd, curve = start, start, 0.0, []
-    for r in rs:
-        eq *= max(0.0, 1 + r * risk_pct / 100.0)
+    for i, r in enumerate(rs):
+        rp = min(MAX_RISK, risk_pct * (scores[i] if scores else 1.0))
+        eq *= max(0.0, 1 + r * rp / 100.0)
         peak = max(peak, eq)
         max_dd = max(max_dd, (peak - eq) / peak if peak else 0)
         curve.append(eq)
     return eq, max_dd, curve
 
 
-def summary(res: Result, risks=(2, 5, 10)) -> dict:
-    rs = [t.r for t in res.trades]
+def summary(res: Result, risks=(2, 5, 10), trades=None) -> dict:
+    trades = res.trades if trades is None else trades
+    rs = [t.r for t in trades]
     wins = [r for r in rs if r > 0]
     losses = [r for r in rs if r <= 0]
     streak = best = 0
@@ -148,10 +156,84 @@ def summary(res: Result, risks=(2, 5, 10)) -> dict:
         "max_losing_streak": best,
         "by_risk": {},
     }
+    scores = [t.score for t in trades]
     for rp in risks:
         eq, dd, _ = equity_curve(rs, rp)
-        out["by_risk"][rp] = {"return_pct": eq - 100.0, "max_dd_pct": dd * 100}
+        eqd, ddd, _ = equity_curve(rs, rp, scores=scores)
+        out["by_risk"][rp] = {"return_pct": eq - 100.0, "max_dd_pct": dd * 100,
+                              "dyn_return_pct": eqd - 100.0, "dyn_max_dd_pct": ddd * 100}
     return out
+
+
+def split(res: Result, frac=2 / 3):
+    """O'rganish davri (birinchi 2/3) va tekshiruv davri (oxirgi 1/3) savdolari."""
+    if not res.start or not res.end:
+        return [], []
+    cut = res.start + (res.end - res.start) * frac
+    return [t for t in res.trades if t.open_time < cut], [t for t in res.trades if t.open_time >= cut]
+
+
+NAMES = {"A": "A «Qaytish»", "B": "B «Osiyo diapazoni»", "C": "C «Siqilish→portlash»",
+         "ABC": "Hammasi birga (A+B+C)"}
+
+
+def compare(h1, m15, p: Params = Params(), lim: Limits = Limits(), risk=5.0, variants=("A", "B", "C", "ABC")):
+    """Har bir usulni alohida va birga sinaydi; o'rganish va tekshiruv davrlarini alohida baholaydi."""
+    rows = []
+    for v in variants:
+        res = run(h1, m15, p, lim, v)
+        ins, oos = split(res)
+        rows.append({"variant": v, "all": summary(res, (risk,)), "in": summary(res, (risk,), ins),
+                     "oos": summary(res, (risk,), oos), "start": res.start, "end": res.end})
+    return rows
+
+
+def _verdict(row):
+    i, o = row["in"], row["oos"]
+    if o["trades"] < 5:
+        return "⚪ savdo kam — xulosa qilib bo'lmaydi"
+    if o["total_r"] > 0 and i["total_r"] > 0 and o["profit_factor"] >= 1.15:
+        return "🟢 ikkala davrda ham foydali"
+    if o["total_r"] > 0:
+        return "🟡 tekshiruvda foydali, lekin kuchsiz"
+    return "🔴 tekshiruv davrida zarar"
+
+
+def best_variant(rows):
+    good = [r for r in rows if _verdict(r).startswith("🟢")]
+    if not good:
+        return None
+    return max(good, key=lambda r: r["oos"]["total_r"] / max(1.0, r["oos"]["max_losing_streak"]))["variant"]
+
+
+def format_compare(rows, risk) -> str:
+    if not rows:
+        return "🧪 Sinov uchun ma'lumot yetarli emas."
+    r0 = rows[0]
+    cut = r0["start"] + (r0["end"] - r0["start"]) * 2 / 3
+    lines = [f"🧪 <b>Strategiyalar sinovi</b> ({r0['start']:%d.%m.%Y} – {r0['end']:%d.%m.%Y})",
+             f"O'rganish: {cut:%d.%m.%Y} gacha, <b>tekshiruv (bot ko'rmagan davr)</b>: {cut:%d.%m.%Y} dan keyin",
+             f"Hisob natijasi {risk:g}% risk bilan; qavsda — ishonch baliga qarab o'zgaruvchan risk.", ""]
+    for row in rows:
+        a, i, o = row["all"], row["in"], row["oos"]
+        br = a["by_risk"].get(risk) or next(iter(a["by_risk"].values()), None)
+        pf = "∞" if o["profit_factor"] == float("inf") else f"{o['profit_factor']:.2f}"
+        lines.append(f"<b>{NAMES.get(row['variant'], row['variant'])}</b> — {_verdict(row)}")
+        lines.append(f"  O'rganish: {i['trades']} savdo, {i['total_r']:+.1f}R | "
+                     f"Tekshiruv: {o['trades']} savdo, {o['total_r']:+.1f}R, yutish {o['win_rate']:.0f}%, "
+                     f"foyda omili {pf}")
+        if br:
+            lines.append(f"  Butun davr: {br['return_pct']:+.0f}% (o'zgaruvchan: {br['dyn_return_pct']:+.0f}%), "
+                         f"eng katta pasayish −{br['max_dd_pct']:.0f}% (−{br['dyn_max_dd_pct']:.0f}%), "
+                         f"ketma-ket yutqazish: {a['max_losing_streak']}")
+        lines.append("")
+    best = best_variant(rows)
+    if best:
+        lines.append(f"✅ Tavsiya: <b>{NAMES.get(best, best)}</b>. Yoqish uchun: <code>strategiya {best}</code>")
+    else:
+        lines.append("⛔ Hech bir usul ikkala davrda ham ishonchli foyda bermadi — real pulni xavfga qo'ymang.")
+    lines.append("⚠️ O'tgan natija kelajakni kafolatlamaydi.")
+    return "\n".join(lines)
 
 
 def format_summary(s: dict) -> str:
