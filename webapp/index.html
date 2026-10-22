@@ -105,6 +105,11 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .status { font-size: 13px; padding: 3px 9px; border-radius: 10px; background: var(--bg2); white-space: nowrap; }
 .status.new { background: #fff1d6; color: #9a6400; } .status.confirmed { background: #dff3e4; color: #1f7a3a; }
 .status.delivering { background: #dcebff; color: #1d5fb8; } .status.done { background: #e9e6ff; color: #4b3fb3; }
+.status.delivered { background: #d9f2f2; color: #0f6b6b; } .status.assembled { background: #f3e6d6; color: #8a4d14; }
+.chk { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.35; }
+.chk input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--accent); }
+.offer h2 { font-size: 18px; margin: 0 0 4px; } .offer h3 { font-size: 15px; margin: 14px 0 4px; } .offer p { margin: 6px 0; font-size: 14px; line-height: 1.45; }
+.tl { font-size: 13px; } .tl div { padding: 3px 0; border-bottom: 1px dashed var(--line); }
 .status.cancelled, .status.rejected { background: #fde3e1; color: #b3261e; }
 .track { display: flex; gap: 4px; margin: 10px 0 4px; }
 .track span { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
@@ -326,8 +331,8 @@ const I18N = {
     net_err: "Internet aloqasini tekshiring", gen_err: "Xatolik yuz berdi", oos: "Omborda yo'q", to_cart: "Savatga",
     all: "Barchasi", n_products: "{n} ta mahsulot", sort_new: "Yangilari", sort_cheap: "Arzonroq", sort_exp: "Qimmatroq",
     sort_sale: "Chegirmalar", nothing: "Hech narsa topilmadi", cart_empty: "Savatcha hozircha bo'sh",
-    go_catalog: "Katalogga o'tish", items_n: "Mahsulotlar ({n} ta)", delivery: "Yetkazib berish va o'rnatish",
-    by_manager: "Bepul", free_deliv: "🚚 Yetkazib berish va o'rnatib berish — bepul", total: "Jami", clear_cart: "Savatchani tozalash", clear_q: "Savatchani tozalaysizmi?",
+    go_catalog: "Katalogga o'tish", items_n: "Mahsulotlar ({n} ta)", delivery: "Yetkazib berish",
+    by_manager: "Bepul", free_deliv: "🚚 Yetkazib berish — bepul", total: "Jami", clear_cart: "Savatchani tozalash", clear_q: "Savatchani tozalaysizmi?",
     prepay_line: "💰 Oldindan to'lov: {a} · Qolgan: {b}",
     check_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, bot orqali xabar keladi.",
     check_rej: "To'lov cheki tasdiqlanmadi. Iltimos, do'kon bilan bog'laning.", repeat: "🔁 Qayta buyurtma",
@@ -351,7 +356,7 @@ const I18N = {
     amount: "O'tkaziladigan summa", card_no: "Karta raqami", copy: "📋 Nusxa", rc_ok: "✅ Chek yuklandi",
     rc_check: "Rasmni bosib tekshiring", replace: "Almashtirish", uploading: "⏳ Yuklanmoqda...",
     upload_rc: "🧾 Chek rasmini yuklash", rest_pay: "Qolgan summani to'lash", note: "Izoh (ixtiyoriy)",
-    note_ph: "Masalan: lift yo'q, yig'ib berish kerak", prepay_sum: "Oldindan to'lov ({p}%)",
+    note_ph: "Masalan: lift yo'q, 5-qavat", prepay_sum: "Oldindan to'lov ({p}%)",
     on_receive: "Qabul qilganda to'lanadi",
     after_check: "Chekingiz tekshirilgach, buyurtma qabul qilinadi va bot orqali xabar beramiz.",
     card_copied: "Karta raqami nusxalandi", phone_sent: "Raqam yuborildi",
@@ -367,6 +372,14 @@ const I18N = {
     sent_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
+    asm_title: "Yig'ib berish", asm_q: "Mebelni yig'ib, o'rnatib beraylikmi?", asm_yes: "Ha, yig'ib bering (+{sum})",
+    asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati yig'iladigan mahsulotlar narxining {p}% i: {items}.",
+    asm_line: "Yig'ib berish ({p}%)", e_asm: "Mebelni yig'ib berish kerakmi — tanlang",
+    asm_avail: "🔧 Yig'ib berish xizmati bor: +{p}% (buyurtmada tanlanadi)",
+    offer_agree: "shartlariga roziman", offer_link: "Ommaviy oferta", offer_title: "Ommaviy oferta",
+    e_offer: "Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring",
+    accept_btn: "✅ Tekshirdim, qabul qildim", accept_hint: "Mebelni tekshirib ko'ring: komplekti, shikast va dog' yo'qligi, rangi va o'lchami. Hammasi joyida bo'lsa — tasdiqlang.",
+    accepted: "Qabul qilganingiz tasdiqlandi. Rahmat!", accept_q: "Buyurtmani tekshirib qabul qildingizmi? Tasdiqlagandan keyin buyurtma yakunlanadi.",
   },
   ru: {
     nav_catalog: "Каталог", nav_cart: "Корзина", nav_orders: "Мои заказы", search_ph: "Диван, шкаф, стол...",
@@ -374,8 +387,8 @@ const I18N = {
     net_err: "Проверьте подключение к интернету", gen_err: "Произошла ошибка", oos: "Нет в наличии", to_cart: "В корзину",
     all: "Все", n_products: "Товаров: {n}", sort_new: "Новинки", sort_cheap: "Дешевле", sort_exp: "Дороже",
     sort_sale: "Скидки", nothing: "Ничего не найдено", cart_empty: "Корзина пока пуста",
-    go_catalog: "Перейти в каталог", items_n: "Товары ({n} шт.)", delivery: "Доставка и сборка",
-    by_manager: "Бесплатно", free_deliv: "🚚 Доставка и сборка — бесплатно", total: "Итого", clear_cart: "Очистить корзину", clear_q: "Очистить корзину?",
+    go_catalog: "Перейти в каталог", items_n: "Товары ({n} шт.)", delivery: "Доставка",
+    by_manager: "Бесплатно", free_deliv: "🚚 Доставка — бесплатно", total: "Итого", clear_cart: "Очистить корзину", clear_q: "Очистить корзину?",
     prepay_line: "💰 Предоплата: {a} · Остаток: {b}",
     check_wait: "🧾 Ваш чек проверяется. После подтверждения придёт сообщение в боте.",
     check_rej: "Чек об оплате не подтверждён. Пожалуйста, свяжитесь с магазином.", repeat: "🔁 Повторить заказ",
@@ -399,7 +412,7 @@ const I18N = {
     amount: "Сумма перевода", card_no: "Номер карты", copy: "📋 Копировать", rc_ok: "✅ Чек загружен",
     rc_check: "Нажмите, чтобы проверить", replace: "Заменить", uploading: "⏳ Загрузка...",
     upload_rc: "🧾 Загрузить фото чека", rest_pay: "Оплата остатка", note: "Комментарий (необязательно)",
-    note_ph: "Например: нет лифта, нужна сборка", prepay_sum: "Предоплата ({p}%)",
+    note_ph: "Например: нет лифта, 5 этаж", prepay_sum: "Предоплата ({p}%)",
     on_receive: "Оплата при получении",
     after_check: "После проверки чека заказ будет принят — мы сообщим в боте.",
     card_copied: "Номер карты скопирован", phone_sent: "Номер отправлен",
@@ -415,6 +428,14 @@ const I18N = {
     sent_wait: "🧾 Ваш чек проверяется. После подтверждения заказ будет принят — мы сообщим в боте.",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
+    asm_title: "Сборка", asm_q: "Собрать и установить мебель?", asm_yes: "Да, соберите (+{sum})",
+    asm_no: "Нет, соберу сам", asm_info: "Услуга сборки — {p}% от цены собираемых товаров: {items}.",
+    asm_line: "Сборка ({p}%)", e_asm: "Выберите, нужна ли сборка мебели",
+    asm_avail: "🔧 Есть услуга сборки: +{p}% (выбирается при заказе)",
+    offer_agree: "— принимаю условия", offer_link: "Публичная оферта", offer_title: "Публичная оферта",
+    e_offer: "Чтобы оформить заказ, примите условия публичной оферты",
+    accept_btn: "✅ Проверил, принимаю", accept_hint: "Проверьте мебель: комплектность, отсутствие повреждений и пятен, цвет и размеры. Если всё в порядке — подтвердите.",
+    accepted: "Приёмка подтверждена. Спасибо!", accept_q: "Вы проверили и принимаете заказ? После подтверждения заказ будет завершён.",
   },
 };
 const CITY_RU = { "Toshkent shahri": "г. Ташкент", "Toshkent viloyati": "Ташкентская обл.", "Andijon": "Андижан",
@@ -576,9 +597,11 @@ function viewCart() {
 }
 async function clearCart() { if (await confirmBox(t("clear_q"))) { S.cart = {}; store.set("cart", {}); render(); } }
 
-const TRACK = ["new", "confirmed", "delivering", "done"];
+const trackOf = o => ["new", "confirmed"].concat(o.delivery === "pickup" ? [] : ["delivering", "delivered"],
+  o.assembly ? ["assembled"] : [], ["done"]);
+const awaitingAccept = o => o.status === (o.assembly ? "assembled" : "delivered");
 function orderCard(o, admin = false) {
-  const step = TRACK.indexOf(o.status);
+  const TRACK = trackOf(o), step = TRACK.indexOf(o.status);
   const names = o.items.map(i => `${esc(i.name)} × ${i.qty}`).join(", ");
   return `<div class="order" ${admin ? `onclick="openAdminOrder(${o.id})"` : ""}>
     <div class="ohead"><b>№ ${o.id}${admin ? " · " + esc(o.name) : ""}</b><span class="status ${o.status}">${esc(o.status_text)}</span></div>
@@ -588,9 +611,17 @@ function orderCard(o, admin = false) {
     ${o.prepay ? `<div class="small muted">${admin ? `💰 Oldindan to'lov: ${money(o.prepay)} · Qolgan: ${money(o.total - o.prepay)}` : t("prepay_line", { a: money(o.prepay), b: money(o.total - o.prepay) })}</div>` : ""}
     ${!admin && o.status === "new" ? `<div class="small" style="margin-top:6px">${t("check_wait")}</div>` : ""}
     ${!admin && o.status === "rejected" ? `<div class="small err" style="margin-top:6px">${t("check_rej")}</div>` : ""}
+    ${!admin && awaitingAccept(o) ? `<div class="small" style="margin-top:8px">${t("accept_hint")}</div>
+      <button class="btn block" style="margin-top:8px" onclick="acceptOrder(${o.id})">${t("accept_btn")}</button>` : ""}
     <div class="ohead" style="margin:6px 0 0"><b>${money(o.total)}</b>
       ${!admin && ["done", "cancelled", "rejected"].includes(o.status) ? `<button class="btn soft sm" onclick="repeatOrder(${o.id})">${t("repeat")}</button>` : ""}
     </div></div>`;
+}
+async function acceptOrder(id) {
+  if (!await confirmBox(t("accept_q"))) return;
+  try { await api(`/api/order/${id}/accept`, { method: "POST" }); notifyH("success"); toast(t("accepted"));
+        await loadMe(); render(); }
+  catch (e) { alertBox(e.message); }
 }
 function viewOrders() {
   const list = S.me.orders || [];
@@ -684,6 +715,7 @@ function openProduct(id) {
           ${p.old_price > p.price ? `<span class="old" style="font-size:14px">${money(p.old_price)}</span> <span class="badge" style="position:static">−${discount(p)}%</span>` : ""}</div>
         ${p.delivery_days ? `<div class="ddbox">${t("delivery_time")} <b>${esc(p.delivery_days)}</b></div>` : ""}
         <div class="ddbox free-box">${t("free_deliv")}</div>
+        ${p.assembly && S.asmPct ? `<div class="ddbox">${t("asm_avail", { p: S.asmPct })}</div>` : ""}
         ${!p.in_stock ? `<div class="err">${t("oos")}</div>` : ""}
       </div>
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
@@ -823,13 +855,22 @@ function openCheckout() {
         delivery: pr.delivery || "delivery", city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
         lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? t("prev_addr") : "", prevGeo: pr.lat != null,
         pay: S.payments.includes(pr.pay) ? pr.pay : S.payments[0], note: "",
+        assembly: null, offer: false,
         receipt: null, receiptUrl: "", receiptBusy: false, err: "" };
   openSheet({ title: t("checkout"), rerender: checkoutHTML,
     main: () => [t("send_order"), submitOrder],
     onClose: () => F.receiptUrl && URL.revokeObjectURL(F.receiptUrl) });
 }
+// yig'ib berish: faqat yetkazib berishda va yig'iladigan mahsulot bo'lsa; narxi — shu mahsulotlar narxining S.asmPct %
+const asmItems = () => cartItems().filter(x => x.p.assembly);
+const asmAsk = () => F.delivery === "delivery" && S.asmPct > 0 && asmItems().length > 0;
+const asmFee = () => Math.ceil(asmItems().reduce((a, x) => a + x.p.price * x.qty, 0) * S.asmPct / 100 / 1000) * 1000;
+const coTotal = () => cartTotal() + (asmAsk() && F.assembly ? asmFee() : 0);
+function openOffer() {
+  openSheet({ title: t("offer_title"), body: `<div class="section offer">${S.offer}</div>`, main: () => [t("close"), closeSheet] });
+}
 function checkoutHTML() {
-  const total = cartTotal(), pre = prepayOf(total), pp = S.prepay || {};
+  const total = coTotal(), pre = prepayOf(total), pp = S.prepay || {};
   const step = (n, t) => `<h3><span class="stepno">${n}</span>${t}</h3>`;
   return `<div class="section">
       <div class="seg">${[["delivery", t("deliv_opt")], ["pickup", t("pickup_opt")]].map(([k, lb]) =>
@@ -869,6 +910,13 @@ function checkoutHTML() {
         : `<label class="btn block upl" style="margin-top:12px">${F.receiptBusy ? t("uploading") : t("upload_rc")}
           <input type="file" accept="image/*" onchange="setReceipt(this.files[0])"></label>`}`}
     </div>
+    ${asmAsk() ? `<div class="section"><h3>🔧 ${t("asm_title")}</h3>
+      <div class="small muted" style="margin-bottom:8px">${t("asm_info", { p: S.asmPct, items: asmItems().map(x => esc(x.p.name)).join(", ") })}</div>
+      <div style="font-weight:600;margin-bottom:8px">${t("asm_q")}</div>
+      <div class="opts">
+        <button class="${F.assembly === true ? "on" : ""}" onclick="F.assembly=true; F.err=''; refresh()">${t("asm_yes", { sum: money(asmFee()) })}</button>
+        <button class="${F.assembly === false ? "on" : ""}" onclick="F.assembly=false; F.err=''; refresh()">${t("asm_no")}</button></div>
+    </div>` : ""}
     <div class="section"><h3>${t("rest_pay")}</h3>
       <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(payName(p))}</button>`).join("")}</div>
       <label class="f">${t("note")}</label>
@@ -876,10 +924,13 @@ function checkoutHTML() {
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
       ${F.delivery === "delivery" ? `<div class="sum"><span class="muted">${t("delivery")}</span><span class="free">${t("by_manager")}</span></div>` : ""}
+      ${asmAsk() && F.assembly ? `<div class="sum"><span class="muted">${t("asm_line", { p: S.asmPct })}</span><span>${money(asmFee())}</span></div>` : ""}
       <div class="sum total"><span>${t("total")}</span><span>${money(total)}</span></div>
       <div class="sum"><span class="muted">${t("prepay_sum", { p: pp.pct || 10 })}</span><span>${money(pre)}</span></div>
       <div class="sum"><span class="muted">${t("on_receive")}</span><span>${money(total - pre)}</span></div>
       <div class="small muted" style="margin-top:6px">${t("after_check")}</div>
+      <label class="chk" style="margin-top:12px"><input type="checkbox" ${F.offer ? "checked" : ""} onchange="F.offer=this.checked; F.err=''">
+        <span><a class="tel" href="#" onclick="openOffer(); return false">${t("offer_link")}</a> ${t("offer_agree")}</span></label>
       ${F.err ? `<div class="err">⚠️ ${esc(F.err)}</div>` : ""}
     </div>`;
 }
@@ -1099,7 +1150,9 @@ async function submitOrder() {
     : F.delivery === "delivery" && F.lat == null ? t("e_addr")
     : !(S.prepay && S.prepay.card) ? t("e_card")
     : F.receiptBusy ? t("e_rc_busy")
-    : !F.receipt ? t("e_rc", { sum: money(prepayOf(cartTotal())) }) : "";
+    : !F.receipt ? t("e_rc", { sum: money(prepayOf(coTotal())) })
+    : asmAsk() && F.assembly === null ? t("e_asm")
+    : !F.offer ? t("e_offer") : "";
   if (F.err) { notifyH("error"); refresh(); const e = document.querySelector(".sheet.on .err:last-of-type"); e && e.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
   sending = true; mainBusy(true);
   try {
@@ -1109,7 +1162,8 @@ async function submitOrder() {
       // shaharga xaritadan aniqlangan manzil nomini ham qo'shamiz (admin ko'rishi uchun)
       customer: { name: F.name, phone: F.phone, delivery: F.delivery,
                   city: F.delivery === "delivery" && F.geo && !F.prevGeo ? `${F.city} — ${F.geo}` : F.city, address: F.address,
-                  lat: F.lat, lon: F.lon, pay: F.pay, note: F.note } }));
+                  lat: F.lat, lon: F.lon, pay: F.pay, note: F.note, assembly: asmAsk() && F.assembly === true },
+      offer: F.offer, offer_ver: S.offerVer }));
     fd.append("receipt", F.receipt, "chek.jpg");
     const { order } = await api("/api/order", { form: fd });
     notifyH("success");
@@ -1145,7 +1199,7 @@ function viewAdmin() {
     ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
       <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;
   if (S.adm.tab === "orders") {
-    const f = [["active", "Faol"], ["new", "🧾 Chek kutmoqda"], ["confirmed", "Qabul qilingan"], ["delivering", "Yo'lda"], ["done", "Yetkazilgan"], ["rejected", "Chek rad etilgan"], ["cancelled", "Bekor"], ["", "Barchasi"]];
+    const f = [["active", "Faol"], ["new", "🧾 Chek kutmoqda"], ["confirmed", "Qabul qilingan"], ["delivering", "Yo'lda"], ["delivered", "Yetkazilgan"], ["assembled", "Yig'ilgan"], ["done", "Yakunlangan"], ["rejected", "Chek rad etilgan"], ["cancelled", "Bekor"], ["", "Barchasi"]];
     h += `<div class="chips" style="margin:0;padding:8px 12px 0">${f.map(([k, t]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; loadAdmin()">${t}</button>`).join("")}</div>`;
     h += d.orders.length ? d.orders.map(o => orderCard(o, true)).join("") : `<div class="empty"><div class="big">📭</div>Buyurtmalar yo'q</div>`;
   } else if (S.adm.tab === "products") {
@@ -1156,7 +1210,7 @@ function viewAdmin() {
       <button class="btn" onclick="openProductForm()">＋ Qo'shish</button></div>
       <div class="list-card">${list.map(p => `<div class="row" onclick="openProductForm(${p.id})">
         <div class="thumb">${picHTML(p)}</div>
-        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}${p.video && p.video.status === "ready" ? `<span class="tag">🎬</span>` : p.video && p.video.status === "processing" ? `<span class="tag">🎬⏳</span>` : p.video && p.video.status === "error" ? `<span class="tag red">🎬✕</span>` : ""}${p.youtube ? `<span class="tag">YouTube</span>` : ""}</div>
+        <div class="grow"><div class="pname">${esc(p.name)}${!p.active ? `<span class="tag">yashirin</span>` : ""}${!p.in_stock ? `<span class="tag red">yo'q</span>` : ""}${p.name_ru ? `<span class="tag">RU ✓</span>` : `<span class="tag red">RU …</span>`}${p.video && p.video.status === "ready" ? `<span class="tag">🎬</span>` : p.video && p.video.status === "processing" ? `<span class="tag">🎬⏳</span>` : p.video && p.video.status === "error" ? `<span class="tag red">🎬✕</span>` : ""}${p.youtube ? `<span class="tag">YouTube</span>` : ""}${p.assembly ? `<span class="tag">🔧</span>` : ""}</div>
           <div class="small muted">${esc((d.categories.find(c => c.id === p.cat_id) || {}).name || "Kategoriyasiz")} · ${p.images.length} rasm · 🏭 ${esc(supName(p.supplier_id) || "ta'minotchi yo'q")}</div>
           <div class="price">${money(p.price)}</div></div><span class="muted">›</span></div>`).join("") || `<div class="empty">Mahsulot yo'q</div>`}</div>`;
   } else if (S.adm.tab === "cats") {
@@ -1214,7 +1268,22 @@ function viewAdmin() {
       <input class="in" id="setPct" inputmode="numeric" value="${esc(st2.prepay_pct || "10")}" style="width:100px">
       <label class="switch" style="margin-top:8px"><span>Yangi mijoz qo'shilganda menga xabar yuborilsin</span>
         <input type="checkbox" id="setNotify" ${st2.notify_new_users === "1" ? "checked" : ""}></label>
-      <button class="btn block" style="margin-top:14px" onclick="saveSettings()">💾 Saqlash</button></div>`;
+      <h3 style="margin-top:18px">🔧 Yig'ib berish</h3>
+      <label class="f">Yig'ib berish ustamasi (%) — yig'iladigan mahsulotlar narxidan</label>
+      <input class="in" id="setAsm" inputmode="numeric" value="${esc(st2.assembly_pct ?? "5")}" style="width:100px">
+      <h3 style="margin-top:18px">🧾 Sotuvchi rekvizitlari <span class="muted small">(oferta va dalolatnoma uchun)</span></h3>
+      <div class="small muted">YaTT yoki MChJ ochilgach to'ldiring. Bo'sh joylar hujjatlarda «______» bo'lib chiqadi.</div>
+      <label class="f">Nomi (masalan: «Mebelix» MChJ yoki YaTT Maksudov R.)</label><input class="in" id="setSName" value="${esc(st2.seller_name || "")}">
+      <label class="f">STIR</label><input class="in" id="setSTin" inputmode="numeric" value="${esc(st2.seller_tin || "")}">
+      <label class="f">Manzil</label><input class="in" id="setSAddr" value="${esc(st2.seller_address || "")}">
+      <label class="f">Telefon</label><input class="in" id="setSPhone" inputmode="tel" value="${esc(st2.seller_phone || "")}">
+      <button class="btn block" style="margin-top:14px" onclick="saveSettings()">💾 Saqlash</button></div>
+    <div class="section"><h3>👥 Ish guruhlari</h3>
+      ${[["courier", "🚚 Kuryerlar guruhi", "/kuryer_guruhi"], ["assembler", "🔧 Yig'uvchilar guruhi", "/yiguvchi_guruhi"]].map(([r, name, cmd]) =>
+        st2[r + "_chat"] ? `<div class="row" style="padding:8px 0"><div class="grow"><b>${name}</b><div class="small">✅ Ulangan: ${esc(st2[r + "_chat_title"] || st2[r + "_chat"])}</div></div>
+            <button class="btn danger sm" onclick="unlinkGroup('${r}')">Uzish</button></div>`
+        : `<div style="padding:8px 0"><b>${name}</b><div class="small muted">Ulanmagan. Telegram'da guruh oching, botni (@${esc((S.shop && S.shop.bot) || "Mebelixuz_bot")}) guruhga qo'shing va guruhda <code>${cmd}</code> deb yozing.</div></div>`).join("")}
+    </div>`;
   } else {
     h += `<div class="section"><h3>Barcha mijozlarga xabar</h3>
       <div class="small muted" style="margin-bottom:10px">Botdan foydalangan ${st.customers} ta mijozga yuboriladi. Aksiya, yangi mahsulot yoki chegirma haqida yozing.</div>
@@ -1244,11 +1313,19 @@ function openAdminOrder(id) {
     <div class="section">${o.items.map(i => `<div class="row"><div class="thumb">${picHTML(i)}</div><div class="grow">
       <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div>
       ${i.delivery_days ? `<div class="dd">🚚 ${esc(i.delivery_days)}</div>` : ""}${supInfoHTML(i)}</div><b>${money(i.price * i.qty)}</b></div>`).join("")}
+      ${o.assembly ? `<div class="sum"><span class="muted">🔧 Yig'ib berish</span><span>${money(o.assembly_fee)}</span></div>
+        <div class="sum"><span class="muted">👷 Yig'uvchi</span><span>${o.assembler && o.assembler.id ? `<b>${esc(o.assembler.name)}</b>
+          ${!["assembled", "done"].includes(o.status) ? ` <a class="tel" href="#" onclick="releaseAsm(${o.id}); return false">bo'shatish</a>` : ""}` : `<span class="muted">hali hech kim olmagan</span>`}</span></div>` : ""}
       <div class="sum total"><span>Jami</span><span>${money(o.total)}</span></div>
       ${orderProfit(o) !== null ? `<div class="sum"><span class="muted">📈 Foyda</span><b>${money(orderProfit(o))}</b></div>` : ""}
       ${o.prepay ? `<div class="sum"><span class="muted">Qabul qilganda olinadi</span><span>${money(o.total - o.prepay)}</span></div>` : ""}</div>
+    ${(o.events || []).length ? `<div class="section"><h3>🕒 Bosqichlar</h3><div class="tl">${o.events.map(([st, ts, who]) =>
+      `<div>${esc({ claim: "🙋 Yig'ishni oldi", release: "↩️ Yig'ishdan voz kechdi" }[st] || (d.statuses || {})[st] || st)} — ${dateStr(ts)}${who ? ` <span class="muted">· ${esc(who)}</span>` : ""}</div>`).join("")}
+      ${o.accepted_ts ? `<div>✅ Mijoz botda tekshirib qabul qildi — ${dateStr(o.accepted_ts)}</div>` : ""}
+      ${o.proofs ? `<div>📷 Guruhlardan ${o.proofs} ta surat (admin guruhiga yuborilgan)</div>` : ""}</div></div>` : ""}
     <div style="padding:0 12px;display:grid;gap:8px">
-      ${(d.flow[o.status] || []).map(s => `<button class="btn ${["cancelled", "rejected"].includes(s) ? "danger" : ""} block" onclick="setStatus(${o.id}, '${s}')">${esc(d.actions[s])}</button>`).join("")}
+      <button class="btn soft block" onclick="openUrl(location.origin + '/act/${o.id}?k=${o.act_key}')">📄 Dalolatnoma (chop etish / PDF)</button>
+      ${(o.next || d.flow[o.status] || []).map(s => `<button class="btn ${["cancelled", "rejected"].includes(s) ? "danger" : ""} block" onclick="setStatus(${o.id}, '${s}')">${esc(d.actions[s])}</button>`).join("")}
       <a class="btn soft block" style="text-decoration:none" href="tel:${esc(telHref)}">📞 Qo'ng'iroq qilish</a>
     </div>` });
   if (o.has_receipt) loadReceipt(o.id);
@@ -1288,9 +1365,21 @@ async function setStatus(id, status) {
         toast("Holat o'zgardi, mijozga xabar yuborildi"); closeAll(); loadAdmin(); }
   catch (e) { alertBox(e.message); }
 }
+async function releaseAsm(id) {
+  if (!await confirmBox("Yig'uvchini bo'shatasizmi? Buyurtma yig'uvchilar guruhida yana «Men yig'aman» bilan chiqadi.")) return;
+  try { await api(`/api/admin/order/${id}/release`, { method: "POST" }); toast("Bo'shatildi"); closeAll(); loadAdmin(); }
+  catch (e) { alertBox(e.message); }
+}
+async function unlinkGroup(role) {
+  if (!await confirmBox("Guruh uzilsinmi? Yangi buyurtmalar u yerga bormaydi.")) return;
+  try { const r = await api(`/api/admin/group/${role}/unlink`, { method: "POST" }); S.adm.data.settings = r.settings; toast("Uzildi"); render(); }
+  catch (e) { alertBox(e.message); }
+}
 async function saveSettings() {
   try {
-    const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value, notify_new_users: $("#setNotify").checked ? 1 : 0 } });
+    const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value, notify_new_users: $("#setNotify").checked ? 1 : 0,
+      assembly_pct: $("#setAsm").value, seller_name: $("#setSName").value, seller_tin: $("#setSTin").value,
+      seller_address: $("#setSAddr").value, seller_phone: $("#setSPhone").value } });
     S.adm.data.settings = r.settings; await loadCatalog(); notifyH("success"); toast("Saqlandi ✓"); render();
   } catch (e) { alertBox(e.message); }
 }
@@ -1310,7 +1399,7 @@ function openProductForm(id) {
     specs_ru: p ? (p.specs_ru || []).map(s => s.join(": ")).join("\n") : "", delivery_days_ru: p ? p.delivery_days_ru || "" : "",
     ru_edited: false, ru_open: false,
     supplier_id: p && p.supplier_id ? p.supplier_id : "", sup_new: false, sup_name: "", sup_phone: "", sup_note: "",
-    supplier_sku: p ? p.supplier_sku || "" : "", cost: p && p.cost ? p.cost : "",
+    supplier_sku: p ? p.supplier_sku || "" : "", cost: p && p.cost ? p.cost : "", assembly: p ? !!p.assembly : false,
     err: "", busy: false, loading: 0 };
   openSheet({ title: p ? "Mahsulotni tahrirlash" : "Yangi mahsulot", rerender: productFormHTML,
     onClose: () => PF.imgs.forEach(im => im.kind === "n" && URL.revokeObjectURL(im.src)) });
@@ -1383,6 +1472,7 @@ function productFormHTML() {
         ${PF.id ? `<button class="btn ghost block" style="margin-top:10px" onclick="retranslate()">🔄 Qaytadan avtomatik tarjima qilish</button>` : ""}` : ""}
     </div>
     <div class="section">
+      <label class="switch"><span>🔧 Yig'iladigan mahsulot <span class="small muted">(mijozdan «yig'ib beraylikmi?» deb so'raladi)</span></span><input type="checkbox" ${PF.assembly ? "checked" : ""} onchange="PF.assembly=this.checked"></label>
       <label class="switch"><span>Omborda bor</span><input type="checkbox" ${PF.in_stock ? "checked" : ""} onchange="PF.in_stock=this.checked"></label>
       <label class="switch"><span>Katalogda ko'rsatish</span><input type="checkbox" ${PF.active ? "checked" : ""} onchange="PF.active=this.checked"></label>
     </div>
@@ -1449,7 +1539,7 @@ async function saveProduct() {
   const fields = { id: PF.id, name: PF.name, cat_id: PF.cat_id || "", price: PF.price, old_price: PF.old_price, emoji: PF.emoji,
     description: PF.description, specs: PF.specs, in_stock: PF.in_stock ? 1 : 0, active: PF.active ? 1 : 0,
     delivery_days: PF.delivery_days, youtube: PF.youtube, video_action: PF.videoAction,
-    supplier_id: PF.sup_new ? "" : PF.supplier_id, supplier_sku: PF.supplier_sku, cost: PF.cost };
+    supplier_id: PF.sup_new ? "" : PF.supplier_id, supplier_sku: PF.supplier_sku, cost: PF.cost, assembly: PF.assembly ? 1 : 0 };
   if (PF.sup_new) Object.assign(fields, { supplier_new_name: PF.sup_name, supplier_new_phone: PF.sup_phone, supplier_new_note: PF.sup_note });
   if (PF.ru_edited) Object.assign(fields, { ru_edited: 1, name_ru: PF.name_ru, description_ru: PF.description_ru,
     specs_ru: PF.specs_ru, delivery_days_ru: PF.delivery_days_ru });
@@ -1603,6 +1693,7 @@ if (IN_TG) {
 async function loadCatalog() {
   const d = await api("/api/catalog?lang=" + LANG);
   S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
+  S.asmPct = d.assembly_pct || 0; S.offer = d.offer || ""; S.offerVer = d.offer_ver || "";
   S.paymentsRu = d.payments_ru || {};
 }
 async function setLang(l, save = true) {

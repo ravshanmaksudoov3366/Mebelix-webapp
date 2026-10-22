@@ -15,11 +15,15 @@ import time
 import uuid
 from urllib.parse import parse_qsl
 
+from offer import OFFER_VERSION, render_offer  # noqa: F401
+
 STATUSES = {
     "new": "🧾 Chek tekshirilmoqda",
     "confirmed": "✅ Qabul qilindi",
-    "delivering": "🚚 Yo'lda",
-    "done": "📦 Yetkazildi",
+    "delivering": "🚚 Yo'lga chiqdi",
+    "delivered": "📦 Yetkazib berildi",
+    "assembled": "🔧 Yig'ib bo'lindi",
+    "done": "🤝 Mijoz qabul qildi",
     "rejected": "⛔ Chek rad etildi",
     "cancelled": "❌ Bekor qilindi",
 }
@@ -27,20 +31,46 @@ ACTIONS = {
     "new": "🔄 Qayta tekshirish",
     "confirmed": "✅ Chekni tasdiqlash",
     "delivering": "🚚 Yo'lga chiqarish",
-    "done": "📦 Yetkazildi",
+    "delivered": "📦 Yetkazib berildi",
+    "assembled": "🔧 Yig'ib bo'lindi",
+    "done": "🤝 Yakunlash (mijoz qabul qildi)",
     "rejected": "⛔ Chekni rad etish",
     "cancelled": "❌ Bekor qilish",
 }
-# Har bir holatdan qaysi holatlarga o'tish mumkin (admin tugmalari)
+# Kuryer va yig'uvchi guruhlaridagi tugmalar (faqat o'z bosqichlari)
+ROLE_ACTIONS = {
+    "courier": {"delivering": "🚚 Yo'lga chiqdim", "delivered": "📦 Yetkazib berdim"},
+    "assembler": {"assembled": "🔧 Yig'ib bo'ldim"},
+}
+# Umumiy jadval (admin panel uchun); aniq buyurtma uchun next_statuses() ishlatiladi
 FLOW = {
     "new": ["confirmed", "rejected"],
-    "confirmed": ["delivering", "cancelled"],
-    "delivering": ["done", "cancelled"],
+    "confirmed": ["delivering", "done", "cancelled"],
+    "delivering": ["delivered", "cancelled"],
+    "delivered": ["assembled", "done"],
+    "assembled": ["done"],
     "done": [],
     "rejected": ["confirmed", "cancelled"],
     "cancelled": ["new"],
 }
-ACTIVE = ("new", "confirmed", "delivering")
+ACTIVE = ("new", "confirmed", "delivering", "delivered", "assembled")
+OTHER_ASM = "boshqa yig'uvchi"
+
+
+def next_statuses(o: dict) -> list:
+    """Shu buyurtma uchun keyingi bosqichlar: olib ketishda yetkazish yo'q, yig'ish faqat so'ralgan bo'lsa."""
+    st = o["status"]
+    pickup = o.get("delivery") == "pickup"
+    if st == "confirmed":
+        return ["done", "cancelled"] if pickup else ["delivering", "cancelled"]
+    if st == "delivered":
+        return ["assembled"] if o.get("assembly") else ["done"]
+    return list(FLOW.get(st, []))
+
+
+def awaiting_acceptance(o: dict) -> bool:
+    """Mijoz «tekshirib qabul qildim» deyishi kutilayotgan holat."""
+    return o["status"] == ("assembled" if o.get("assembly") else "delivered")
 DELIVERY = {"delivery": "🚚 Yetkazib berish", "pickup": "🏬 Do'kondan olib ketish"}
 # Qolgan summani to'lash usullari (naqd olib tashlangan)
 PAYMENTS = ["Karta orqali (qabul qilganda)", "Click / Payme"]
@@ -49,13 +79,21 @@ STATUSES_RU = {
     "new": "🧾 Чек проверяется",
     "confirmed": "✅ Принят",
     "delivering": "🚚 В пути",
-    "done": "📦 Доставлен",
+    "delivered": "📦 Доставлен",
+    "assembled": "🔧 Собран",
+    "done": "🤝 Принят клиентом",
     "rejected": "⛔ Чек отклонён",
     "cancelled": "❌ Отменён",
 }
 PAYMENTS_RU = {"Karta orqali (qabul qilganda)": "Картой (при получении)", "Click / Payme": "Click / Payme",
                "Naqd (qabul qilganda)": "Наличными (при получении)"}
-DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1"}
+DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1",
+                    "assembly_pct": "5",
+                    # sotuvchi rekvizitlari (oferta va dalolatnoma uchun; YaTT/MChJ ochilgach to'ldiriladi)
+                    "seller_name": "", "seller_tin": "", "seller_address": "", "seller_phone": "",
+                    # kuryer va yig'uvchi guruhlari (botda /kuryer_guruhi, /yiguvchi_guruhi bilan ulanadi)
+                    "courier_chat": "", "courier_chat_title": "", "assembler_chat": "", "assembler_chat_title": ""}
+SELLER_FIELDS = ("seller_name", "seller_tin", "seller_address", "seller_phone")
 
 
 class ShopError(Exception):
@@ -154,11 +192,18 @@ PRODUCT_COLUMNS = {"delivery_days": "TEXT DEFAULT ''", "name_ru": "TEXT DEFAULT 
                    # video: {"status": "processing|ready|error", "src": "uploads/..mp4", "poster": "uploads/..jpg"}
                    "video": "TEXT DEFAULT ''", "youtube": "TEXT DEFAULT ''",
                    # faqat admin uchun: ta'minotchi, kirim narxi, ta'minotchidagi kodi (mijozga hech qachon yuborilmaydi)
-                   "supplier_id": "INTEGER", "cost": "INTEGER DEFAULT 0", "supplier_sku": "TEXT DEFAULT ''"}
+                   "supplier_id": "INTEGER", "cost": "INTEGER DEFAULT 0", "supplier_sku": "TEXT DEFAULT ''",
+                   "assembly": "INTEGER DEFAULT 0"}  # 1 — yig'iladigan mahsulot (mijozdan yig'ib berish so'raladi)
 PRIVATE_PRODUCT_FIELDS = ("supplier_id", "cost", "supplier_sku")
 CATEGORY_COLUMNS = {"name_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''"}
 USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER", "lang": "TEXT DEFAULT ''"}
-ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''"}
+ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''",
+                 "assembly": "INTEGER DEFAULT 0", "assembly_fee": "INTEGER DEFAULT 0",
+                 "offer_ver": "TEXT DEFAULT ''", "offer_ts": "INTEGER",          # ommaviy ofertaga rozilik
+                 "accepted_ts": "INTEGER",                                     # mijoz «tekshirib qabul qildim» degan vaqt
+                 "events": "TEXT DEFAULT '[]'",                                # [[holat, vaqt, kim], ...]
+                 "proofs": "TEXT DEFAULT '[]'",
+                 "assembler": "TEXT DEFAULT ''"}                               # {"id","name","ts"} — «Men yig'aman» degan yig'uvchi                                # guruhlardan kelgan suratlar (file_id)
 
 SEED_CATEGORIES = [("Divanlar", "🛋"), ("Yotoqxona", "🛏"), ("Oshxona", "🍳"),
                    ("Stol-stullar", "🪑"), ("Shkaflar", "🚪"), ("Bolalar", "🧸")]
@@ -233,6 +278,7 @@ class Shop:
         d["images"] = json.loads(d["images"] or "[]")
         d["in_stock"] = bool(d["in_stock"])
         d["active"] = bool(d["active"])
+        d["assembly"] = bool(d.get("assembly"))
         d["video"] = json.loads(d.get("video") or "{}")
         return d
 
@@ -241,6 +287,9 @@ class Shop:
         d = dict(r)
         d["items"] = json.loads(d["items"] or "[]")
         d["admin_msgs"] = json.loads(d["admin_msgs"] or "[]")
+        d["events"] = json.loads(d.get("events") or "[]")
+        d["proofs"] = json.loads(d.get("proofs") or "[]")
+        d["assembler"] = json.loads(d.get("assembler") or "{}")
         d["status_text"] = STATUSES.get(d["status"], d["status"])
         return d
 
@@ -307,12 +356,28 @@ class Shop:
         cur = self.settings()
         notify = data.get("notify_new_users", cur["notify_new_users"])
         notify = "1" if str(notify).lower() in ("1", "true", "on") else "0"
-        for k, v in {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct),
-                     "notify_new_users": notify}.items():
-            self.db.execute("INSERT INTO settings(key, value) VALUES (?,?) "
-                            "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
-        self.db.commit()
+        try:
+            apct = int(re.sub(r"\D", "", str(data.get("assembly_pct", cur["assembly_pct"]) or "0")) or 0)
+        except ValueError:
+            apct = 5
+        if not 0 <= apct <= 50:
+            raise ShopError("Yig'ish ustamasi 0 dan 50 foizgacha bo'lishi kerak")
+        values = {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct), "notify_new_users": notify,
+                  "assembly_pct": str(apct)}
+        for k in SELLER_FIELDS:
+            values[k] = str(data.get(k, cur[k]) or "").strip()[:200]
+        for k, v in values.items():
+            self.set_setting(k, v)
         return self.settings()
+
+    def set_setting(self, key: str, value: str):
+        self.db.execute("INSERT INTO settings(key, value) VALUES (?,?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+        self.db.commit()
+
+    def seller(self) -> dict:
+        st = self.settings()
+        return {k[len("seller_"):]: st[k] for k in SELLER_FIELDS}
 
     def prepay_info(self) -> dict:
         st = self.settings()
@@ -327,7 +392,9 @@ class Shop:
 
     def catalog(self, lang: str = "uz") -> dict:
         return {"categories": self.categories(lang), "products": [self.localize_product(p, lang) for p in self.products()],
-                "payments": PAYMENTS, "payments_ru": PAYMENTS_RU, "prepay": self.prepay_info(), "lang": lang}
+                "payments": PAYMENTS, "payments_ru": PAYMENTS_RU, "prepay": self.prepay_info(), "lang": lang,
+                "assembly_pct": int(self.settings()["assembly_pct"] or 0), "offer_ver": OFFER_VERSION,
+                "offer": render_offer(self.seller(), int(self.settings()["assembly_pct"] or 0), lang)}
 
     # ------------------------------------------------ tarjima (uz -> ru)
     @staticmethod
@@ -430,6 +497,7 @@ class Shop:
             in_stock=1 if str(data.get("in_stock", "1")) in ("1", "true", "on") else 0,
             active=1 if str(data.get("active", "1")) in ("1", "true", "on") else 0,
             supplier_id=supplier_id, cost=cost, supplier_sku=(data.get("supplier_sku") or "").strip()[:60],
+            assembly=1 if str(data.get("assembly", "0")) in ("1", "true", "on") else 0,
         )
         pid = int(data.get("id") or 0)
         ru_edited = str(data.get("ru_edited", "")) in ("1", "true")
@@ -674,7 +742,8 @@ class Shop:
                           "image": (json.loads(r["images"]) or [None])[0], "emoji": r["emoji"],
                           "delivery_days": r["delivery_days"] or "", "delivery_days_ru": r["delivery_days_ru"] or "",
                           # buyurtma paytidagi ta'minotchi ma'lumoti (faqat admin/guruh uchun, mijozga yuborilmaydi)
-                          "sup": self._supplier_snapshot(r)})
+                          "sup": self._supplier_snapshot(r), "assembly": bool(r["assembly"]),
+                          "specs": json.loads(r["specs"] or "[]")})
             total += r["price"] * qty
 
         c = payload.get("customer") or {}
@@ -695,6 +764,17 @@ class Shop:
                 raise ShopError("Joylashuv noto'g'ri. Xaritada qayta belgilang.", "Неверная геолокация. Отметьте адрес на карте заново.")
         pay = c.get("pay") if c.get("pay") in PAYMENTS else PAYMENTS[0]
         note = (c.get("note") or "").strip()[:500]
+        if not payload.get("offer"):
+            raise ShopError("Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring",
+                            "Чтобы оформить заказ, примите условия публичной оферты")
+        # yig'ib berish: faqat yetkazib berishda va yig'iladigan mahsulot bo'lsa; narxiga ustama qo'shiladi
+        assembly = bool(c.get("assembly")) and delivery == "delivery" and any(i["assembly"] for i in items)
+        assembly_fee = 0
+        if assembly:
+            pct_a = int(self.settings()["assembly_pct"] or 0)
+            base = sum(i["price"] * i["qty"] for i in items if i["assembly"])
+            assembly_fee = int(math.ceil(base * pct_a / 100 / 1000) * 1000)
+            total += assembly_fee
 
         info = self.prepay_info()
         if not info["card"]:
@@ -710,9 +790,12 @@ class Shop:
         now = int(time.time())
         cur = self.db.execute(
             "INSERT INTO orders(user_id,username,name,phone,delivery,city,address,pay,note,items,total,"
-            "status,created,updated,lat,lon,prepay,receipt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "status,created,updated,lat,lon,prepay,receipt,assembly,assembly_fee,offer_ver,offer_ts,events)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username", ""), name, phone, delivery, city, address, pay, note,
-             json.dumps(items, ensure_ascii=False), total, "new", now, now, lat, lon, prepay, receipt_name))
+             json.dumps(items, ensure_ascii=False), total, "new", now, now, lat, lon, prepay, receipt_name,
+             1 if assembly else 0, assembly_fee, str(payload.get("offer_ver") or OFFER_VERSION), now,
+             json.dumps([["new", now, "mijoz"]])))
         self.db.commit()
         return self.order(cur.lastrowid)
 
@@ -744,13 +827,93 @@ class Shop:
             rows = self.db.execute("SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [self._order(r) for r in rows]
 
-    def set_status(self, oid: int, status: str) -> dict:
-        if status not in STATUSES:
-            raise ShopError("Noma'lum holat")
-        self.order(oid)
-        self.db.execute("UPDATE orders SET status=?, updated=? WHERE id=?", (status, int(time.time()), oid))
+    def claim_assembly(self, oid: int, uid: int, name: str) -> dict:
+        """Yig'uvchi «Men yig'aman» tugmasini bosdi. Birinchi bosgan oladi."""
+        o = self.order(oid)
+        if not o.get("assembly"):
+            raise ShopError("Bu buyurtmada yig'ish yo'q")
+        if o["status"] in ("assembled", "done", "cancelled", "rejected"):
+            raise ShopError("Bu buyurtmani endi olib bo'lmaydi")
+        cur = o["assembler"]
+        if cur.get("id") == uid:
+            raise ShopError("Bu buyurtma allaqachon sizda")
+        if cur.get("id"):
+            raise ShopError(f"Bu buyurtmani {cur.get('name') or OTHER_ASM} olgan")
+        now = int(time.time())
+        events = o["events"] + [["claim", now, f"yig'uvchi: {name}"]]
+        self.db.execute("UPDATE orders SET assembler=?, events=?, updated=? WHERE id=?",
+                        (json.dumps({"id": uid, "name": name, "ts": now}, ensure_ascii=False),
+                         json.dumps(events, ensure_ascii=False), now, oid))
         self.db.commit()
         return self.order(oid)
+
+    def release_assembly(self, oid: int, uid: int, by_admin: bool = False) -> dict:
+        """Yig'uvchi voz kechdi (yoki admin bo'shatdi) — boshqasi olishi mumkin."""
+        o = self.order(oid)
+        cur = o["assembler"]
+        if not cur.get("id"):
+            raise ShopError("Bu buyurtmani hali hech kim olmagan")
+        if cur["id"] != uid and not by_admin:
+            raise ShopError("Bu buyurtma sizda emas")
+        if o["status"] in ("assembled", "done"):
+            raise ShopError("Yig'ish tugagan — voz kechib bo'lmaydi")
+        now = int(time.time())
+        events = o["events"] + [["release", now, f"yig'uvchi: {cur.get('name', '')}"]]
+        self.db.execute("UPDATE orders SET assembler='', events=?, updated=? WHERE id=?",
+                        (json.dumps(events, ensure_ascii=False), now, oid))
+        self.db.commit()
+        return self.order(oid)
+
+    def set_status(self, oid: int, status: str, role: str = "admin", who: str = "", actor_id: int = 0) -> dict:
+        """Holatni o'zgartiradi. role: admin | courier | assembler | customer — har biri faqat o'z bosqichini."""
+        if status not in STATUSES:
+            raise ShopError("Noma'lum holat")
+        o = self.order(oid)
+        if status == o["status"]:
+            raise ShopError(f"Buyurtma allaqachon «{STATUSES[status]}» holatida")
+        if status not in next_statuses(o):
+            raise ShopError(f"Hozir bu bosqichga o'tib bo'lmaydi (buyurtma holati: {o['status_text']})",
+                            f"Сейчас нельзя перейти к этому этапу (статус: {STATUSES_RU.get(o['status'], o['status'])})")
+        if role in ROLE_ACTIONS and status not in ROLE_ACTIONS[role]:
+            raise ShopError("Bu bosqich sizning guruhingizga tegishli emas")
+        if role == "assembler":
+            owner = o["assembler"].get("id")
+            if not owner:
+                raise ShopError("Avval «🙋 Men yig'aman» tugmasini bosing")
+            if owner != actor_id:
+                raise ShopError(f"Bu buyurtmani {o['assembler'].get('name') or OTHER_ASM} yig'yapti")
+        if role == "customer" and not (status == "done" and awaiting_acceptance(o)):
+            raise ShopError("Buyurtmani hozir tasdiqlab bo'lmaydi", "Заказ сейчас нельзя подтвердить")
+        now = int(time.time())
+        events = o["events"] + [[status, now, who or role]]
+        extra = ", accepted_ts=?" if role == "customer" else ""
+        args = (status, now, json.dumps(events, ensure_ascii=False)) + ((now,) if role == "customer" else ()) + (oid,)
+        self.db.execute(f"UPDATE orders SET status=?, updated=?, events=?{extra} WHERE id=?", args)
+        self.db.commit()
+        return self.order(oid)
+
+    def accept_by_user(self, user_id: int, oid: int) -> dict:
+        """Mijoz botda «Tekshirdim, qabul qildim» tugmasini bosdi."""
+        o = self.order(oid)
+        if o["user_id"] != user_id:
+            raise ShopError("Buyurtma topilmadi", "Заказ не найден")
+        if o["status"] == "done":
+            raise ShopError("Buyurtma allaqachon qabul qilingan", "Заказ уже принят")
+        return self.set_status(oid, "done", role="customer", who=f"mijoz {user_id}")
+
+    def order_by_message(self, chat_id: int, msg_id: int):
+        """Guruhdagi buyurtma xabari bo'yicha buyurtmani topadi (oxirgi 500 ta ichidan)."""
+        for r in self.db.execute("SELECT * FROM orders ORDER BY id DESC LIMIT 500").fetchall():
+            for e in json.loads(r["admin_msgs"] or "[]"):
+                if e[0] == chat_id and e[1] == msg_id:
+                    return self._order(r)
+        return None
+
+    def add_proof(self, oid: int, file_id: str, who: str):
+        o = self.order(oid)
+        proofs = (o["proofs"] + [[file_id, int(time.time()), who]])[-30:]
+        self.db.execute("UPDATE orders SET proofs=? WHERE id=?", (json.dumps(proofs, ensure_ascii=False), oid))
+        self.db.commit()
 
     def cancel_by_user(self, user_id: int, oid: int) -> dict:
         o = self.order(oid)
@@ -792,7 +955,8 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
                           + (f"\n   🚚 Доставка: {e(i['delivery_days'])}" if i.get("delivery_days") else "")
                           for i in o["items"])
         return (f"<b>Заказ #{o['id']}</b>\nСтатус: {o['status_text']}\n\n{lines}\n\n"
-                f"<b>Итого: {fmt_price(o['total'], 'ru')}</b>"
+                + (f"🔧 Сборка: {fmt_price(o['assembly_fee'], 'ru')}\n" if o.get("assembly") else "")
+                + f"<b>Итого: {fmt_price(o['total'], 'ru')}</b>"
                 + (f"\nПредоплата: {fmt_price(o['prepay'], 'ru')}\nОстаток: {fmt_price(o['total'] - o['prepay'], 'ru')}"
                    if o.get("prepay") else ""))
     lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'])}"
@@ -813,14 +977,99 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
         return (f"<b>Buyurtma #{o['id']}</b> — {o['status_text']}\n🕒 {when}\n\n"
                 f"👤 {e(o['name'])} ({user})\n📞 {e(o['phone'])}\n{place}\n💳 Qolgan summa: {e(o['pay'])}\n"
                 + (f"📝 {e(o['note'])}\n" if o.get("note") else "")
-                + f"\n{lines}\n\n<b>Jami: {fmt_price(o['total'])}</b>"
+                + f"\n{lines}\n\n"
+                + (f"🔧 Yig'ib berish: <b>ha</b> (+{fmt_price(o['assembly_fee'])})\n" if o.get("assembly") else "")
+                + ((f"👷 Yig'uvchi: <b>{e(o['assembler']['name'])}</b>\n" if (o.get("assembler") or {}).get("id")
+                    else "👷 Yig'uvchi: hali tanlanmagan\n") if o.get("assembly") else "")
+                + f"<b>Jami: {fmt_price(o['total'])}</b>"
                 + profit_line(o)
                 + (f"\n💰 Oldindan to'lov: <b>{fmt_price(o['prepay'])}</b> (chek ilova qilingan)"
                    f"\n💵 Qolgan: {fmt_price(o['total'] - o['prepay'])}" if o.get("prepay") else ""))
     return (f"<b>Buyurtma #{o['id']}</b>\nHolati: {o['status_text']}\n\n{lines}\n\n"
-            f"<b>Jami: {fmt_price(o['total'])}</b>"
+            + (f"🔧 Yig'ib berish: {fmt_price(o['assembly_fee'])}\n" if o.get("assembly") else "")
+            + f"<b>Jami: {fmt_price(o['total'])}</b>"
             + (f"\nOldindan to'langan: {fmt_price(o['prepay'])}\nQolgan: {fmt_price(o['total'] - o['prepay'])}"
                if o.get("prepay") else ""))
+
+
+def _place(o: dict, e) -> str:
+    if o["delivery"] != "delivery":
+        return "🏬 Do'kondan olib ketadi"
+    addr = ", ".join(e(x) for x in (o.get("city"), o.get("address")) if x)
+    out = f"🏠 {addr}" if addr else "🏠 Manzil: xaritada"
+    if o.get("lat") is not None:
+        g, y = (html.escape(u) for u in map_links(o))
+        out += f"\n📍 Xaritada: <a href=\"{g}\">Google</a> · <a href=\"{y}\">Yandex</a>"
+    return out
+
+
+def courier_text(o: dict) -> str:
+    """Kuryerlar guruhi: mijoz, manzil, to'lov, mahsulotlar va qayerdan olish (kirim narxi va foydasiz)."""
+    e = lambda s: html.escape(str(s), quote=False)
+    rows = []
+    for i in o["items"]:
+        r = f"• {e(i['name'])} × {i['qty']}"
+        s = i.get("sup") or {}
+        if s.get("name") or s.get("phone"):
+            who = " — ".join(x for x in (e(s.get("name", "")), e(s.get("phone", ""))) if x)
+            r += f"\n   📥 Olish: {who}" + (f" ({e(s['note'])})" if s.get("note") else "")
+        if s.get("sku"):
+            r += f"\n   🔖 Kodi: {e(s['sku'])}"
+        rows.append(r)
+    # Yig'ish bo'lsa qolgan pulni yig'uvchi oladi (ishni tugatib); aks holda — kuryer
+    asm = o.get("assembler") or {}
+    money = ((f"🔧 Yig'ib berish buyurtma qilingan — qolgan to'lovni <b>yig'uvchi</b> oladi.\n"
+              + (f"👷 Yig'uvchi: <b>{e(asm['name'])}</b> (birga borishingiz mumkin)\n" if asm.get("id")
+                 else "👷 Yig'uvchi: hali tanlanmagan\n")
+              + "Mahsulotni topshirib, mijozga yig'uvchi kelishini ayting.")
+             if o.get("assembly") else money_lines(o, e))
+    return (f"🚚 <b>Buyurtma #{o['id']}</b> — {o['status_text']}\n\n"
+            f"👤 {e(o['name'])}\n📞 {e(o['phone'])}\n{_place(o, e)}\n"
+            + (f"📝 {e(o['note'])}\n" if o.get("note") else "")
+            + "\n" + "\n".join(rows) + "\n\n" + money)
+
+
+def money_lines(o: dict, e) -> str:
+    rest = o["total"] - (o.get("prepay") or 0)
+    return (f"💰 Sotilgan summa: <b>{fmt_price(o['total'])}</b>\n"
+            + (f"✅ Oldindan to'langan: {fmt_price(o['prepay'])}\n" if o.get("prepay") else "")
+            + f"💵 Mijozdan olinadi: <b>{fmt_price(rest)}</b> ({e(o['pay'])})")
+
+
+def assembler_text(o: dict) -> str:
+    """Yig'uvchilar guruhi: mijoz, manzil, yig'iladigan mahsulotlar va o'lchamlari (narxlarsiz)."""
+    e = lambda s: html.escape(str(s), quote=False)
+    rows = []
+    for i in o["items"]:
+        if not i.get("assembly"):
+            continue
+        r = f"• {e(i['name'])} × {i['qty']}"
+        for k, v in (i.get("specs") or [])[:6]:
+            r += f"\n   ▫️ {e(k)}: {e(v)}"
+        sku = (i.get("sup") or {}).get("sku")
+        if sku:
+            r += f"\n   🔖 Kodi: {e(sku)}"
+        rows.append(r)
+    other = [i for i in o["items"] if not i.get("assembly")]
+    a = o.get("assembler") or {}
+    who = (f"👷 Yig'uvchi: <b>{e(a['name'])}</b>\n" if a.get("id")
+           else "🙋 Hali hech kim olmagan — yig'adigan usta «Men yig'aman»ni bossin\n")
+    return (f"🔧 <b>Yig'ish — buyurtma #{o['id']}</b> — {o['status_text']}\n{who}\n"
+            f"👤 {e(o['name'])}\n📞 {e(o['phone'])}\n{_place(o, e)}\n"
+            + (f"📝 {e(o['note'])}\n" if o.get("note") else "")
+            + "\n<b>Yig'iladi:</b>\n" + ("\n".join(rows) or "—")
+            + (f"\n\n<i>Yig'ilmaydi: {e(', '.join(i['name'] for i in other))}</i>" if other else "")
+            + "\n\n" + money_lines(o, e)
+            + "\n\n📄 Ishni tugatgach: mijoz mebelni tekshirsin, dalolatnomani imzolasin, "
+              "qolgan pulni oling va «Yig'ib bo'ldim»ni bosing.")
+
+
+def role_text(o: dict, role: str) -> str:
+    if role == "courier":
+        return courier_text(o)
+    if role == "assembler":
+        return assembler_text(o)
+    return order_text(o, for_admin=True)
 
 
 def supplier_lines(i: dict, e) -> str:
@@ -861,7 +1110,9 @@ STATUS_MESSAGES_RU = {
     "confirmed": "✅ Ваш чек проверен, заказ #{id} принят! Скоро мы свяжемся с вами, чтобы согласовать время доставки.",
     "rejected": "⛔ Чек об оплате по заказу #{id} не подтверждён. Пожалуйста, свяжитесь с магазином или напишите в этот бот.",
     "delivering": "🚚 Ваш заказ #{id} в пути.",
-    "done": "📦 Ваш заказ #{id} доставлен. Спасибо за покупку! 🙏",
+    "delivered": "📦 Ваш заказ #{id} доставлен.",
+    "assembled": "🔧 Сборка заказа #{id} завершена.",
+    "done": "🤝 Заказ #{id} завершён. Спасибо за покупку! 🙏",
     "cancelled": "❌ Ваш заказ #{id} отменён. Если есть вопросы, свяжитесь с нами.",
 }
 
@@ -871,6 +1122,15 @@ STATUS_MESSAGES = {
     "rejected": "⛔ Buyurtma #{id} uchun yuborilgan to'lov cheki tasdiqlanmadi. "
                 "Iltimos, do'kon bilan bog'laning yoki shu botga yozing.",
     "delivering": "🚚 Buyurtmangiz #{id} yo'lga chiqdi.",
-    "done": "📦 Buyurtmangiz #{id} yetkazib berildi. Xaridingiz uchun rahmat! 🙏",
+    "delivered": "📦 Buyurtmangiz #{id} yetkazib berildi.",
+    "assembled": "🔧 Buyurtmangiz #{id} yig'ib bo'lindi.",
+    "done": "🤝 Buyurtma #{id} yakunlandi. Xaridingiz uchun rahmat! 🙏",
     "cancelled": "❌ Buyurtmangiz #{id} bekor qilindi. Savollar bo'lsa, biz bilan bog'laning.",
 }
+
+
+# Mijoz qabul qilishi kerak bo'lgan paytda yuboriladigan savol (tugmalar bilan)
+ACCEPT_ASK = ("Iltimos, mebelni tekshirib ko'ring: komplektligi, tashqi ko'rinishi (shikast, tirnalish, dog'), "
+              "rangi va o'lchami.\n\nHammasi joyidami?")
+ACCEPT_ASK_RU = ("Пожалуйста, проверьте мебель: комплектность, внешний вид (повреждения, царапины, пятна), "
+                 "цвет и размеры.\n\nВсё в порядке?")

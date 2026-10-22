@@ -3,6 +3,8 @@ Mebel do'koni: Telegram bot + Mini App serveri (bitta jarayonda).
 Ishga tushirish:  python app.py   (sozlamalar .env faylida)
 """
 import asyncio
+import hashlib
+import hmac
 import html
 import json
 import logging
@@ -31,8 +33,14 @@ from aiogram.types import (
 import aiohttp
 
 from shop import (
+    ACCEPT_ASK,
+    ACCEPT_ASK_RU,
     ACTIONS,
     FLOW,
+    ROLE_ACTIONS,
+    awaiting_acceptance,
+    next_statuses,
+    role_text,
     STATUS_MESSAGES_RU,
     norm_lang,
     STATUS_MESSAGES,
@@ -145,27 +153,57 @@ def tx(lang: str, key: str, **kw) -> str:
 
 
 # ------------------------------------------------------------------ bildirishnomalar
-def status_keyboard(o: dict, chat_id: int = 1) -> InlineKeyboardMarkup:
-    btns = [InlineKeyboardButton(text=ACTIONS[s], callback_data=f"st:{o['id']}:{s}")
-            for s in FLOW.get(o["status"], [])]
+def chat_role(chat_id: int) -> str:
+    """Qaysi chat qaysi rolga tegishli: kuryerlar va yig'uvchilar guruhi — sozlamalardan, qolgani — admin."""
+    st = shop.settings()
+    if st.get("courier_chat") and str(chat_id) == st["courier_chat"]:
+        return "courier"
+    if st.get("assembler_chat") and str(chat_id) == st["assembler_chat"]:
+        return "assembler"
+    return "admin"
+
+
+def status_keyboard(o: dict, chat_id: int = 1, role: str = "admin") -> InlineKeyboardMarkup:
+    nxt = next_statuses(o)
+    if role == "assembler" and o["status"] not in ("assembled", "done", "cancelled", "rejected"):
+        if not (o.get("assembler") or {}).get("id"):
+            btns = [InlineKeyboardButton(text="🙋 Men yig'aman", callback_data=f"claim:{o['id']}")]
+        else:
+            labels = ROLE_ACTIONS[role]
+            btns = [InlineKeyboardButton(text=labels[s], callback_data=f"st:{o['id']}:{s}") for s in nxt if s in labels]
+            btns.append(InlineKeyboardButton(text="↩️ Voz kechish", callback_data=f"release:{o['id']}"))
+    elif role in ROLE_ACTIONS:
+        labels = ROLE_ACTIONS[role]
+        btns = [InlineKeyboardButton(text=labels[s], callback_data=f"st:{o['id']}:{s}") for s in nxt if s in labels]
+    else:
+        btns = [InlineKeyboardButton(text=ACTIONS[s], callback_data=f"st:{o['id']}:{s}") for s in nxt]
     rows = [btns[i:i + 2] for i in range(0, len(btns), 2)]
-    if chat_id > 0:  # Mini App tugmasi guruhlarda ishlamaydi
+    if chat_id > 0 and role == "admin":  # Mini App tugmasi guruhlarda ishlamaydi
         rows.append([InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=WEBAPP_URL + "?admin=1"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def order_photos(o: dict) -> list:
-    """Har bir mahsulotning asosiy rasmi va izohi: [[fayl yo'li, izoh], ...] (Telegram albomi — ko'pi bilan 10)."""
+def act_key(oid: int) -> str:
+    """Dalolatnoma havolasi uchun imzo (havolani taxmin qilib bo'lmasin)."""
+    return hmac.new(BOT_TOKEN.encode() or b"dev", f"act:{oid}".encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def order_photos(o: dict, role: str = "admin") -> list:
+    """Har bir mahsulotning asosiy rasmi va izohi: [[fayl yo'li, izoh], ...] (Telegram albomi — ko'pi bilan 10).
+    Yig'uvchiga faqat yig'iladigan mahsulotlar, narxsiz."""
     out = []
     for i in o["items"]:
         img = i.get("image")
-        if not img:
+        if not img or (role == "assembler" and not i.get("assembly")):
             continue
         path = os.path.join(UPLOAD_DIR, os.path.basename(img))
         if os.path.isfile(path):
-            cap = f"<b>{esc(i['name'])}</b>\n{i['qty']} ta × {fmt_price(i['price'])} = {fmt_price(i['price'] * i['qty'])}"
-            if i.get("delivery_days"):
-                cap += f"\n🚚 Yetkazish: {esc(i['delivery_days'])}"
+            if role == "assembler":
+                cap = f"<b>{esc(i['name'])}</b>\n{i['qty']} ta"
+            else:
+                cap = f"<b>{esc(i['name'])}</b>\n{i['qty']} ta × {fmt_price(i['price'])} = {fmt_price(i['price'] * i['qty'])}"
+                if i.get("delivery_days"):
+                    cap += f"\n🚚 Yetkazish: {esc(i['delivery_days'])}"
             out.append([path, cap])
     return out[:10]
 
@@ -175,10 +213,10 @@ def _media(m: str):
     return FSInputFile(m) if os.path.isfile(m) else m
 
 
-async def send_order_to(chat_id: int, o: dict, media: dict) -> list:
-    """Mahsulotlar rasmlari (albom) -> buyurtma ma'lumoti va tugmalar -> chek rasmi (javob sifatida)."""
-    text = "🔔 " + order_text(o, for_admin=True)
-    kb = status_keyboard(o, chat_id)
+async def send_order_to(chat_id: int, o: dict, media: dict, role: str = "admin") -> list:
+    """Mahsulotlar rasmlari (albom) -> buyurtma ma'lumoti va tugmalar -> chek rasmi (faqat adminga)."""
+    text = ("🔔 " + order_text(o, for_admin=True)) if role == "admin" else role_text(o, role)
+    kb = status_keyboard(o, chat_id, role)
     photos = media.get("photos") or []
     if len(photos) == 1 and len(text) <= 1024:
         # bitta mahsulot: rasm + buyurtma ma'lumoti bitta xabarda
@@ -198,7 +236,8 @@ async def send_order_to(chat_id: int, o: dict, media: dict) -> list:
                 ph[0] = sm.photo[-1].file_id
         m = await bot.send_message(chat_id, text, reply_markup=kb)
         entry = [chat_id, m.message_id, "text"]
-    if media.get("receipt"):
+    entry.append(role)
+    if media.get("receipt") and role == "admin":
         try:
             r = await bot.send_photo(chat_id, _media(media["receipt"]), reply_to_message_id=m.message_id,
                                      caption=f"🧾 Buyurtma #{o['id']} — oldindan to'lov cheki "
@@ -233,6 +272,17 @@ async def notify_new_order(o: dict):
                 msgs.append(await send_order_to(aid, o, media))
             except TelegramAPIError as e:
                 log.warning("zaxira: adminga yuborilmadi %s: %s", aid, e)
+    st = shop.settings()
+    for role, key, need in (("courier", "courier_chat", o["delivery"] == "delivery"),
+                            ("assembler", "assembler_chat", bool(o.get("assembly")))):
+        if not (need and st.get(key)):
+            continue
+        try:
+            msgs.append(await send_order_to(int(st[key]), o, {"photos": order_photos(o, role)}, role))
+        except (TelegramAPIError, ValueError) as e:
+            log.warning("%s guruhiga yuborilmadi: %s", role, e)
+            await alert_admins(f"⚠️ Buyurtma #{o['id']} {ROLE_NAMES[role]} guruhiga yuborilmadi: {esc(e)}\n"
+                               "Bot o'sha guruhda a'zo ekanini tekshiring.")
     shop.set_admin_msgs(o["id"], msgs)
     try:
         await bot.send_message(
@@ -246,25 +296,78 @@ async def notify_new_order(o: dict):
 async def notify_status(o: dict):
     if not bot:
         return
-    for entry in o["admin_msgs"]:
-        chat_id, msg_id = entry[0], entry[1]
-        kind = entry[2] if len(entry) > 2 else "text"
-        text = "🔔 " + order_text(o, for_admin=True)
-        try:
-            if kind == "photo":
-                await bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text,
-                                               reply_markup=status_keyboard(o, chat_id))
-            else:
-                await bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id,
-                                            reply_markup=status_keyboard(o, chat_id))
-        except TelegramAPIError:
-            pass
-    text = (STATUS_MESSAGES_RU if lang_of(o["user_id"]) == "ru" else STATUS_MESSAGES).get(o["status"])
+    await refresh_order_messages(o)
+    await ping_next_role(o)
+    lang = lang_of(o["user_id"])
+    text = (STATUS_MESSAGES_RU if lang == "ru" else STATUS_MESSAGES).get(o["status"])
     if text:
         try:
             await bot.send_message(o["user_id"], text.format(id=o["id"]))
         except TelegramAPIError:
             pass
+    if awaiting_acceptance(o):
+        await ask_acceptance(o)
+
+
+async def refresh_order_messages(o: dict):
+    """Barcha guruhlardagi buyurtma xabarini (har biriga o'z matni va tugmalari bilan) yangilaydi."""
+    if not bot:
+        return
+    for entry in o["admin_msgs"]:
+        chat_id, msg_id = entry[0], entry[1]
+        kind = entry[2] if len(entry) > 2 else "text"
+        role = entry[3] if len(entry) > 3 else "admin"
+        text = ("🔔 " + order_text(o, for_admin=True)) if role == "admin" else role_text(o, role)
+        kb = status_keyboard(o, chat_id, role)
+        try:
+            if kind == "photo":
+                await bot.edit_message_caption(chat_id=chat_id, message_id=msg_id, caption=text[:1024], reply_markup=kb)
+            else:
+                await bot.edit_message_text(text, chat_id=chat_id, message_id=msg_id, reply_markup=kb)
+        except TelegramAPIError:
+            pass
+
+
+ROLE_NAMES = {"courier": "kuryerlar", "assembler": "yig'uvchilar", "admin": "admin"}
+
+
+async def alert_admins(text: str):
+    for aid in NOTIFY_CHATS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
+
+
+async def ping_next_role(o: dict):
+    """Keyingi bosqich egasiga qisqa xabar (tahrirlangan xabar Telegram'da bildirishnoma bermaydi)."""
+    target = None
+    if o["status"] == "confirmed" and o["delivery"] == "delivery":
+        target, text = "courier", f"✅ Buyurtma #{o['id']} tasdiqlandi — olib ketishga tayyor."
+    elif o["status"] == "delivered" and o.get("assembly"):
+        target, text = "assembler", f"📦 Buyurtma #{o['id']} mijozga yetkazildi — yig'ishga boring."
+    if not target:
+        return
+    for entry in o["admin_msgs"]:
+        if len(entry) > 3 and entry[3] == target:
+            try:
+                await bot.send_message(entry[0], text, reply_to_message_id=entry[1])
+            except TelegramAPIError:
+                pass
+
+
+async def ask_acceptance(o: dict):
+    lang = lang_of(o["user_id"])
+    ru = lang == "ru"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Проверил, принимаю" if ru else "✅ Tekshirdim, qabul qildim",
+                              callback_data=f"acc:{o['id']}:ok")],
+        [InlineKeyboardButton(text="⚠️ Есть проблема" if ru else "⚠️ Muammo bor", callback_data=f"acc:{o['id']}:bad")]])
+    head = f"<b>{'Заказ' if ru else 'Buyurtma'} #{o['id']}</b>\n\n"
+    try:
+        await bot.send_message(o["user_id"], head + (ACCEPT_ASK_RU if ru else ACCEPT_ASK), reply_markup=kb)
+    except TelegramAPIError as e:
+        log.warning("qabul savoli yuborilmadi: %s", e)
 
 
 async def register_user(user: dict):
@@ -355,15 +458,126 @@ async def cmd_id(m: Message):
 
 @dp.callback_query(F.data.startswith("st:"))
 async def cb_status(c: CallbackQuery):
-    if not is_admin(c.from_user.id):
+    role = chat_role(c.message.chat.id) if c.message else "admin"
+    if role == "admin" and not is_admin(c.from_user.id):
         return await c.answer("Ruxsat yo'q", show_alert=True)
     _, oid, status = c.data.split(":")
+    who = c.from_user.full_name + (f" (@{c.from_user.username})" if c.from_user.username else "")
     try:
-        o = shop.set_status(int(oid), status)
+        o = shop.set_status(int(oid), status, role=role, who=f"{ROLE_NAMES[role]}: {who}", actor_id=c.from_user.id)
     except ShopError as e:
         return await c.answer(str(e), show_alert=True)
     await notify_status(o)
+    if role != "admin":
+        await alert_admins(f"{o['status_text']} — buyurtma #{o['id']} ({esc(who)})")
     await c.answer(o["status_text"])
+
+
+@dp.callback_query(F.data.startswith("claim:") | F.data.startswith("release:"))
+async def cb_claim(c: CallbackQuery):
+    """Yig'uvchilar guruhida: «Men yig'aman» / «Voz kechish»."""
+    if chat_role(c.message.chat.id) != "assembler":
+        return await c.answer("Bu tugma faqat yig'uvchilar guruhida ishlaydi", show_alert=True)
+    kind, oid = c.data.split(":")
+    name = c.from_user.full_name + (f" (@{c.from_user.username})" if c.from_user.username else "")
+    try:
+        if kind == "claim":
+            o = shop.claim_assembly(int(oid), c.from_user.id, name)
+        else:
+            o = shop.release_assembly(int(oid), c.from_user.id)
+    except ShopError as e:
+        return await c.answer(str(e), show_alert=True)
+    await refresh_order_messages(o)
+    if kind == "claim":
+        await alert_admins(f"👷 <b>{esc(name)}</b> buyurtma #{o['id']} ni yig'ishni oldi.")
+        await c.answer("✅ Buyurtma sizga biriktirildi")
+    else:
+        await alert_admins(f"↩️ {esc(name)} buyurtma #{o['id']} ni yig'ishdan voz kechdi — boshqa yig'uvchi kerak.")
+        await c.answer("Voz kechdingiz")
+
+
+@dp.callback_query(F.data.startswith("acc:"))
+async def cb_accept(c: CallbackQuery):
+    """Mijoz: «Tekshirdim, qabul qildim» yoki «Muammo bor»."""
+    _, oid, ans = c.data.split(":")
+    lang = lang_of(c.from_user.id)
+    ru = lang == "ru"
+    if ans == "ok":
+        try:
+            o = shop.accept_by_user(c.from_user.id, int(oid))
+        except ShopError as e:
+            return await c.answer(e.text(lang), show_alert=True)
+        try:
+            await c.message.edit_text(c.message.html_text + "\n\n" + ("✅ Вы подтвердили приёмку. Спасибо!" if ru
+                                                                        else "✅ Qabul qilganingiz tasdiqlandi. Rahmat!"))
+        except TelegramAPIError:
+            pass
+        await notify_status(o)
+        await alert_admins(f"🤝 Mijoz buyurtma #{o['id']} ni tekshirib qabul qildi (botda tasdiqladi).")
+        return await c.answer("✅")
+    try:
+        o = shop.order(int(oid))
+    except ShopError:
+        return await c.answer()
+    if o["user_id"] != c.from_user.id:
+        return await c.answer()
+    await alert_admins(f"⚠️ <b>Mijoz buyurtma #{o['id']} bo'yicha muammo bildirdi!</b>\n"
+                       f"👤 {esc(o['name'])}, 📞 {esc(o['phone'])}\nTezda bog'laning.")
+    try:
+        await c.message.edit_reply_markup(reply_markup=None)
+        await c.message.answer("Менеджер скоро свяжется с вами. Можете описать проблему или отправить фото прямо сюда."
+                               if ru else "Menejer tez orada siz bilan bog'lanadi. Muammoni shu yerga yozib yoki "
+                                          "suratini yuborib qo'yishingiz mumkin.")
+    except TelegramAPIError:
+        pass
+    await c.answer()
+
+
+@dp.message(Command("kuryer_guruhi", "yiguvchi_guruhi"))
+async def cmd_link_group(m: Message):
+    """Admin kuryerlar/yig'uvchilar guruhida shu buyruqni yozsa — guruh ulanadi."""
+    role = "courier" if m.text.lstrip("/").startswith("kuryer") else "assembler"
+    if m.chat.type == "private":
+        return await m.answer("Bu buyruqni kuryerlar yoki yig'uvchilar <b>guruhining o'zida</b> yozing "
+                              "(avval botni o'sha guruhga qo'shing).")
+    if not is_admin(m.from_user.id):
+        return await m.answer("Guruhni faqat do'kon admini ulay oladi.")
+    if GROUP_ID and m.chat.id == GROUP_ID:
+        return await m.answer("Bu asosiy (admin) guruh. Kuryerlar va yig'uvchilar uchun alohida guruh oching.")
+    other = "assembler_chat" if role == "courier" else "courier_chat"
+    if shop.settings().get(other) == str(m.chat.id):
+        shop.set_setting(other, "")
+        shop.set_setting(other + "_title", "")
+    shop.set_setting(f"{role}_chat", str(m.chat.id))
+    shop.set_setting(f"{role}_chat_title", m.chat.title or "")
+    what = ("🚚 Kuryerlar guruhi ulandi. Yangi buyurtmalar shu yerga keladi: mijoz, manzil, xarita, "
+            "qayerdan olish va mijozdan olinadigan summa. Tugmalar: «Yo'lga chiqdim», «Yetkazib berdim».")
+    if role == "assembler":
+        what = ("🔧 Yig'uvchilar guruhi ulandi. Yig'ib berish so'ralgan buyurtmalar shu yerga keladi: mijoz, manzil "
+                "va yig'iladigan mahsulotlar (narxlarsiz). Tugma: «Yig'ib bo'ldim».")
+    await m.answer(what + "\n\n📷 Ish suratini buyurtma xabariga «Reply» qilib yuborsangiz, adminga boradi.")
+
+
+@dp.message(F.photo, F.reply_to_message, F.chat.type.in_({"group", "supergroup"}))
+async def group_proof_photo(m: Message):
+    """Kuryer/yig'uvchi buyurtma xabariga javoban surat yuborsa — buyurtmaga biriktiriladi va adminga boradi."""
+    o = shop.order_by_message(m.chat.id, m.reply_to_message.message_id)
+    if not o:
+        return
+    role = chat_role(m.chat.id)
+    who = m.from_user.full_name if m.from_user else ""
+    file_id = m.photo[-1].file_id
+    shop.add_proof(o["id"], file_id, f"{ROLE_NAMES[role]}: {who}")
+    if role != "admin":
+        for aid in NOTIFY_CHATS:
+            try:
+                await bot.send_photo(aid, file_id, caption=f"📷 Buyurtma #{o['id']} — {ROLE_NAMES[role]} ({esc(who)})")
+            except TelegramAPIError:
+                pass
+    try:
+        await m.reply("📷 Surat buyurtma #%d ga biriktirildi ✓" % o["id"])
+    except TelegramAPIError:
+        pass
 
 
 @dp.message(F.chat.type == "private", F.text, F.reply_to_message)
@@ -457,6 +671,12 @@ def public(o: dict, admin: bool = False) -> dict:
     o.pop("admin_msgs", None)
     if not admin:
         o["items"] = [{k: v for k, v in i.items() if k != "sup"} for i in o.get("items") or []]
+        o.pop("proofs", None)
+        o.pop("events", None)
+    else:
+        o["next"] = next_statuses(o)
+        o["act_key"] = act_key(o["id"])
+        o["proofs"] = len(o.get("proofs") or [])
     return o
 
 
@@ -485,6 +705,15 @@ async def api_order(request):
         payload = await request.json()
     o = shop.create_order(u, payload, receipt)
     asyncio.create_task(notify_new_order(o))
+    return web.json_response({"order": public(shop.localize_order(o, norm_lang(request.headers.get("X-Lang"))))})
+
+
+async def api_order_accept(request):
+    """Mijoz ilovada «Tekshirdim, qabul qildim» tugmasini bosdi."""
+    u = get_user(request)
+    o = shop.accept_by_user(u["id"], int(request.match_info["id"]))
+    asyncio.create_task(notify_status(o))
+    asyncio.create_task(alert_admins(f"🤝 Mijoz buyurtma #{o['id']} ni tekshirib qabul qildi (ilovada tasdiqladi)."))
     return web.json_response({"order": public(shop.localize_order(o, norm_lang(request.headers.get("X-Lang"))))})
 
 
@@ -644,6 +873,85 @@ async def api_admin_category(request):
     return web.json_response({"category": c})
 
 
+async def api_admin_release(request):
+    get_admin(request)
+    o = shop.release_assembly(int(request.match_info["id"]), 0, by_admin=True)
+    asyncio.create_task(refresh_order_messages(o))
+    return web.json_response({"order": public(o, admin=True)})
+
+
+async def api_admin_group_unlink(request):
+    get_admin(request)
+    role = request.match_info["role"]
+    if role not in ("courier", "assembler"):
+        raise ShopError("Noma'lum guruh")
+    shop.set_setting(f"{role}_chat", "")
+    shop.set_setting(f"{role}_chat_title", "")
+    return web.json_response({"settings": shop.settings()})
+
+
+def _act_html(o: dict) -> str:
+    """Qabul qilish-topshirish dalolatnomasi — chop etishga tayyor sahifa (brauzerda «Chop etish → PDF»)."""
+    sel = shop.seller()
+    blank = "________________"
+    rows = "".join(f"<tr><td>{n}</td><td>{esc(i['name'])}</td><td class='c'>{i['qty']}</td>"
+                   f"<td class='r'>{fmt_price(i['price'])}</td><td class='r'>{fmt_price(i['price'] * i['qty'])}</td></tr>"
+                   for n, i in enumerate(o["items"], 1))
+    if o.get("assembly"):
+        rows += (f"<tr><td></td><td>Yig'ib berish xizmati</td><td class='c'>1</td>"
+                 f"<td class='r'></td><td class='r'>{fmt_price(o['assembly_fee'])}</td></tr>")
+    import time as _t
+    date = _t.strftime("%d.%m.%Y", _t.gmtime(o["created"] + 5 * 3600))
+    addr = "Do'kondan olib ketish" if o["delivery"] != "delivery" else ", ".join(x for x in (o.get("city"), o.get("address")) if x)
+    checks = ["Mahsulotlar to'liq komplektda topshirildi", "Tashqi ko'rinishida shikast, tirnalish va dog' yo'q",
+              "Rang va o'lchamlar buyurtmaga mos"] + (["Mebel yig'ib, o'rnatib berildi"] if o.get("assembly") else [])
+    return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Dalolatnoma #{o['id']}</title>
+<style>
+ body {{ font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:#111; max-width: 800px; margin: 24px auto; padding: 0 16px; font-size: 14px; }}
+ h1 {{ font-size: 18px; text-align: center; margin: 0 0 4px; }} .sub {{ text-align:center; color:#555; margin-bottom: 18px; }}
+ table {{ width: 100%; border-collapse: collapse; margin: 10px 0; }} td, th {{ border: 1px solid #999; padding: 6px; vertical-align: top; }}
+ th {{ background: #f1f1f1; }} .c {{ text-align: center; }} .r {{ text-align: right; white-space: nowrap; }}
+ .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }} .box {{ border: 1px solid #999; padding: 10px; min-height: 60px; }}
+ .sign {{ display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }} .line {{ border-bottom: 1px solid #111; height: 28px; }}
+ .btn {{ display:block; margin: 0 auto 16px; padding: 10px 18px; font-size: 15px; border-radius: 10px; border: 0; background: #b4692f; color: #fff; }}
+ @media print {{ .btn {{ display: none; }} body {{ margin: 0; }} }}
+</style></head><body>
+<button class="btn" onclick="window.print()">🖨 Chop etish / PDF saqlash</button>
+<h1>QABUL QILISH-TOPSHIRISH DALOLATNOMASI</h1>
+<div class="sub">Buyurtma № {o['id']} · {date}</div>
+<div class="grid">
+ <div><b>Sotuvchi:</b> {esc(sel['name']) or blank}<br>STIR: {esc(sel['tin']) or blank}<br>Manzil: {esc(sel['address']) or blank}<br>Tel: {esc(sel['phone']) or blank}</div>
+ <div><b>Xaridor:</b> {esc(o['name'])}<br>Tel: {esc(o['phone'])}<br>Manzil: {esc(addr) or blank}</div>
+</div>
+<table><tr><th>№</th><th>Mahsulot</th><th>Soni</th><th>Narxi</th><th>Summa</th></tr>{rows}
+<tr><td colspan="4" class="r"><b>Jami</b></td><td class="r"><b>{fmt_price(o['total'])}</b></td></tr>
+<tr><td colspan="4" class="r">Oldindan to'langan</td><td class="r">{fmt_price(o.get('prepay') or 0)}</td></tr>
+<tr><td colspan="4" class="r">Topshirishda to'landi</td><td class="r">{fmt_price(o['total'] - (o.get('prepay') or 0))}</td></tr></table>
+<p><b>Xaridor mahsulotni Sotuvchi vakili huzurida ko'zdan kechirdi va quyidagilarni tasdiqlaydi</b> (☑ belgilang):</p>
+{''.join(f"<div>☐ {c}</div>" for c in checks)}
+<p><b>E'tirozlar (bo'lsa):</b></p><div class="box"></div>
+<p class="sub" style="text-align:left">Ushbu dalolatnoma mahsulotning ko'rinadigan nuqsonlari va komplektligi bo'yicha tuzildi va Xaridorning
+qonunchilikda belgilangan yashirin nuqsonlar bo'yicha huquqlarini cheklamaydi. Ikki nusxada tuzildi.</p>
+<div class="sign">
+ <div>Topshirdi (Sotuvchi vakili):<div class="line"></div>F.I.Sh., imzo</div>
+ <div>Qabul qildi (Xaridor):<div class="line"></div>{esc(o['name'])}, imzo</div>
+</div>
+<p style="margin-top:18px">Sana: ____.____.20____ &nbsp;&nbsp; Vaqt: ____:____</p>
+</body></html>"""
+
+
+async def page_act(request):
+    oid = int(request.match_info["id"])
+    if not hmac.compare_digest(request.query.get("k", ""), act_key(oid)):
+        raise web.HTTPForbidden(text="Havola noto'g'ri")
+    try:
+        o = shop.order(oid)
+    except ShopError:
+        raise web.HTTPNotFound(text="Buyurtma topilmadi")
+    return web.Response(text=_act_html(o), content_type="text/html", headers={"Cache-Control": "no-store"})
+
+
 async def api_admin_supplier(request):
     get_admin(request)
     return web.json_response({"supplier": shop.save_supplier(await request.json()), "suppliers": shop.suppliers()})
@@ -664,7 +972,9 @@ async def api_admin_category_delete(request):
 async def api_admin_status(request):
     get_admin(request)
     body = await request.json()
-    o = shop.set_status(int(request.match_info["id"]), body.get("status", ""))
+    u = get_user(request)
+    o = shop.set_status(int(request.match_info["id"]), body.get("status", ""), role="admin",
+                        who=f"admin: {u.get('first_name', '')}")
     asyncio.create_task(notify_status(o))
     return web.json_response({"order": public(o, admin=True)})
 
@@ -780,12 +1090,16 @@ def make_app() -> web.Application:
     app.router.add_post("/api/me", api_me)
     app.router.add_post("/api/order", api_order)
     app.router.add_post("/api/order/{id}/cancel", api_order_cancel)
+    app.router.add_post("/api/order/{id}/accept", api_order_accept)
     app.router.add_get("/api/admin/data", api_admin_data)
     app.router.add_post("/api/admin/product", api_admin_product)
     app.router.add_post("/api/admin/product/{id}/delete", api_admin_product_delete)
     app.router.add_post("/api/admin/category", api_admin_category)
     app.router.add_post("/api/admin/category/{id}/delete", api_admin_category_delete)
     app.router.add_post("/api/admin/supplier", api_admin_supplier)
+    app.router.add_post("/api/admin/group/{role}/unlink", api_admin_group_unlink)
+    app.router.add_post("/api/admin/order/{id}/release", api_admin_release)
+    app.router.add_get("/act/{id}", page_act)
     app.router.add_post("/api/admin/supplier/{id}/delete", api_admin_supplier_delete)
     app.router.add_post("/api/admin/order/{id}/status", api_admin_status)
     app.router.add_post("/api/admin/broadcast", api_admin_broadcast)
