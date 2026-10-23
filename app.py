@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from pathlib import Path
 
@@ -32,6 +33,8 @@ from aiogram.types import (
 
 import aiohttp
 
+import sitepages
+from offer import render_offer
 from shop import (
     ACCEPT_ASK,
     ACCEPT_ASK_RU,
@@ -82,10 +85,13 @@ GROUP_ID = int(os.getenv("GROUP_ID") or 0)
 NOTIFY_CHATS = [GROUP_ID] if GROUP_ID else list(ADMIN_IDS)
 # Render o'zi RENDER_EXTERNAL_URL beradi, shuning uchun u yerda WEBAPP_URL shart emas
 WEBAPP_URL = (os.getenv("WEBAPP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "").rstrip("/") + "/"
+# Telegram ichidagi ilova (Mini App) — /app; bosh sahifa (/) — hamma uchun ochiq veb-sayt
+APP_URL = WEBAPP_URL + "app"
 SHOP = {
     "name": os.getenv("SHOP_NAME", "Mebel Do'koni"),
     "phone": os.getenv("SHOP_PHONE", ""),
     "address": os.getenv("SHOP_ADDRESS", ""),
+    "bot": (os.getenv("BOT_USERNAME") or "Mebelixuz_bot").lstrip("@"),  # ishga tushganda botning o'zidan olinadi
     # Yandex Maps JavaScript API kaliti (ixtiyoriy). Bo'lsa — mijoz manzilni Yandex xaritada belgilaydi
     "ymaps_key": os.getenv("YANDEX_MAPS_KEY", ""),
     # Yandex HTTP Geokoder kaliti (ixtiyoriy) — xaritadagi nuqtaning aniq manzil nomi uchun
@@ -110,6 +116,57 @@ dp = Dispatcher()
 
 def is_admin(uid: int) -> bool:
     return uid in ADMIN_IDS
+
+
+# ------------------------------------------------------------------ saytdan (Telegram'siz) xaridorlar
+# Ularga manfiy, juda katta ID beriladi (Telegram guruhlari ID'lari bilan to'qnashmaydi).
+# Ularga botdan xabar yuborilmaydi — menejer telefon orqali bog'lanadi, holatni saytdagi «Buyurtmalarim»da ko'radi.
+WEB_ID_BASE = 10 ** 15
+_WEB_KEY = hashlib.sha256(b"mebelix-web:" + (BOT_TOKEN or "dev").encode()).digest()
+
+
+def is_web(uid) -> bool:
+    try:
+        return int(uid) <= -WEB_ID_BASE
+    except (TypeError, ValueError):
+        return False
+
+
+def web_token(uid: int) -> str:
+    return f"{uid}.{hmac.new(_WEB_KEY, str(uid).encode(), hashlib.sha256).hexdigest()[:32]}"
+
+
+def check_web_token(token: str) -> int:
+    try:
+        uid_s, sig = token.rsplit(".", 1)
+        uid = int(uid_s)
+    except (ValueError, AttributeError):
+        return 0
+    if not is_web(uid) or not hmac.compare_digest(web_token(uid), token):
+        return 0
+    return uid
+
+
+_hits: dict = {}
+
+
+def rate_ok(key: str, limit: int, per: int = 3600) -> bool:
+    """Oddiy cheklov: bitta IP'dan soatiga `limit` martadan ko'p emas (spam va botlardan himoya)."""
+    now = time.time()
+    q = [t for t in _hits.get(key, []) if now - t < per]
+    if len(q) >= limit:
+        _hits[key] = q
+        return False
+    q.append(now)
+    _hits[key] = q
+    if len(_hits) > 5000:  # xotira o'smasin
+        for k in [k for k, v in _hits.items() if not v or now - v[-1] > per]:
+            _hits.pop(k, None)
+    return True
+
+
+def client_ip(request) -> str:
+    return (request.headers.get("X-Forwarded-For") or request.remote or "").split(",")[0].strip()
 
 
 # ------------------------------------------------------------------ mijoz tili (uz / ru)
@@ -189,7 +246,7 @@ def status_keyboard(o: dict, chat_id: int = 1, role: str = "admin") -> InlineKey
         btns = [InlineKeyboardButton(text=ACTIONS[s], callback_data=f"st:{o['id']}:{s}") for s in nxt]
     rows = [btns[i:i + 2] for i in range(0, len(btns), 2)]
     if chat_id > 0 and role == "admin":  # Mini App tugmasi guruhlarda ishlamaydi
-        rows.append([InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=WEBAPP_URL + "?admin=1"))])
+        rows.append([InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=APP_URL + "?admin=1"))])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -294,6 +351,8 @@ async def notify_new_order(o: dict):
             await alert_admins(f"⚠️ Buyurtma #{o['id']} {ROLE_NAMES[role]} guruhiga yuborilmadi: {esc(e)}\n"
                                "Bot o'sha guruhda a'zo ekanini tekshiring.")
     shop.set_admin_msgs(o["id"], msgs)
+    if is_web(o["user_id"]):
+        return
     try:
         await bot.send_message(
             o["user_id"],
@@ -308,6 +367,8 @@ async def notify_status(o: dict):
         return
     await refresh_order_messages(o)
     await ping_next_role(o)
+    if is_web(o["user_id"]):
+        return
     lang = lang_of(o["user_id"])
     text = (STATUS_MESSAGES_RU if lang == "ru" else STATUS_MESSAGES).get(o["status"])
     if text:
@@ -367,6 +428,8 @@ async def ping_next_role(o: dict):
 
 
 async def ask_acceptance(o: dict):
+    if is_web(o["user_id"]):
+        return
     lang = lang_of(o["user_id"])
     ru = lang == "ru"
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -386,6 +449,8 @@ async def register_user(user: dict):
         return
     name = esc(" ".join(x for x in (user.get("first_name"), user.get("last_name")) if x) or "—")
     uname = f" (@{esc(user['username'])})" if user.get("username") else ""
+    if is_web(user["id"]):
+        uname = " (🌐 saytdan, Telegram'siz)"
     st = shop.customer_stats()
     text = (f"👤 <b>Yangi mijoz qo'shildi</b>\n{name}{uname}\nID: <code>{user['id']}</code>\n\n"
             f"👥 Jami mijozlar: <b>{st['total']}</b> · bugun: {st['today']}")
@@ -401,7 +466,7 @@ def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
     lang = norm_lang(lang)
     sep = "&" if "?" in suffix else "?"
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{WEBAPP_URL}{suffix}{sep}lang={lang}"))]])
+        InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{APP_URL}{suffix}{sep}lang={lang}"))]])
 
 
 def lang_keyboard() -> InlineKeyboardMarkup:
@@ -410,7 +475,15 @@ def lang_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang:ru")]])
 
 
-async def send_welcome(chat_id: int, user, lang: str):
+_start_args: dict = {}   # til tanlanguncha saqlab turiladigan /start parametri (masalan saytdan p12)
+
+
+def start_suffix(arg: str) -> str:
+    """Saytdagi «Telegram orqali buyurtma» havolasi: /start p12 — ilova shu mahsulot bilan ochiladi."""
+    return f"?p={arg[1:]}" if re.fullmatch(r"p\d{1,9}", arg or "") else ""
+
+
+async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
     text = tx(lang, "hello", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
     if SHOP["phone"]:
         text += f"\n\n📞 {esc(SHOP['phone'])}"
@@ -418,9 +491,16 @@ async def send_welcome(chat_id: int, user, lang: str):
         text += f"\n📍 {esc(SHOP['address'])}"
     text += tx(lang, "ask", contact=admin_contact())
     await bot.send_message(chat_id, text, reply_markup=shop_button(lang=lang))
+    if suffix:
+        try:
+            p = shop.localize_product(shop.product(int(suffix.split("=")[1])), lang)
+            await bot.send_message(chat_id, f"🛋 <b>{esc(p['name'])}</b>\n{fmt_price(p['price'], lang)}",
+                                   reply_markup=shop_button(tx(lang, "open"), suffix, lang))
+        except (ShopError, ValueError, TelegramAPIError):
+            pass
     try:  # pastdagi menyu tugmasi ham mijoz tilida
         await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonWebApp(
-            text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}")))
+            text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}")))
     except TelegramAPIError:
         pass
     if is_admin(user.id):
@@ -432,9 +512,13 @@ async def send_welcome(chat_id: int, user, lang: str):
 async def cmd_start(m: Message):
     await register_user(m.from_user.model_dump())
     lang = shop.user_lang(m.from_user.id)
+    parts = (m.text or "").split(maxsplit=1)
+    suffix = start_suffix(parts[1].strip() if len(parts) > 1 else "")
     if not lang:  # birinchi marta — avval tilni tanlaydi
+        if suffix:
+            _start_args[m.from_user.id] = suffix
         return await m.answer(LANG_PICK, reply_markup=lang_keyboard())
-    await send_welcome(m.chat.id, m.from_user, lang)
+    await send_welcome(m.chat.id, m.from_user, lang, suffix)
 
 
 @dp.message(Command("lang", "til", "language"))
@@ -450,7 +534,7 @@ async def cb_lang(c: CallbackQuery):
         await c.message.edit_text(tx(lang, "lang_set"))
     except TelegramAPIError:
         pass
-    await send_welcome(c.message.chat.id, c.from_user, lang)
+    await send_welcome(c.message.chat.id, c.from_user, lang, _start_args.pop(c.from_user.id, ""))
 
 
 @dp.message(Command("admin"))
@@ -657,10 +741,24 @@ async def refuse_user(m: Message):
 # ------------------------------------------------------------------ web API
 def get_user(request: web.Request) -> dict:
     init_data = request.headers.get("X-Init-Data", "")
+    if not init_data and request.headers.get("X-Web-Token"):
+        uid = check_web_token(request.headers["X-Web-Token"])
+        if not uid:
+            raise AuthError("web token noto'g'ri")
+        return {"id": uid, "first_name": "", "username": "", "web": True}
     if DEV and not init_data:
         return {"id": int(os.getenv("DEV_USER_ID") or next(iter(ADMIN_IDS), 1)), "first_name": "Test",
                 "username": "test"}
     return check_init_data(init_data, BOT_TOKEN)
+
+
+async def api_web_session(request):
+    """Saytdan buyurtma beruvchi uchun maxfiy kalit (Telegram'siz). Faqat buyurtma berish paytida so'raladi."""
+    if not rate_ok("ws:" + client_ip(request), 20):
+        raise ShopError("Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring.",
+                        "Слишком много попыток. Попробуйте чуть позже.")
+    uid = -(WEB_ID_BASE + int.from_bytes(os.urandom(6), "big"))
+    return web.json_response({"token": web_token(uid)})
 
 
 def get_admin(request: web.Request) -> dict:
@@ -686,7 +784,90 @@ async def page_index(request):
 
 
 async def api_catalog(request):
-    return web.json_response({"shop": SHOP, **shop.catalog(norm_lang(request.query.get("lang")))})
+    info = {**SHOP, "admin": shop.settings().get("admin_contact", "")}
+    return web.json_response({"shop": info, **shop.catalog(norm_lang(request.query.get("lang")))})
+
+
+# ------------------------------------------------------------------ veb-sayt (/, /p/..., /oferta)
+SITE_DIR = BASE / "webapp" / "site"
+
+
+def _asset_version() -> str:
+    h = hashlib.sha1()
+    for f in ("site.css", "site.js"):
+        try:
+            h.update((SITE_DIR / f).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:10]
+
+
+ASSET_V = _asset_version()
+
+
+def site_base(request) -> str:
+    proto = (request.headers.get("X-Forwarded-Proto") or request.scheme or "https").split(",")[0].strip()
+    return f"{proto}://{request.host}"
+
+
+def site_ctx(request) -> dict:
+    lang = norm_lang(request.query.get("lang"))
+    st = shop.settings()
+    products = []
+    for p in shop.products():
+        lp = shop.localize_product(p, lang)  # ichki maydonlar (kirim narxi, ta'minotchi) shu yerda olib tashlanadi
+        lp["name_uz"] = p["name"]
+        products.append(lp)
+    return {"lang": lang, "shop": SHOP, "settings": {"admin_contact": st.get("admin_contact", "")},
+            "categories": shop.categories(lang), "products": products, "bot": SHOP.get("bot", ""),
+            "prepay_pct": shop.prepay_info()["pct"], "assembly_pct": int(st.get("assembly_pct") or 0),
+            "base": site_base(request), "v": ASSET_V, "path": request.path, "year": time.gmtime().tm_year}
+
+
+def html_page(text: str, status: int = 200) -> web.Response:
+    return web.Response(text=text, status=status, content_type="text/html",
+                        headers={"Cache-Control": "public, max-age=60"})
+
+
+async def page_site(request):
+    return html_page(sitepages.page_home(site_ctx(request)))
+
+
+async def page_product(request):
+    ctx = site_ctx(request)
+    m = re.match(r"(\d+)", request.match_info.get("slug", ""))
+    pid = int(m.group(1)) if m else 0
+    p = next((x for x in ctx["products"] if x["id"] == pid), None)
+    if not p:
+        return html_page(sitepages.page_404(ctx), 404)
+    return html_page(sitepages.page_product(ctx, p))
+
+
+async def page_offer(request):
+    ctx = site_ctx(request)
+    return html_page(sitepages.page_offer(ctx, render_offer(shop.seller(), ctx["assembly_pct"], ctx["lang"])))
+
+
+async def page_not_found(request):
+    return html_page(sitepages.page_404(site_ctx(request)), 404)
+
+
+async def page_sitemap(request):
+    return web.Response(text=sitepages.sitemap_xml(site_base(request), site_ctx(request)["products"]),
+                        content_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
+
+
+async def page_robots(request):
+    return web.Response(text=sitepages.robots_txt(site_base(request)), content_type="text/plain")
+
+
+async def page_manifest(request):
+    return web.Response(text=sitepages.manifest(SHOP["name"]), content_type="application/manifest+json")
+
+
+async def page_sw(request):
+    return web.FileResponse(SITE_DIR / "sw.js", headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/",
+                                                          "Content-Type": "application/javascript"})
 
 
 async def api_lang(request):
@@ -695,7 +876,7 @@ async def api_lang(request):
     if bot:
         try:
             await bot.set_chat_menu_button(chat_id=u["id"], menu_button=MenuButtonWebApp(
-                text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{WEBAPP_URL}?lang={lang}")))
+                text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}")))
         except TelegramAPIError:
             pass
     return web.json_response({"lang": lang})
@@ -720,7 +901,8 @@ def public(o: dict, admin: bool = False) -> dict:
 
 async def api_me(request):
     u = get_user(request)
-    await register_user(u)
+    if not u.get("web"):  # saytdagi xaridor buyurtma paytida ro'yxatga olinadi (ismi bilan)
+        await register_user(u)
     lang = shop.user_lang(u["id"])
     show = lang or norm_lang(request.headers.get("X-Lang") or u.get("language_code"))
     return web.json_response({"user": u, "is_admin": is_admin(u["id"]), "profile": shop.last_profile(u["id"]),
@@ -741,7 +923,15 @@ async def api_order(request):
                 receipt = bytes(await part.read(decode=False))
     else:
         payload = await request.json()
+    if u.get("web"):
+        if not rate_ok("wo:" + client_ip(request), 8):
+            raise ShopError("Juda ko'p buyurtma yuborildi. Iltimos, do'konga qo'ng'iroq qiling.",
+                            "Слишком много заказов. Пожалуйста, позвоните в магазин.")
+        c = payload.get("customer") or {}
+        u = {**u, "first_name": (c.get("name") or "").strip()[:80] or "Sayt mijozi"}
     o = shop.create_order(u, payload, receipt)
+    if u.get("web"):
+        await register_user(u)
     asyncio.create_task(notify_new_order(o))
     return web.json_response({"order": public(shop.localize_order(o, norm_lang(request.headers.get("X-Lang"))))})
 
@@ -1122,12 +1312,24 @@ async def upload_headers(request, response):
     if request.path.startswith("/uploads/"):
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         response.headers["Access-Control-Allow-Origin"] = "*"
+    elif request.path.startswith("/s/"):
+        # sayt fayllari: manzilda ?v=... versiyasi bor, shuning uchun uzoq keshlasa bo'ladi
+        response.headers["Cache-Control"] = "public, max-age=2592000"
 
 
 def make_app() -> web.Application:
     app = web.Application(middlewares=[errors], client_max_size=450 * 1024 * 1024)
     app.on_response_prepare.append(upload_headers)
-    app.router.add_get("/", page_index)
+    app.router.add_get("/", page_site)
+    app.router.add_get("/app", page_index)
+    app.router.add_get("/p/{slug}", page_product)
+    app.router.add_get("/oferta", page_offer)
+    app.router.add_get("/sitemap.xml", page_sitemap)
+    app.router.add_get("/robots.txt", page_robots)
+    app.router.add_get("/manifest.webmanifest", page_manifest)
+    app.router.add_get("/sw.js", page_sw)
+    app.router.add_static("/s/", SITE_DIR)
+    app.router.add_post("/api/web/session", api_web_session)
     app.router.add_static("/uploads/", UPLOAD_DIR)
     app.router.add_get("/api/catalog", api_catalog)
     app.router.add_post("/api/me", api_me)
@@ -1169,7 +1371,11 @@ async def main():
         await asyncio.Event().wait()
     if not ADMIN_IDS:
         log.warning("ADMIN_IDS bo'sh — buyurtmalar hech kimga yuborilmaydi!")
-    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛋 Do'kon", web_app=WebAppInfo(url=WEBAPP_URL)))
+    try:
+        SHOP["bot"] = (await bot.get_me()).username or SHOP["bot"]
+    except TelegramAPIError as e:
+        log.warning("bot nomini olib bo'lmadi: %s", e)
+    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛋 Do'kon", web_app=WebAppInfo(url=APP_URL)))
     await dp.start_polling(bot)
 
 

@@ -6,7 +6,7 @@ Matn o'zgarsa OFFER_VERSION ni yangilang: har buyurtmada mijoz qaysi versiyaga r
 """
 import html
 
-OFFER_VERSION = "2026-10-23"
+OFFER_VERSION = "2026-10-23.2"
 
 _BLANK = "____________"
 
@@ -15,7 +15,7 @@ OFFER_UZ = """<h2>Ommaviy oferta</h2>
 
 <h3>1. Umumiy qoidalar</h3>
 <p>1.1. Ushbu hujjat {name} (STIR: {tin}, manzil: {address}, telefon: {phone}; bundan buyon — «Sotuvchi») tomonidan
-Telegram'dagi «Mebelix» do'koni (bot va ilova) orqali mebel sotish bo'yicha istalgan shaxsga (bundan buyon — «Xaridor»)
+Telegram'dagi «Mebelix» do'koni (bot va ilova) hamda uning veb-sayti orqali mebel sotish bo'yicha istalgan shaxsga (bundan buyon — «Xaridor»)
 qaratilgan ommaviy oferta hisoblanadi.</p>
 <p>1.2. Xaridor ilovada «Ommaviy oferta shartlariga roziman» belgisini qo'yib, buyurtma berganida ushbu oferta
 to'liq qabul qilingan (aksept) va shartnoma tuzilgan hisoblanadi («Elektron tijorat to'g'risida»gi Qonun).</p>
@@ -63,7 +63,7 @@ OFFER_RU = """<h2>Публичная оферта</h2>
 
 <h3>1. Общие положения</h3>
 <p>1.1. Настоящий документ является публичной офертой {name} (ИНН: {tin}, адрес: {address}, телефон: {phone};
-далее — «Продавец») любому лицу (далее — «Покупатель») о продаже мебели через магазин «Mebelix» в Telegram (бот и приложение).</p>
+далее — «Продавец») любому лицу (далее — «Покупатель») о продаже мебели через магазин «Mebelix» в Telegram (бот и приложение) и его веб-сайт.</p>
 <p>1.2. Оферта считается принятой (акцепт), а договор — заключённым, когда Покупатель отмечает
 «Принимаю условия публичной оферты» и оформляет заказ (Закон «Об электронной коммерции»).</p>
 

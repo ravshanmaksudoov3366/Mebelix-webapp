@@ -679,7 +679,8 @@ class Shop:
 
     def user_ids_by_lang(self) -> dict:
         out = {"uz": [], "ru": []}
-        for r in self.db.execute("SELECT id, lang FROM users").fetchall():
+        # manfiy ID — saytdan (Telegram'siz) kelgan xaridorlar: ularga botdan xabar yuborib bo'lmaydi
+        for r in self.db.execute("SELECT id, lang FROM users WHERE id > 0").fetchall():
             out["ru" if r["lang"] == "ru" else "uz"].append(r["id"])
         return out
 
@@ -719,7 +720,7 @@ class Shop:
         return {"total": total, "items": [dict(r) for r in rows]}
 
     def user_ids(self) -> list:
-        return [r[0] for r in self.db.execute("SELECT id FROM users").fetchall()]
+        return [r[0] for r in self.db.execute("SELECT id FROM users WHERE id > 0").fetchall()]
 
     def last_profile(self, user_id: int) -> dict:
         r = self.db.execute("SELECT name, phone, city, address, delivery, pay, lat, lon FROM orders "
@@ -973,6 +974,8 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
     when = time.strftime("%d.%m.%Y %H:%M", time.gmtime(o["created"] + 5 * 3600))
     if for_admin:
         user = f"@{e(o['username'])}" if o.get("username") else f"<a href=\"tg://user?id={o['user_id']}\">profil</a>"
+        if o["user_id"] < 0:
+            user = "🌐 saytdan — Telegram'i yo'q, telefon qiling"
         place = DELIVERY.get(o["delivery"], "")
         if o["delivery"] == "delivery":
             addr = ", ".join(e(x) for x in (o.get("city"), o.get("address")) if x)
