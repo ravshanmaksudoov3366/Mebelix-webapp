@@ -1266,6 +1266,8 @@ function viewAdmin() {
       <input class="in" id="setOwner" value="${esc(st2.pay_owner || "")}" placeholder="Masalan: Maksudov R">
       <label class="f">Oldindan to'lov foizi (%)</label>
       <input class="in" id="setPct" inputmode="numeric" value="${esc(st2.prepay_pct || "10")}" style="width:100px">
+      <label class="f">Admin Telegram niki — mijozlar savol uchun shunga yozadi</label>
+      <input class="in" id="setContact" value="${esc(st2.admin_contact ? "@" + st2.admin_contact : "")}" placeholder="@MRS3366">
       <label class="switch" style="margin-top:8px"><span>Yangi mijoz qo'shilganda menga xabar yuborilsin</span>
         <input type="checkbox" id="setNotify" ${st2.notify_new_users === "1" ? "checked" : ""}></label>
       <h3 style="margin-top:18px">🔧 Yig'ib berish</h3>
@@ -1379,7 +1381,7 @@ async function saveSettings() {
   try {
     const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value, notify_new_users: $("#setNotify").checked ? 1 : 0,
       assembly_pct: $("#setAsm").value, seller_name: $("#setSName").value, seller_tin: $("#setSTin").value,
-      seller_address: $("#setSAddr").value, seller_phone: $("#setSPhone").value } });
+      seller_address: $("#setSAddr").value, seller_phone: $("#setSPhone").value, admin_contact: $("#setContact").value } });
     S.adm.data.settings = r.settings; await loadCatalog(); notifyH("success"); toast("Saqlandi ✓"); render();
   } catch (e) { alertBox(e.message); }
 }

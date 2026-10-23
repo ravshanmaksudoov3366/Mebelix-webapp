@@ -89,6 +89,8 @@ PAYMENTS_RU = {"Karta orqali (qabul qilganda)": "Картой (при получ
                "Naqd (qabul qilganda)": "Наличными (при получении)"}
 DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1",
                     "assembly_pct": "5",
+                    # mijozlar savol uchun yozadigan admin Telegram niki (@siz)
+                    "admin_contact": "MRS3366",
                     # sotuvchi rekvizitlari (oferta va dalolatnoma uchun; YaTT/MChJ ochilgach to'ldiriladi)
                     "seller_name": "", "seller_tin": "", "seller_address": "", "seller_phone": "",
                     # kuryer va yig'uvchi guruhlari (botda /kuryer_guruhi, /yiguvchi_guruhi bilan ulanadi)
@@ -366,6 +368,11 @@ class Shop:
                   "assembly_pct": str(apct)}
         for k in SELLER_FIELDS:
             values[k] = str(data.get(k, cur[k]) or "").strip()[:200]
+        nick = str(data.get("admin_contact", cur["admin_contact"]) or "").strip()
+        nick = re.sub(r"^(https?://)?(t\.me/|telegram\.me/)?@?", "", nick).strip("/")
+        if nick and not re.fullmatch(r"[A-Za-z0-9_]{4,32}", nick):
+            raise ShopError("Admin nikini to'g'ri yozing (masalan: @MRS3366)")
+        values["admin_contact"] = nick
         for k, v in values.items():
             self.set_setting(k, v)
         return self.settings()

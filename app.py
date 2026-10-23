@@ -117,7 +117,8 @@ TX = {
     "uz": {
         "hello": "Assalomu alaykum, <b>{name}</b>! 👋\n\n<b>{shop}</b> ga xush kelibsiz.\n"
                  "Tayyor mebellar katalogini ko'ring va bir necha bosishda buyurtma bering 👇",
-        "ask": "\n\nSavolingiz bo'lsa, shu yerga yozing, menejer javob beradi.",
+        "ask": "\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
+        "no_chat": "Bu botga xabar yozib bo'lmaydi 🙏\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
         "open": "🛋 Katalogni ochish",
         "menu": "🛋 Do'kon",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
@@ -130,7 +131,8 @@ TX = {
     "ru": {
         "hello": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
                  "Смотрите каталог готовой мебели и оформляйте заказ в пару нажатий 👇",
-        "ask": "\n\nЕсли есть вопросы — пишите сюда, менеджер ответит.",
+        "ask": "\n\n❓ Если есть вопросы, пишите администратору: {contact}",
+        "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "open": "🛋 Открыть каталог",
         "menu": "🛋 Магазин",
         "sent": "Ваше сообщение отправлено менеджеру. Скоро ответим 🙏",
@@ -150,6 +152,14 @@ def lang_of(uid: int) -> str:
 
 def tx(lang: str, key: str, **kw) -> str:
     return TX[norm_lang(lang)][key].format(**kw)
+
+
+def admin_contact() -> str:
+    """Mijozlar savol uchun yozadigan admin: @nik (sozlamalardan), bo'lmasa do'kon telefoni."""
+    nick = shop.settings().get("admin_contact", "")
+    if nick:
+        return "@" + esc(nick)
+    return esc(SHOP["phone"]) or "—"
 
 
 # ------------------------------------------------------------------ bildirishnomalar
@@ -406,7 +416,7 @@ async def send_welcome(chat_id: int, user, lang: str):
         text += f"\n\n📞 {esc(SHOP['phone'])}"
     if SHOP["address"]:
         text += f"\n📍 {esc(SHOP['address'])}"
-    text += tx(lang, "ask")
+    text += tx(lang, "ask", contact=admin_contact())
     await bot.send_message(chat_id, text, reply_markup=shop_button(lang=lang))
     try:  # pastdagi menyu tugmasi ham mijoz tilida
         await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonWebApp(
@@ -525,9 +535,9 @@ async def cb_accept(c: CallbackQuery):
                        f"👤 {esc(o['name'])}, 📞 {esc(o['phone'])}\nTezda bog'laning.")
     try:
         await c.message.edit_reply_markup(reply_markup=None)
-        await c.message.answer("Менеджер скоро свяжется с вами. Можете описать проблему или отправить фото прямо сюда."
-                               if ru else "Menejer tez orada siz bilan bog'lanadi. Muammoni shu yerga yozib yoki "
-                                          "suratini yuborib qo'yishingiz mumkin.")
+        await c.message.answer(("Менеджер скоро свяжется с вами. Опишите проблему и отправьте фото администратору: "
+                                if ru else "Menejer tez orada siz bilan bog'lanadi. Muammoni yozib, suratini adminga "
+                                           "yuboring: ") + admin_contact())
     except TelegramAPIError:
         pass
     await c.answer()
@@ -597,23 +607,51 @@ async def admin_reply(m: Message):
         await m.answer(f"Yuborilmadi: {e}")
 
 
+# Admin botga oddiy matn yozsa — tasdiqlagach barcha mijozlarga yuboriladi
+_pending_bc: dict = {}   # admin xabari id -> matn
+
+
 @dp.message(F.chat.type == "private", F.text)
 async def user_message(m: Message):
-    """Mijozning oddiy xabarini adminlarga uzatadi."""
-    if is_admin(m.from_user.id):
-        return await m.answer("Mijozga javob berish uchun uning xabariga «Reply» qiling.",
+    if not is_admin(m.from_user.id):
+        return await refuse_user(m)
+    text = (m.text or "").strip()
+    if not text or text.startswith("/"):
+        return await m.answer("Mijozlarga xabar yuborish uchun matnni shu yerga yozing.",
                               reply_markup=shop_button("🗂 Admin panel", "?admin=1"))
+    _pending_bc[m.message_id] = text
+    n = len(shop.user_ids())
+    await m.reply(f"📣 Shu xabar barcha mijozlarga (<b>{n}</b> ta) yuborilsinmi?",
+                  reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                      InlineKeyboardButton(text="✅ Yuborish", callback_data=f"bc:yes:{m.message_id}"),
+                      InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"bc:no:{m.message_id}")]]))
+
+
+@dp.callback_query(F.data.startswith("bc:"))
+async def cb_broadcast(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, ans, mid = c.data.split(":")
+    text = _pending_bc.pop(int(mid), None)
+    if ans != "yes":
+        await c.message.edit_text("❌ Bekor qilindi. Xabar hech kimga yuborilmadi.")
+        return await c.answer()
+    if not text:
+        await c.message.edit_text("Bu xabar eskirgan. Matnni qaytadan yozing.")
+        return await c.answer()
+    n = start_broadcast(text)
+    await c.message.edit_text(f"⏳ Xabar {n} ta mijozga yuborilmoqda… Tugagach shu yerga xabar keladi.")
+    await c.answer("✅")
+
+
+@dp.message(F.chat.type == "private")
+async def refuse_user(m: Message):
+    """Mijozlar botga yoza olmaydi — savollar uchun admin nikini ko'rsatamiz."""
+    if is_admin(m.from_user.id):
+        return
     await register_user(m.from_user.model_dump())
-    u = m.from_user
-    who = esc(u.full_name) + (f" (@{u.username})" if u.username else "")
-    for aid in ADMIN_IDS:
-        try:
-            await bot.send_message(aid, f"💬 <b>{who}</b> #u{u.id}{' 🇷🇺' if lang_of(u.id) == 'ru' else ''}\n\n{esc(m.text)}\n\n"
-                                        "<i>Javob berish uchun shu xabarga «Reply» qiling.</i>")
-        except TelegramAPIError:
-            pass
-    lang = lang_of(u.id)
-    await m.answer(tx(lang, "sent"), reply_markup=shop_button(lang=lang))
+    lang = lang_of(m.from_user.id)
+    await m.answer(tx(lang, "no_chat", contact=admin_contact()), reply_markup=shop_button(lang=lang))
 
 
 # ------------------------------------------------------------------ web API
@@ -979,13 +1017,11 @@ async def api_admin_status(request):
     return web.json_response({"order": public(o, admin=True)})
 
 
-async def api_admin_broadcast(request):
-    get_admin(request)
-    text = ((await request.json()).get("text") or "").strip()
-    if not text:
-        raise ShopError("Xabar matnini yozing")
+def start_broadcast(text: str) -> int:
+    """Matnni barcha mijozlarga (ruslarga tarjima bilan) fon rejimida yuboradi; nechta mijozga navbatga qo'yilganini qaytaradi."""
     groups = shop.user_ids_by_lang()
     ids = groups["uz"] + groups["ru"]
+    ru_set = set(groups["ru"])
 
     async def run():
         sent = 0
@@ -1010,10 +1046,17 @@ async def api_admin_broadcast(request):
             except TelegramAPIError:
                 pass
 
-    ru_set = set(groups["ru"])
     if bot:
         asyncio.create_task(run())
-    return web.json_response({"queued": len(ids)})
+    return len(ids)
+
+
+async def api_admin_broadcast(request):
+    get_admin(request)
+    text = ((await request.json()).get("text") or "").strip()
+    if not text:
+        raise ShopError("Xabar matnini yozing")
+    return web.json_response({"queued": start_broadcast(text)})
 
 
 # ------------------------------------------------------------------ avtomatik tarjima (uz -> ru)
