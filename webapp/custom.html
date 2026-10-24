@@ -200,6 +200,19 @@ select.in { appearance: none; -webkit-appearance: none; }
 .how span { display: block; font-size: 22px; margin-bottom: 4px; }
 .visit-note { display: flex; gap: 10px; align-items: center; background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 12px 14px; font-size: 14px; }
 .visit-note span { font-size: 24px; }
+.sdoors { display: flex; flex-direction: column; gap: 12px; padding: 4px 12px 12px; }
+.sdoor { position: relative; display: block; width: 100%; aspect-ratio: 16 / 8; border-radius: 20px; overflow: hidden; text-align: left; background: var(--bg2); box-shadow: 0 1px 3px rgba(0,0,0,.08); transition: transform .15s; }
+.sdoor:active { transform: scale(.985); }
+.sdoor img, .sdoor .art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.sdoor .art { display: grid; place-items: center; padding-bottom: 40px; }
+.sdoor .art svg { width: 40%; }
+.sdoor .ov { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 14px; background: linear-gradient(transparent, rgba(0,0,0,.55)); color: #fff; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.sdoor .ov b { display: block; font-size: 24px; line-height: 1.1; }
+.sdoor .ov small { font-size: 13.5px; opacity: .92; }
+.sdoor .go { flex: none; background: rgba(255,255,255,.95); color: #1d1b19; font-weight: 600; font-size: 13.5px; padding: 8px 12px; border-radius: 20px; }
+.feats { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.feats div { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
+.feats span { font-size: 18px; width: 24px; text-align: center; flex: none; }
 .calc-res { margin-top: 12px; background: var(--soft); border-radius: 12px; padding: 12px 14px; }
 .calc-res b { display: block; font-size: 19px; margin: 2px 0; }
 .fee { background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
@@ -246,6 +259,7 @@ let LANG = normLang(qs.get("lang") || store.get("lang", "") || (tg && tg.initDat
 const I18N = {
   uz: { ready: "Tayyor mebellar", custom: "O'lchamga", title: "O'lchamga buyurtma", mine: "Arizalarim",
     intro_t: "Qaysi uslub sizga yoqadi?", intro_p: "Uslubni tanlang — namuna ishlar va taxminiy narxlarni ko'rasiz.",
+    open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari",
     how1: "Uslubni tanlaysiz", how2: "Usta uyingizga kelib o'lchaydi", how3: "Narx va shartnoma joyida",
     visit_note: "O'lchamni bilishingiz shart emas — usta uyingizga kelib o'zi o'lchaydi.",
     visit_note_fee: "O'lchamni bilishingiz shart emas — usta kelib o'lchaydi. O'lchov va maslahat {f}, shartnoma tuzsangiz narxdan to'liq chegiriladi.",
@@ -279,6 +293,7 @@ const I18N = {
     net_err: "Internet bilan aloqa yo'q", gen_err: "Xatolik yuz berdi", visit_s: "usta o'lchaydi" },
   ru: { ready: "Готовая мебель", custom: "На заказ", title: "Мебель на заказ", mine: "Мои заявки",
     intro_t: "Какой стиль вам нравится?", intro_p: "Выберите стиль — увидите примеры работ и примерные цены.",
+    open_s: "Смотреть ›", feats_t: "Особенности стиля",
     how1: "Выбираете стиль", how2: "Мастер приезжает на замер", how3: "Цена и договор на месте",
     visit_note: "Размеры знать не нужно — мастер приедет и сам всё измерит.",
     visit_note_fee: "Размеры знать не нужно — мастер приедет и измерит. Замер и консультация — {f}, при заключении договора сумма полностью вычитается из цены.",
@@ -408,8 +423,9 @@ function stylesHTML() {
   return `<div class="how"><div><span>🎨</span>${t("how1")}</div><div><span>📏</span>${t("how2")}</div><div><span>📝</span>${t("how3")}</div></div>
     <div class="intro"><h2>${t("intro_t")}</h2><p>${t("intro_p")}</p></div>
     ${m ? `<div class="section pick" style="margin-top:10px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
-    <div class="styles">${S.cfg.styles.map(s => `<button class="style-card" onclick="openStyle('${s.id}')">${coverHTML(s)}
-      <div class="style-body"><p>${esc(s.desc)}</p>${pricesMini(s)}<div class="more"><span>${t("see")}</span><span>›</span></div></div></button>`).join("")}</div>
+    <div class="sdoors">${S.cfg.styles.map(s => `<button class="sdoor" onclick="openStyle('${s.id}')">
+      ${s.cover ? `<img src="${esc(s.cover)}" alt="" loading="lazy">` : artHTML(s.id)}
+      <div class="ov"><div><b>${esc(s.name)}</b><small>${esc(s.tag)}</small></div><span class="go">${t("open_s")}</span></div></button>`).join("")}</div>
     ${callHTML()}`;
 }
 function openStyle(id) { S.style = id; S.gk = ""; if (F.kind && kindOf(F.kind) && kindOf(F.kind).price) S.calc.kind = F.kind; haptic(); go("style"); }
@@ -422,6 +438,7 @@ function styleHTML() {
   const rate = id => s.rates[id] ? (LANG === "ru" ? t("from") + " " + money(s.rates[id]) : money(s.rates[id]) + " " + t("from")) : t("agreed");
   return `${coverHTML(s, "hero-img", false)}
     <div class="intro"><h2>${esc(s.name)}</h2><p>${esc(s.desc)}</p></div>
+    ${s.features.length ? `<div class="section" style="margin-top:10px"><b>${t("feats_t")}</b><div class="feats">${s.features.map(f => `<div><span>${f.icon}</span>${esc(f.text)}</div>`).join("")}</div></div>` : ""}
     <div class="intro" style="padding-top:8px"><h2 style="font-size:19px">${t("samples")}</h2></div>
     ${kinds.length > 1 ? `<div class="chips" style="padding-top:2px">${[["", t("all")], ...kinds.map(k => [k, (kindOf(k) || { name: k }).name])].map(([k, n]) => `<button class="chip ${S.gk === k ? "on" : ""}" onclick="S.gk='${k}'; refresh()">${esc(n)}</button>`).join("")}</div>` : ""}
     ${list.length ? `<div class="gal">${list.map(g => `<button onclick="openLb(${g.id})"><img src="${esc(g.image)}" alt="" loading="lazy">${g.caption ? `<span class="cap">${esc(g.caption)}</span>` : ""}</button>`).join("")}</div>`

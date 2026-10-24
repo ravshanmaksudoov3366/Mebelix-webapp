@@ -15,6 +15,27 @@ import time
 from shop import ShopError, normalize_phone, fmt_price
 
 # ------------------------------------------------------------------ dizayn uslublari
+# tag — kirish kartasidagi qisqa shior; f — uslub ichidagi xususiyatlar ro'yxati
+STYLE_INFO = {
+    "modern": {"tag": ("Zamonaviy va minimal", "Современно и минималистично"),
+               "f": [("🪞", "Yaltiroq yoki mat fasadlar (MDF, akril)", "Глянцевые или матовые фасады (МДФ, акрил)"),
+                     ("✋", "Tutqichsiz eshiklar yoki yashirin tutqichlar", "Фасады без ручек или скрытые ручки"),
+                     ("💡", "Metall, shisha va LED yoritish", "Металл, стекло и LED-подсветка"),
+                     ("🎨", "Ranglar: oq, kulrang, grafit, qora", "Цвета: белый, серый, графит, чёрный"),
+                     ("🏙", "Zamonaviy kvartira va minimalizm uchun", "Для современных квартир и минимализма")]},
+    "newclassic": {"tag": ("Nafis va yorug'", "Изящно и светло"),
+                   "f": [("🖼", "Ramkali fasadlar, yengil karnizlar", "Рамочные фасады, лёгкие карнизы"),
+                         ("✨", "Oltin yoki bronza tutqichlar, nozik patina", "Золотые или бронзовые ручки, лёгкая патина"),
+                         ("🎨", "Ranglar: oq, krem, bej, och kulrang", "Цвета: белый, крем, беж, светло-серый"),
+                         ("🌿", "Klassika chiroyi + zamonaviy qulaylik", "Красота классики + современный комфорт"),
+                         ("🏠", "Yorug' va keng xonadonlar uchun", "Для светлых и просторных квартир")]},
+    "classic": {"tag": ("Hashamatli va an'anaviy", "Роскошно и традиционно"),
+                "f": [("🌳", "Tabiiy yog'och yoki shpon", "Натуральное дерево или шпон"),
+                      ("🏛", "O'yma naqshlar, karniz, balyasinalar", "Резьба, карнизы, балясины"),
+                      ("✨", "Patina, oltin bezaklar", "Патина, золотой декор"),
+                      ("🎨", "Ranglar: yong'oq, olcha, fil suyagi", "Цвета: орех, вишня, слоновая кость"),
+                      ("🏡", "Katta xonadon va hovli uylar uchun", "Для больших квартир и частных домов")]},
+}
 STYLES = {
     # id "modern" eski arizalar va namunalar uchun saqlanadi — mijozga "Hi-Tech" deb ko'rinadi
     "modern": {"uz": "Hi-Tech", "ru": "Хай-тек",
@@ -296,7 +317,10 @@ class CustomStore:
         for sid, s in STYLES.items():
             items = [{"id": g["id"], "kind": g["kind"], "image": "/" + g["image"], "caption": g["caption"]}
                      for g in gal if g["style"] == sid]
+            info = STYLE_INFO.get(sid, {"tag": ("", ""), "f": []})
             styles.append({"id": sid, "name": s["ru" if ru else "uz"], "desc": s["d_ru" if ru else "d_uz"],
+                           "tag": info["tag"][1 if ru else 0],
+                           "features": [{"icon": i, "text": (r_ if ru else u)} for i, u, r_ in info["f"]],
                            "rates": rates[sid], "gallery": items, "cover": items[0]["image"] if items else ""})
         return {
             "styles": styles,
