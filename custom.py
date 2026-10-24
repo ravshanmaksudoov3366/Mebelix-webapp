@@ -1,5 +1,6 @@
-"""O'lchamga (individual) buyurtmalar: uslublar (Modern / Neoklassika / Klassika), namuna rasmlar,
-uslub bo'yicha narxlar (divan — 1 metr, shkaf — 1 m², oshxona — 1 pogon metr), arizalar va bosqichlar.
+"""O'lchamga (individual) buyurtmalar: uslublar (Hi-Tech / Neoklassika / Klassika), namuna rasmlar,
+uslub bo'yicha narxlar (oshxona — 1 pogon metr; shkaf, garderob, komod — 1 m²), arizalar va bosqichlar.
+Mijozdan o'lcham so'ralmaydi: usta uyiga borib o'lchaydi va shu yerda shartnoma tuziladi.
 
 Tayyor mebel buyurtmalaridan alohida jadvallarda saqlanadi va o'z bosqichlariga ega.
 Bu fayl web-freymvorkka bog'liq emas — Shop bilan bitta SQLite bazadan foydalanadi.
@@ -15,9 +16,12 @@ from shop import ShopError, normalize_phone, fmt_price
 
 # ------------------------------------------------------------------ dizayn uslublari
 STYLES = {
-    "modern": {"uz": "Modern", "ru": "Модерн",
-               "d_uz": "Tekis chiziqlar, sodda shakllar, zamonaviy ranglar. Ortiqcha bezaksiz — toza va keng ko'rinadi.",
-               "d_ru": "Прямые линии, простые формы, современные цвета. Без лишнего декора — чисто и просторно."},
+    # id "modern" eski arizalar va namunalar uchun saqlanadi — mijozga "Hi-Tech" deb ko'rinadi
+    "modern": {"uz": "Hi-Tech", "ru": "Хай-тек",
+               "d_uz": "Tekis chiziqlar, yaltiroq yuzalar, metall va shisha detallar. Ortiqcha bezaksiz — zamonaviy "
+                       "va keng ko'rinadi.",
+               "d_ru": "Чёткие линии, глянцевые поверхности, металл и стекло. Без лишнего декора — современно и "
+                       "просторно."},
     "newclassic": {"uz": "Neoklassika", "ru": "Неоклассика",
                    "d_uz": "Klassikaning nafisligi va zamonaviy qulaylik: yengil naqshlar, och ranglar, oltin yoki "
                            "bronza detallar.",
@@ -29,17 +33,19 @@ STYLES = {
 }
 
 # ------------------------------------------------------------------ mebel turlari
-# price: qaysi narx bilan hisoblanadi — "sofa" (1 metr), "wardrobe" (1 m²), "kitchen" (1 pogon metr), None — kelishiladi
-# dims: o'lcham maydonlari (sm), hammasi ixtiyoriy — mijoz bilmasa, usta o'lchaydi.
+# price: qaysi narx bilan ko'rsatiladi — "kitchen" (1 pogon metr), "wardrobe" (1 m²), None — kelishiladi
+# dims: eski arizalardagi o'lchamlar (yangi ariza formasida o'lcham so'ralmaydi — usta o'lchaydi).
 KINDS = {
-    "sofa": {"uz": "Divan", "ru": "Диван", "icon": "🛋", "price": "sofa",
-             "dims": [("w", "Uzunligi", "Длина")]},
-    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "price": "sofa",
-               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона")]},
-    "wardrobe": {"uz": "Shkaf", "ru": "Шкаф", "icon": "🚪", "price": "wardrobe",
-                 "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
     "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухня", "icon": "🍳", "price": "kitchen",
                 "dims": [("w", "1-devor uzunligi", "Длина 1-й стены"), ("w2", "2-devor (burchak bo'lsa)", "2-я стена (если угловая)")]},
+    "wardrobe": {"uz": "Shkaf / garderob", "ru": "Шкаф / гардероб", "icon": "🚪", "price": "wardrobe",
+                 "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
+    "komod": {"uz": "Komod", "ru": "Комод", "icon": "🗄", "price": "wardrobe",
+              "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
+    "sofa": {"uz": "Divan", "ru": "Диван", "icon": "🛋", "price": None,
+             "dims": [("w", "Uzunligi", "Длина")]},
+    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "price": None,
+               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона")]},
     "other": {"uz": "Boshqa mebel", "ru": "Другая мебель", "icon": "🪑", "price": None, "dims": []},
     # eski arizalar uchun (tanlovda ko'rsatilmaydi)
     "armchair": {"uz": "Kreslo", "ru": "Кресло", "icon": "💺", "price": None, "hidden": True,
@@ -47,17 +53,22 @@ KINDS = {
     "bed": {"uz": "Karavot", "ru": "Кровать", "icon": "🛏", "price": None, "hidden": True,
             "dims": [("w", "Matras eni", "Ширина матраса"), ("l", "Matras bo'yi", "Длина матраса")]},
 }
-# Narx turlari (admin shu uchtasini har uslub uchun kiritadi)
+# Narx turlari (admin har uslub uchun kiritadi). hidden — mijozga va admin formaga chiqmaydi (eski ma'lumot).
 PRICE_UNITS = {
-    "sofa": {"uz": "Divan — 1 metr", "ru": "Диван — 1 метр", "short_uz": "1 metr", "short_ru": "1 метр",
-             "hint_uz": "divan uzunligi bo'yicha", "hint_ru": "по длине дивана"},
-    "wardrobe": {"uz": "Shkaf — 1 m²", "ru": "Шкаф — 1 м²", "short_uz": "1 m²", "short_ru": "1 м²",
-                 "hint_uz": "eni × balandligi (masalan 2 m × 2,5 m = 5 m²)",
-                 "hint_ru": "ширина × высота (например 2 м × 2,5 м = 5 м²)"},
-    "kitchen": {"uz": "Oshxona — 1 pogon metr", "ru": "Кухня — 1 погонный метр", "short_uz": "1 pogon metr",
+    "kitchen": {"uz": "Oshxona mebeli — 1 pogon metr", "ru": "Кухня — 1 погонный метр", "short_uz": "1 pogon metr",
                 "short_ru": "1 пог. метр", "hint_uz": "devor bo'ylab uzunligi (pastki va yuqori shkaflar bilan)",
                 "hint_ru": "длина вдоль стены (с нижними и верхними шкафами)"},
+    "wardrobe": {"uz": "Shkaf, garderob, komod — 1 m²", "ru": "Шкаф, гардероб, комод — 1 м²", "short_uz": "1 m²",
+                 "short_ru": "1 м²", "hint_uz": "old tomoni: eni × balandligi (masalan 2 m × 2,5 m = 5 m²)",
+                 "hint_ru": "фасад: ширина × высота (например 2 м × 2,5 м = 5 м²)"},
+    "sofa": {"uz": "Divan — 1 metr", "ru": "Диван — 1 метр", "short_uz": "1 metr", "short_ru": "1 метр",
+             "hint_uz": "divan uzunligi bo'yicha", "hint_ru": "по длине дивана", "hidden": True},
 }
+# Usta o'lchovga qachon kelsin (mijoz tanlaydi)
+VISIT_DAYS = {"today": ("Bugun", "Сегодня"), "tomorrow": ("Ertaga", "Завтра"),
+              "week": ("Shu hafta ichida", "На этой неделе"), "call": ("Qo'ng'iroq qilib kelishamiz", "Договоримся по телефону")}
+VISIT_TIMES = {"morning": ("ertalab (9–12)", "утром (9–12)"), "day": ("tushdan keyin (12–17)", "днём (12–17)"),
+               "evening": ("kechqurun (17–20)", "вечером (17–20)")}
 # Eski arizalardagi material darajasi (faqat ko'rsatish uchun)
 TIERS = {"econom": {"uz": "Ekonom", "ru": "Эконом"}, "standard": {"uz": "Standart", "ru": "Стандарт"},
          "premium": {"uz": "Premium", "ru": "Премиум"}}
@@ -107,7 +118,8 @@ CREATE TABLE IF NOT EXISTS custom_gallery (
     caption TEXT DEFAULT '', caption_ru TEXT DEFAULT '', sort INTEGER DEFAULT 0, created INTEGER
 );
 """
-REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''"}
+REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''",
+                   "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''"}
 
 
 def kind_name(kind: str, lang: str = "uz") -> str:
@@ -172,10 +184,14 @@ class CustomStore:
         return out
 
     def save_rates(self, data: dict) -> dict:
+        old = self.rates()
         out = {}
         for s in STYLES:
             out[s] = {}
-            for u in PRICE_UNITS:
+            for u, uv in PRICE_UNITS.items():
+                if uv.get("hidden"):
+                    out[s][u] = old[s][u]
+                    continue
                 raw = re.sub(r"\D", "", str(((data or {}).get(s) or {}).get(u) or ""))
                 out[s][u] = int(raw) if raw else 0
                 if out[s][u] > 10 ** 10:
@@ -251,12 +267,14 @@ class CustomStore:
         return {
             "styles": styles,
             "units": [{"id": u, "name": v["ru" if ru else "uz"], "short": v["short_ru" if ru else "short_uz"],
-                       "hint": v["hint_ru" if ru else "hint_uz"]} for u, v in PRICE_UNITS.items()],
+                       "hint": v["hint_ru" if ru else "hint_uz"]} for u, v in PRICE_UNITS.items() if not v.get("hidden")],
             "kinds": [{"id": k, "name": v["ru" if ru else "uz"], "icon": v["icon"], "price": v["price"],
                        "dims": [{"id": f, "label": (lr if ru else lu)} for f, lu, lr in v["dims"]]}
                       for k, v in KINDS.items() if not v.get("hidden")],
             "stages": [{"id": s, "name": stage_name(s, lang)} for s in STAGE_ORDER],
             "max_photos": MAX_PHOTOS,
+            "visit_days": [{"id": k, "name": v[1 if ru else 0]} for k, v in VISIT_DAYS.items()],
+            "visit_times": [{"id": k, "name": v[1 if ru else 0]} for k, v in VISIT_TIMES.items()],
         }
 
     # ------------------------------------------------ arizalar
@@ -316,6 +334,8 @@ class CustomStore:
                 raise ShopError("O'lcham 10 dan 2000 sm gacha bo'lishi kerak", "Размер должен быть от 10 до 2000 см")
             dims[f] = round(n, 1)
         visit = bool(payload.get("measure_visit")) or not dims
+        visit_day = payload.get("visit_day") if payload.get("visit_day") in VISIT_DAYS else ""
+        visit_time = payload.get("visit_time") if payload.get("visit_time") in VISIT_TIMES and visit_day != "call" else ""
         color = (payload.get("color") or "").strip()[:80]
         note = (payload.get("note") or "").strip()[:1000]
         sample_id, sample_image = None, ""
@@ -351,11 +371,11 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "style,sample_id,sample_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "style,sample_id,sample_image,visit_day,visit_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username") or "", name, phone, city, address, kind, model_id, model_name,
              json.dumps(dims), 1 if visit else 0, "", color, note, json.dumps(saved), lo, hi, "new",
              json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now,
-             style, sample_id, sample_image))
+             style, sample_id, sample_image, visit_day, visit_time))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -415,6 +435,15 @@ def dims_text(r: dict, lang: str = "uz") -> str:
     return "\n".join(parts)
 
 
+def visit_text(r: dict, lang: str = "uz") -> str:
+    """Usta kelish vaqti: «Ertaga, ertalab (9–12)»."""
+    i = 1 if lang == "ru" else 0
+    parts = [VISIT_DAYS[r["visit_day"]][i]] if r.get("visit_day") in VISIT_DAYS else []
+    if r.get("visit_time") in VISIT_TIMES:
+        parts.append(VISIT_TIMES[r["visit_time"]][i])
+    return ", ".join(parts)
+
+
 def public(r: dict, lang: str = "uz") -> dict:
     """Mijozga: ichki izoh, guruh xabarlari va rasmlar yo'li yuborilmaydi."""
     out = {k: v for k, v in r.items() if k not in ("admin_msgs", "admin_note", "photos", "user_id", "username")}
@@ -423,6 +452,7 @@ def public(r: dict, lang: str = "uz") -> dict:
     out["status_text"] = stage_name(r["status"], lang)
     out["style_name"] = style_name(r.get("style") or "", lang)
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
+    out["visit_text"] = visit_text(r, lang)
     return out
 
 
@@ -449,7 +479,8 @@ def admin_text(r: dict) -> str:
     if d:
         lines.append("📏 " + e(d).replace("\n", "\n📏 "))
     if r.get("measure_visit"):
-        lines.append("📏 <b>O'lchamni bilmaydi — usta borib o'lchashi kerak</b>")
+        vt = visit_text(r)
+        lines.append("📏 <b>Usta borib o'lchashi kerak</b>" + (f"\n🗓 Qulay vaqt: <b>{e(vt)}</b>" if vt else ""))
     tier = TIERS.get(r.get("tier"), {}).get("uz")
     if tier:
         lines.append(f"🧵 Material: {e(tier)}")

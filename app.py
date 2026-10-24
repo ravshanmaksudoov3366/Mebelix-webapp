@@ -184,8 +184,8 @@ TX = {
         "open_custom": "📐 O'lchamga buyurtma",
         "custom_hint": "\n\n🛋 <b>Tayyor mebellar</b> — katalogdan tanlab, tez olasiz.\n📐 <b>O'lchamga buyurtma</b> — xonangizga moslab, "
                        "o'zingiz xohlagan o'lcham va matoda yasab beramiz.",
-        "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada siz bilan bog'lanib, o'lchov va narxni "
-                       "kelishadi. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
+        "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada qo'ng'iroq qilib, usta o'lchovga "
+                       "boradigan vaqtni kelishadi. Usta uyingizda o'lchaydi, narxni aytadi va shartnomani shu yerda tuzish mumkin. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
         "menu": "🛋 Do'kon",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
         "manager": "💬 <b>Menejer:</b>",
@@ -204,7 +204,8 @@ TX = {
         "open_custom": "📐 Мебель на заказ",
         "custom_hint": "\n\n🛋 <b>Готовая мебель</b> — выбираете в каталоге и быстро получаете.\n📐 <b>Мебель на заказ</b> — сделаем "
                        "под вашу комнату, в нужном размере и ткани.",
-        "custom_sent": "📐 <b>Заявка принята!</b> №{id}\n\nМенеджер скоро свяжется с вами, чтобы согласовать замер и цену. "
+        "custom_sent": "📐 <b>Заявка принята!</b> №{id}\n\nМенеджер скоро позвонит и согласует время замера. Мастер измерит на месте, "
+                       "назовёт цену, и договор можно заключить сразу. "
                        "Статус заявки — в разделе «Мебель на заказ» → «Мои заявки».",
         "menu": "🛋 Магазин",
         "sent": "Ваше сообщение отправлено менеджеру. Скоро ответим 🙏",
@@ -907,6 +908,7 @@ def custom_admin(r: dict) -> dict:
     out["style_name"] = cust.style_name(r.get("style") or "")
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     out["dims_text"] = cust.dims_text(r)
+    out["visit_text"] = cust.visit_text(r)
     return out
 
 
