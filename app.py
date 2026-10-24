@@ -184,8 +184,8 @@ TX = {
         "open_custom": "📐 O'lchamga buyurtma",
         "custom_hint": "\n\n🛋 <b>Tayyor mebellar</b> — katalogdan tanlab, tez olasiz.\n📐 <b>O'lchamga buyurtma</b> — xonangizga moslab, "
                        "o'zingiz xohlagan o'lcham va matoda yasab beramiz.",
-        "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada qo'ng'iroq qilib, usta o'lchovga "
-                       "boradigan vaqtni kelishadi. Usta uyingizda o'lchaydi, narxni aytadi va shartnomani shu yerda tuzish mumkin. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
+        "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada qo'ng'iroq qilib, narx va "
+                       "o'lchov vaqtini kelishadi. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
         "menu": "🛋 Do'kon",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
         "manager": "💬 <b>Menejer:</b>",
@@ -204,8 +204,8 @@ TX = {
         "open_custom": "📐 Мебель на заказ",
         "custom_hint": "\n\n🛋 <b>Готовая мебель</b> — выбираете в каталоге и быстро получаете.\n📐 <b>Мебель на заказ</b> — сделаем "
                        "под вашу комнату, в нужном размере и ткани.",
-        "custom_sent": "📐 <b>Заявка принята!</b> №{id}\n\nМенеджер скоро позвонит и согласует время замера. Мастер измерит на месте, "
-                       "назовёт цену, и договор можно заключить сразу. "
+        "custom_sent": "📐 <b>Заявка принята!</b> №{id}\n\nМенеджер скоро позвонит, проконсультирует по цене "
+                       "и согласует время замера. "
                        "Статус заявки — в разделе «Мебель на заказ» → «Мои заявки».",
         "menu": "🛋 Магазин",
         "sent": "Ваше сообщение отправлено менеджеру. Скоро ответим 🙏",
@@ -909,13 +909,18 @@ def custom_admin(r: dict) -> dict:
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     out["dims_text"] = cust.dims_text(r)
     out["visit_text"] = cust.visit_text(r)
+    out["lead"] = cust.lead(r)
+    out["lead_name"] = cust.lead_name(r)
+    out["need_text"] = cust.NEED_WHEN.get(r.get("need_when"), ("",))[0]
+    out["repair_text"] = cust.REPAIR.get(r.get("repair"), ("",))[0]
     return out
 
 
 async def api_admin_custom(request):
     get_admin(request)
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
-                              "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin()})
+                              "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin(),
+                              "measure_fee": cs.measure_fee()})
 
 
 def gallery_admin() -> list:
@@ -974,7 +979,9 @@ async def api_admin_custom_update(request):
 
 async def api_admin_custom_rates(request):
     get_admin(request)
-    return web.json_response({"rates": cs.save_rates(await request.json())})
+    data = await request.json()
+    fee = cs.save_measure_fee(data.pop("measure_fee")) if "measure_fee" in data else cs.measure_fee()
+    return web.json_response({"rates": cs.save_rates(data), "measure_fee": fee})
 
 
 async def api_admin_custom_photo(request):

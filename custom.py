@@ -64,6 +64,14 @@ PRICE_UNITS = {
     "sofa": {"uz": "Divan — 1 metr", "ru": "Диван — 1 метр", "short_uz": "1 metr", "short_ru": "1 метр",
              "hint_uz": "divan uzunligi bo'yicha", "hint_ru": "по длине дивана", "hidden": True},
 }
+# O'lchov va konsultatsiya narxi (admin o'zgartiradi; shartnoma tuzilsa narxdan chegiriladi)
+MEASURE_FEE_DEFAULT = 1_000_000
+# Saralash savollari: mijoz qanchalik tayyor (usta avval 🔥 issiq arizalarga boradi)
+NEED_WHEN = {"month": ("Shu oy ichida", "В этом месяце"), "quarter": ("1–3 oy ichida", "В ближайшие 1–3 месяца"),
+             "price": ("Hozircha narx bilmoqchiman", "Пока хочу узнать цену")}
+REPAIR = {"done": ("Ta'mir tugagan", "Ремонт закончен"), "going": ("Ta'mir ketyapti", "Идёт ремонт"),
+          "none": ("Hali boshlanmagan", "Ещё не начат")}
+LEADS = {"hot": ("🔥 Issiq", "🔥 Горячая"), "warm": ("🌤 Iliq", "🌤 Тёплая"), "cold": ("❄️ Sovuq", "❄️ Холодная")}
 # Usta o'lchovga qachon kelsin (mijoz tanlaydi)
 VISIT_DAYS = {"today": ("Bugun", "Сегодня"), "tomorrow": ("Ertaga", "Завтра"),
               "week": ("Shu hafta ichida", "На этой неделе"), "call": ("Qo'ng'iroq qilib kelishamiz", "Договоримся по телефону")}
@@ -119,7 +127,8 @@ CREATE TABLE IF NOT EXISTS custom_gallery (
 );
 """
 REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''",
-                   "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''"}
+                   "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''",
+                   "need_when": "TEXT DEFAULT ''", "repair": "TEXT DEFAULT ''", "fee_ok": "INTEGER DEFAULT 0"}
 
 
 def kind_name(kind: str, lang: str = "uz") -> str:
@@ -199,6 +208,18 @@ class CustomStore:
         self.shop.set_setting("custom_style_rates", json.dumps(out))
         return out
 
+    def measure_fee(self) -> int:
+        try:
+            v = self.shop.settings().get("custom_measure_fee")
+            return MEASURE_FEE_DEFAULT if v in (None, "") else max(0, int(v))
+        except (TypeError, ValueError):
+            return MEASURE_FEE_DEFAULT
+
+    def save_measure_fee(self, raw) -> int:
+        v = re.sub(r"\D", "", str(raw or ""))
+        self.shop.set_setting("custom_measure_fee", str(int(v) if v else 0))
+        return self.measure_fee()
+
     def estimate(self, kind: str, dims: dict, style: str) -> tuple:
         """Taxminiy narx oralig'i (min, max): narx × miqdor ±10%. Narx yoki o'lcham bo'lmasa (0, 0)."""
         unit = (KINDS.get(kind) or {}).get("price")
@@ -273,6 +294,9 @@ class CustomStore:
                       for k, v in KINDS.items() if not v.get("hidden")],
             "stages": [{"id": s, "name": stage_name(s, lang)} for s in STAGE_ORDER],
             "max_photos": MAX_PHOTOS,
+            "measure_fee": self.measure_fee(),
+            "need_when": [{"id": k, "name": v[1 if ru else 0]} for k, v in NEED_WHEN.items()],
+            "repair": [{"id": k, "name": v[1 if ru else 0]} for k, v in REPAIR.items()],
             "visit_days": [{"id": k, "name": v[1 if ru else 0]} for k, v in VISIT_DAYS.items()],
             "visit_times": [{"id": k, "name": v[1 if ru else 0]} for k, v in VISIT_TIMES.items()],
         }
@@ -333,8 +357,16 @@ class CustomStore:
             if not 10 <= n <= 2000:
                 raise ShopError("O'lcham 10 dan 2000 sm gacha bo'lishi kerak", "Размер должен быть от 10 до 2000 см")
             dims[f] = round(n, 1)
-        visit = bool(payload.get("measure_visit")) or not dims
-        visit_day = payload.get("visit_day") if payload.get("visit_day") in VISIT_DAYS else ""
+        need_when = payload.get("need_when") if payload.get("need_when") in NEED_WHEN else ""
+        repair = payload.get("repair") if payload.get("repair") in REPAIR else ""
+        if not need_when:
+            raise ShopError("Mebel qachon kerakligini tanlang", "Выберите, когда нужна мебель")
+        price_only = need_when == "price"
+        fee_ok = bool(payload.get("fee_ok"))
+        if not price_only and self.measure_fee() and not fee_ok:
+            raise ShopError("O'lchov shartlariga rozilikni belgilang", "Отметьте согласие с условиями замера")
+        visit = not price_only and (bool(payload.get("measure_visit")) or not dims)
+        visit_day = payload.get("visit_day") if payload.get("visit_day") in VISIT_DAYS and not price_only else ""
         visit_time = payload.get("visit_time") if payload.get("visit_time") in VISIT_TIMES and visit_day != "call" else ""
         color = (payload.get("color") or "").strip()[:80]
         note = (payload.get("note") or "").strip()[:1000]
@@ -371,11 +403,12 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "style,sample_id,sample_image,visit_day,visit_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "style,sample_id,sample_image,visit_day,visit_time,need_when,repair,fee_ok) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username") or "", name, phone, city, address, kind, model_id, model_name,
              json.dumps(dims), 1 if visit else 0, "", color, note, json.dumps(saved), lo, hi, "new",
              json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now,
-             style, sample_id, sample_image, visit_day, visit_time))
+             style, sample_id, sample_image, visit_day, visit_time, need_when, repair, 1 if fee_ok and not price_only else 0))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -444,6 +477,20 @@ def visit_text(r: dict, lang: str = "uz") -> str:
     return ", ".join(parts)
 
 
+def lead(r: dict) -> str:
+    """🔥 issiq: shu oy kerak va ta'mir tugagan/ketyapti, o'lchovga rozi. ❄️ sovuq: faqat narx so'raydi."""
+    if r.get("need_when") == "price":
+        return "cold"
+    if r.get("need_when") == "month" and r.get("repair") in ("done", "going") and r.get("fee_ok"):
+        return "hot"
+    return "warm" if r.get("need_when") else ""
+
+
+def lead_name(r: dict, lang: str = "uz") -> str:
+    k = lead(r)
+    return LEADS[k][1 if lang == "ru" else 0] if k else ""
+
+
 def public(r: dict, lang: str = "uz") -> dict:
     """Mijozga: ichki izoh, guruh xabarlari va rasmlar yo'li yuborilmaydi."""
     out = {k: v for k, v in r.items() if k not in ("admin_msgs", "admin_note", "photos", "user_id", "username")}
@@ -465,7 +512,9 @@ def admin_text(r: dict) -> str:
         who = "@" + e(r["username"])
     else:
         who = f"<a href=\"tg://user?id={r['user_id']}\">profil</a>"
-    lines = [f"📐 <b>Individual ariza #{r['id']}</b> — {stage_name(r['status'])}", f"🕒 {when}", "",
+    ln = lead_name(r)
+    lines = [f"📐 <b>Individual ariza #{r['id']}</b> — {stage_name(r['status'])}" + (f"\n<b>{ln}</b>" if ln else ""),
+             f"🕒 {when}", "",
              f"👤 {e(r['name'])} ({who})", f"📞 {e(r['phone'])}"]
     place = ", ".join(e(x) for x in (r.get("city"), r.get("address")) if x)
     if place:
@@ -478,6 +527,12 @@ def admin_text(r: dict) -> str:
     d = dims_text(r)
     if d:
         lines.append("📏 " + e(d).replace("\n", "\n📏 "))
+    if r.get("need_when") in NEED_WHEN:
+        lines.append(f"⏳ Kerak: {NEED_WHEN[r['need_when']][0]}" + (f" · 🧱 {REPAIR[r['repair']][0]}" if r.get("repair") in REPAIR else ""))
+    if r.get("need_when") == "price":
+        lines.append("☎️ <b>Faqat narx so'ramoqda — usta emas, menejer qo'ng'iroq qilsin</b>")
+    if r.get("fee_ok"):
+        lines.append("💳 O'lchov pulli ekaniga rozi (shartnomada chegiriladi)")
     if r.get("measure_visit"):
         vt = visit_text(r)
         lines.append("📏 <b>Usta borib o'lchashi kerak</b>" + (f"\n🗓 Qulay vaqt: <b>{e(vt)}</b>" if vt else ""))

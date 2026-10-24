@@ -200,6 +200,14 @@ select.in { appearance: none; -webkit-appearance: none; }
 .how span { display: block; font-size: 22px; margin-bottom: 4px; }
 .visit-note { display: flex; gap: 10px; align-items: center; background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 12px 14px; font-size: 14px; }
 .visit-note span { font-size: 24px; }
+.calc-res { margin-top: 12px; background: var(--soft); border-radius: 12px; padding: 12px 14px; }
+.calc-res b { display: block; font-size: 19px; margin: 2px 0; }
+.fee { background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
+.fee b { display: block; font-size: 16px; margin-bottom: 4px; }
+.fee .check { background: var(--card); }
+.lead { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: var(--bg2); white-space: nowrap; }
+.lead.hot { background: #fde3d6; color: #b5410f; }
+.lead.cold { background: #e3eef8; color: #2b6aa3; }
 details.more-f summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; color: var(--link); font-weight: 600; }
 details.more-f summary::-webkit-details-marker { display: none; }
 details.more-f summary::after { content: "＋"; }
@@ -240,6 +248,14 @@ const I18N = {
     intro_t: "Qaysi uslub sizga yoqadi?", intro_p: "Uslubni tanlang — namuna ishlar va taxminiy narxlarni ko'rasiz.",
     how1: "Uslubni tanlaysiz", how2: "Usta uyingizga kelib o'lchaydi", how3: "Narx va shartnoma joyida",
     visit_note: "O'lchamni bilishingiz shart emas — usta uyingizga kelib o'zi o'lchaydi.",
+    visit_note_fee: "O'lchamni bilishingiz shart emas — usta kelib o'lchaydi. O'lchov va maslahat {f}, shartnoma tuzsangiz narxdan to'liq chegiriladi.",
+    calc_t: "Taxminiy narxni hisoblang", calc_len: "Oshxona uzunligi", calc_w: "Eni", calc_h: "Balandligi", m: "metr",
+    calc_res: "Taxminan", calc_note: "Aniq narx o'lchov, material va furnituradan keyin aytiladi.", calc_none: "Bu uslub uchun narxni menejer aytadi.",
+    f_need: "Mebel qachon kerak?", f_repair: "Ta'mir holati?", e_need: "Mebel qachon kerakligini tanlang", e_repair: "Ta'mir holatini tanlang",
+    fee_t: "O'lchov va maslahat — {f}", fee_p: "Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha maslahat beradi. Shartnoma tuzsangiz, bu summa mebel narxidan to'liq chegiriladi.",
+    fee_ok: "Shartlarga roziman", e_fee: "O'lchov shartlariga rozilikni belgilang",
+    price_only: "Menejer qo'ng'iroq qilib, narx bo'yicha maslahat beradi. Taxminiy narxni uslub sahifasidagi kalkulyatorda ham ko'rishingiz mumkin.",
+    send_call: "Menejer qo'ng'iroq qilsin", call: "Qo'ng'iroq qilish", call_q: "Savolingiz bormi? Qo'ng'iroq qiling:",
     from: "dan", agreed: "kelishiladi", see: "Namunalar va narxlar", photos_cnt: "{n} ta namuna",
     prices_t: "Narxlar ({s} uslubi)", prices_note: "Bu boshlang'ich narxlar. Aniq narx o'lchov va material tanlangandan keyin kelishiladi.",
     samples: "Namuna ishlar", all: "Hammasi", no_samples: "Namuna rasmlar tez orada qo'shiladi.",
@@ -265,6 +281,14 @@ const I18N = {
     intro_t: "Какой стиль вам нравится?", intro_p: "Выберите стиль — увидите примеры работ и примерные цены.",
     how1: "Выбираете стиль", how2: "Мастер приезжает на замер", how3: "Цена и договор на месте",
     visit_note: "Размеры знать не нужно — мастер приедет и сам всё измерит.",
+    visit_note_fee: "Размеры знать не нужно — мастер приедет и измерит. Замер и консультация — {f}, при заключении договора сумма полностью вычитается из цены.",
+    calc_t: "Рассчитайте примерную цену", calc_len: "Длина кухни", calc_w: "Ширина", calc_h: "Высота", m: "м",
+    calc_res: "Примерно", calc_note: "Точная цена — после замера и выбора материалов и фурнитуры.", calc_none: "Цену для этого стиля назовёт менеджер.",
+    f_need: "Когда нужна мебель?", f_repair: "Состояние ремонта?", e_need: "Выберите, когда нужна мебель", e_repair: "Выберите состояние ремонта",
+    fee_t: "Замер и консультация — {f}", fee_p: "Мастер приедет, сделает замер и проконсультирует по материалам, цвету и дизайну. При заключении договора эта сумма полностью вычитается из цены мебели.",
+    fee_ok: "Согласен с условиями", e_fee: "Отметьте согласие с условиями замера",
+    price_only: "Менеджер позвонит и проконсультирует по цене. Примерную цену можно посчитать и в калькуляторе на странице стиля.",
+    send_call: "Пусть менеджер позвонит", call: "Позвонить", call_q: "Есть вопросы? Позвоните:",
     from: "от", agreed: "договорная", see: "Примеры и цены", photos_cnt: "примеров: {n}",
     prices_t: "Цены (стиль {s})", prices_note: "Это начальные цены. Точная цена — после замера и выбора материалов.",
     samples: "Примеры работ", all: "Все", no_samples: "Примеры скоро будут добавлены.",
@@ -308,9 +332,10 @@ async function api(path, { method = "GET", json, form } = {}) {
 
 /* ---------------- holat ---------------- */
 const S = { cfg: null, view: "styles", style: "", gk: "", lb: null, mine: null, isAdmin: false, done: null,
+  calc: { kind: "kitchen", L: "3", W: "2", H: "2.4" },
   adm: { tab: "list", status: "active", list: null, rates: null, gallery: [], counts: {}, open: 0, gstyle: "modern", gkind: "" } };
 const draftKey = "custom_draft3";
-const F = Object.assign({ style: "", kind: "", day: "", time: "", color: "", note: "", name: "", phone: "", city: "", sample: 0 },
+const F = Object.assign({ style: "", kind: "", need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", name: "", phone: "", city: "", sample: 0 },
   store.get(draftKey, {}), { photos: [] });
 const saveDraft = () => { const { photos, ...rest } = F; store.set(draftKey, rest); };
 let err = "", sending = false;
@@ -344,6 +369,39 @@ function pricesMini(s) {
   return `<div class="prices">${S.cfg.units.map(u => `<div class="pr"><small>${esc(u.name.split(" — ")[0])} · ${esc(u.short)}</small><b>${s.rates[u.id] ? fromTxt(s.rates[u.id]) : t("agreed")}</b></div>`).join("")}</div>`;
 }
 
+const phoneOf = () => (S.cfg.shop && S.cfg.shop.phone) || "";
+const telHref = p => "tel:" + String(p).replace(/[^\d+]/g, "");
+const visitNote = () => S.cfg.measure_fee ? t("visit_note_fee", { f: money(S.cfg.measure_fee) }) : t("visit_note");
+function callHTML() {
+  const p = phoneOf();
+  return p ? `<div class="section small" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="muted">${t("call_q")}</span><a class="btn small" href="${telHref(p)}">📞 ${esc(p)}</a></div>` : "";
+}
+/* taxminiy narx kalkulyatori */
+const calcKinds = () => S.cfg.kinds.filter(k => k.price);
+function calcRes() {
+  const s = styleOf(S.style), k = kindOf(S.calc.kind); if (!s || !k) return "";
+  const rate = s.rates[k.price]; if (!rate) return `<div class="small">${t("calc_none")}</div>`;
+  const n = v => parseFloat(String(v || "").replace(",", ".")) || 0;
+  const q = k.price === "kitchen" ? n(S.calc.L) : n(S.calc.W) * n(S.calc.H);
+  if (!q || q > 100) return "";
+  const lo = Math.floor(rate * q * 0.9 / 100000) * 100000, hi = Math.ceil(rate * q * 1.1 / 100000) * 100000;
+  const qn = String(Math.round(q * 100) / 100).replace(".", ","), u = k.price === "kitchen" ? `${qn} ${t("m")}` : `${qn} m²`;
+  return `<div class="small muted">${t("calc_res")} · ${esc(k.name)} · ${u}</div><b>${shortMoney(lo)} – ${shortMoney(hi)}</b><div class="small muted">${t("calc_note")}</div>`;
+}
+function calcHTML() {
+  const k = kindOf(S.calc.kind) || calcKinds()[0]; if (!k) return "";
+  const inp = (f, label) => `<div><label class="f">${label}, ${t("m")}</label><input class="in" inputmode="decimal" value="${esc(S.calc[f])}" oninput="S.calc['${f}']=this.value; $('#calcRes').innerHTML=calcRes()"></div>`;
+  return `<div class="section"><b>${t("calc_t")}</b>
+    <div class="chiprow" style="margin-top:10px">${calcKinds().map(x => `<button class="kchip ${S.calc.kind === x.id ? "on" : ""}" onclick="setCalc('${x.id}')">${x.icon} ${esc(x.name)}</button>`).join("")}</div>
+    ${k.price === "kitchen" ? `<div class="grid2">${inp("L", t("calc_len"))}</div>` : `<div class="grid2">${inp("W", t("calc_w"))}${inp("H", t("calc_h"))}</div>`}
+    <div class="calc-res" id="calcRes">${calcRes()}</div></div>`;
+}
+function setCalc(id) {
+  S.calc.kind = id;
+  if (id === "komod") Object.assign(S.calc, { W: "1.2", H: "0.9" }); else if (id === "wardrobe") Object.assign(S.calc, { W: "2", H: "2.4" });
+  refresh();
+}
+
 /* ---------------- 1. uslublar ---------------- */
 function stylesHTML() {
   const m = S.cfg.model;
@@ -351,9 +409,10 @@ function stylesHTML() {
     <div class="intro"><h2>${t("intro_t")}</h2><p>${t("intro_p")}</p></div>
     ${m ? `<div class="section pick" style="margin-top:10px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     <div class="styles">${S.cfg.styles.map(s => `<button class="style-card" onclick="openStyle('${s.id}')">${coverHTML(s)}
-      <div class="style-body"><p>${esc(s.desc)}</p>${pricesMini(s)}<div class="more"><span>${t("see")}</span><span>›</span></div></div></button>`).join("")}</div>`;
+      <div class="style-body"><p>${esc(s.desc)}</p>${pricesMini(s)}<div class="more"><span>${t("see")}</span><span>›</span></div></div></button>`).join("")}</div>
+    ${callHTML()}`;
 }
-function openStyle(id) { S.style = id; S.gk = ""; haptic(); go("style"); }
+function openStyle(id) { S.style = id; S.gk = ""; if (F.kind && kindOf(F.kind) && kindOf(F.kind).price) S.calc.kind = F.kind; haptic(); go("style"); }
 
 /* ---------------- 2. uslub ichida: narxlar va namunalar ---------------- */
 function styleHTML() {
@@ -370,7 +429,8 @@ function styleHTML() {
     <div class="section ptable"><b>${t("prices_t", { s: esc(s.name) })}</b>
       ${S.cfg.units.map(u => `<div class="row"><span>${esc(u.name)}<small>${esc(u.hint)}</small></span><b>${rate(u.id)}</b></div>`).join("")}
       <div class="small muted" style="margin-top:8px">${t("prices_note")}</div></div>
-    <div class="visit-note"><span>📏</span><div>${t("visit_note")}</div></div>`;
+    ${calcHTML()}
+    <div class="visit-note"><span>📏</span><div>${visitNote()}</div></div>`;
 }
 function openLb(id) {
   const s = styleOf(S.style); const list = s.gallery.filter(g => !S.gk || g.kind === S.gk);
@@ -409,16 +469,23 @@ function formHTML() {
       <div class="chiprow">${S.cfg.kinds.map(x => `<button class="kchip ${F.kind === x.id ? "on" : ""}" onclick="F.kind='${x.id}'; err=''; saveDraft(); refresh()">${x.icon} ${esc(x.name)}</button>`).join("")}</div>
       ${F.kind === "other" ? noteF : ""}
     </div>
-    <div class="section"><label class="f">${t("f_when")}</label>
+    <div class="section"><label class="f">${t("f_need")}</label>
+      <div class="chiprow">${S.cfg.need_when.map(x => `<button class="kchip ${F.need === x.id ? "on" : ""}" onclick="F.need='${x.id}'; err=''; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>
+      ${F.need && F.need !== "price" ? `<label class="f" style="margin-top:14px">${t("f_repair")}</label>
+      <div class="chiprow">${S.cfg.repair.map(x => `<button class="kchip ${F.repair === x.id ? "on" : ""}" onclick="F.repair='${x.id}'; err=''; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>` : ""}
+    </div>
+    ${F.need === "price" ? `<div class="visit-note"><span>☎️</span><div>${t("price_only")}</div></div>` : `<div class="section"><label class="f">${t("f_when")}</label>
       <div class="chiprow">${S.cfg.visit_days.map(x => `<button class="kchip ${F.day === x.id ? "on" : ""}" onclick="F.day='${x.id}'; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>
       ${F.day && F.day !== "call" ? `<label class="f" style="margin-top:14px">${t("f_time")}</label>
         <div class="chiprow">${S.cfg.visit_times.map(x => `<button class="kchip ${F.time === x.id ? "on" : ""}" onclick="F.time='${x.id}'; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>` : ""}
-    </div>
+    </div>`}
     <div class="section"><b>${t("contact")}</b>
       <label class="f">${t("name")}</label><input class="in" value="${esc(F.name)}" autocomplete="name" oninput="F.name=this.value; saveDraft()">
       <label class="f">${t("phone")}</label><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" placeholder="+998 90 123 45 67" autocomplete="tel" oninput="F.phone=this.value; saveDraft()">
       <label class="f">${t("city")}</label><input class="in" value="${esc(F.city)}" placeholder="${t("city_ph")}" oninput="F.city=this.value; saveDraft()">
     </div>
+    ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><b>💳 ${t("fee_t", { f: money(S.cfg.measure_fee) })}</b><div class="small">${t("fee_p")}</div>
+      <label class="check"><input type="checkbox" ${F.fee ? "checked" : ""} onchange="F.fee=this.checked; err=''; saveDraft()"><span>${t("fee_ok")}</span></label></div>` : ""}
     <div class="section"><details class="more-f"${F.photos.length || (F.kind !== "other" && F.note) || F.color ? " open" : ""}><summary>${t("f_more")}</summary>
       ${F.kind !== "other" ? noteF : ""}
       <label class="f">${t("color")}</label><input class="in" value="${esc(F.color)}" placeholder="${t("color_ph")}" oninput="F.color=this.value; saveDraft()">
@@ -431,6 +498,9 @@ function formHTML() {
 function validate() {
   if (!F.kind) return t("e_kind");
   if (F.kind === "other" && F.note.trim().length < 5 && !F.sample) return t("e_note");
+  if (!F.need) return t("e_need");
+  if (F.need !== "price" && !F.repair) return t("e_repair");
+  if (F.need !== "price" && S.cfg.measure_fee && !F.fee) return t("e_fee");
   if (F.name.trim().length < 2) return t("e_name");
   const dg = F.phone.replace(/\D/g, ""); if (dg.length < 9 || dg.length > 15) return t("e_phone");
   return "";
@@ -464,13 +534,14 @@ async function submit() {
   try {
     if (!IN_TG && !store.get("wtok", "")) store.set("wtok", (await api("/api/web/session", { method: "POST" })).token);
     const fd = new FormData();
-    fd.append("data", JSON.stringify({ style: F.style, kind: F.kind, measure_visit: true, visit_day: F.day, visit_time: F.day === "call" ? "" : F.time,
+    fd.append("data", JSON.stringify({ style: F.style, kind: F.kind, need_when: F.need, repair: F.need === "price" ? "" : F.repair, fee_ok: F.need !== "price" && F.fee,
+      measure_visit: F.need !== "price", visit_day: F.need === "price" ? "" : F.day, visit_time: F.day === "call" ? "" : F.time,
       color: F.color, note: F.note, sample_id: F.sample || 0, name: F.name, phone: F.phone, city: F.city, model_id: S.cfg.model ? S.cfg.model.id : 0 }));
     F.photos.forEach((p, i) => fd.append("photo", p.blob, `rasm${i + 1}.jpg`));
     const { request } = await api("/api/custom/request", { form: fd });
     notifyH("success");
     const keep = { name: F.name, phone: F.phone, city: F.city };
-    Object.assign(F, { style: "", kind: "", day: "", time: "", color: "", note: "", sample: 0, photos: [] }, keep);
+    Object.assign(F, { style: "", kind: "", need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", sample: 0, photos: [] }, keep);
     saveDraft(); S.cfg.model = null;
     S.done = request; S.mine = null; S.view = "done"; scrollTo(0, 0);
   } catch (e) { err = e.message; notifyH("error"); scrollTo({ top: 0, behavior: "smooth" }); }
@@ -484,6 +555,7 @@ function reqCard(r, admin) {
   const dt = new Date(r.created * 1000), p2 = x => String(x).padStart(2, "0");
   const when = `${p2(dt.getDate())}.${p2(dt.getMonth() + 1)}.${dt.getFullYear()}`;
   return `<div class="req"${admin ? ` onclick="openReq(${r.id})" style="cursor:pointer"` : ""}><div class="req-h"><b>№ ${r.id} · ${esc(r.kind_name)}</b><span class="tag ${red ? "red" : ""}">${esc(r.status_text)}</span></div>
+    ${admin && r.lead_name ? `<div style="margin-top:8px"><span class="lead ${r.lead}">${esc(r.lead_name)}</span> <span class="small muted">${esc([r.need_text, r.repair_text].filter(Boolean).join(" · "))}</span></div>` : ""}
     ${red ? "" : `<div class="stages">${Array.from({ length: n }, (_, i) => `<i class="${i <= idx ? "on" : ""}"></i>`).join("")}</div>`}
     <div class="small muted">${when}${r.style_name ? " · " + esc(r.style_name) : ""}${r.model_name ? " · " + esc(r.model_name) : ""}${admin ? " · " + esc(r.name) + " · " + esc(r.phone) : ""}</div>
     ${r.price ? `<div style="margin-top:6px">${t("price")}: <b>${money(r.price)}</b>${r.prepay ? ` · ${t("prepay")}: ${money(r.prepay)}` : ""}</div>`
@@ -504,7 +576,7 @@ function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.
 /* ---------------- admin ---------------- */
 const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
 async function loadAdmin() {
-  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery }); }
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee }); }
   catch (e) { S.adm.list = []; toast(e.message); }
   refresh();
 }
@@ -517,16 +589,21 @@ function adminHTML() {
   if (S.adm.open) return h + adminDetail(S.adm.list.find(r => r.id === S.adm.open));
   const c = S.adm.counts || {};
   h += `<div class="chips">${ADM_F.map(([k, n]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; S.adm.list=null; refresh(); loadAdmin()">${n}${k && c[k] ? " · " + c[k] : ""}</button>`).join("")}</div>`;
-  return h + (S.adm.list.length ? S.adm.list.map(r => reqCard(r, true)).join("") : `<div class="empty"><div class="big">📭</div>Arizalar yo'q</div>`);
+  const hotN = S.adm.list.filter(r => r.lead === "hot").length;
+  h += `<div class="chips" style="padding-top:0"><button class="chip ${S.adm.hot ? "on" : ""}" onclick="S.adm.hot=!S.adm.hot; refresh()">🔥 Faqat issiq · ${hotN}</button></div>`;
+  const list = S.adm.hot ? S.adm.list.filter(r => r.lead === "hot") : S.adm.list;
+  return h + (list.length ? list.map(r => reqCard(r, true)).join("") : `<div class="empty"><div class="big">📭</div>Arizalar yo'q</div>`);
 }
 function ratesHTML() {
   return `<div class="section" style="margin-top:12px"><p class="small muted" style="margin:0">Mijozga uslub ichida «...dan» narx sifatida ko'rsatiladi. Bo'sh qoldirilsa — «kelishiladi» deb chiqadi.</p></div>
     ${S.cfg.styles.map(s => `<div class="section"><b>${esc(s.name)}</b>${S.cfg.units.map(u => `<label class="f">${esc(u.name)}</label><input class="in" inputmode="numeric" id="r_${s.id}_${u.id}" value="${(S.adm.rates[s.id] || {})[u.id] || ""}" placeholder="kiritilmagan">`).join("")}</div>`).join("")}
+    <div class="section"><b>O'lchov va konsultatsiya narxi</b><label class="f">Mijozga «shartnoma tuzilsa narxdan chegiriladi» deb ko'rsatiladi. 0 — bepul.</label>
+      <input class="in" inputmode="numeric" id="r_fee" value="${S.adm.fee ?? ""}"></div>
     <div style="padding:0 12px 12px"><button class="btn" style="width:100%" onclick="saveRates()">Saqlash</button></div>`;
 }
 async function saveRates() {
-  const body = {}; S.cfg.styles.forEach(s => { body[s.id] = {}; S.cfg.units.forEach(u => body[s.id][u.id] = $(`#r_${s.id}_${u.id}`).value); });
-  try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.styles.forEach(s => s.rates = d.rates[s.id]); toast("Saqlandi ✓"); refresh(); }
+  const body = { measure_fee: $("#r_fee").value }; S.cfg.styles.forEach(s => { body[s.id] = {}; S.cfg.units.forEach(u => body[s.id][u.id] = $(`#r_${s.id}_${u.id}`).value); });
+  try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.styles.forEach(s => s.rates = d.rates[s.id]); S.adm.fee = S.cfg.measure_fee = d.measure_fee; toast("Saqlandi ✓"); refresh(); }
   catch (e) { alertBox(e.message); }
 }
 function galleryAdminHTML() {
@@ -561,6 +638,7 @@ function adminDetail(r) {
   return `<div class="section" style="margin-top:12px"><div class="req-h"><b style="font-size:18px">№ ${r.id} · ${esc(r.kind_name)}</b><span class="tag">${esc(r.status_text)}</span></div>
       <div class="sum-row"><span>Mijoz</span><span>${esc(r.name)}${r.user_id < 0 ? "\n🌐 saytdan" : r.username ? "\n@" + esc(r.username) : ""}</span></div>
       <div class="sum-row"><span>Telefon</span><span><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></span></div>
+      ${r.lead_name ? `<div class="sum-row"><span>Saralash</span><span><span class="lead ${r.lead}">${esc(r.lead_name)}</span>\n${esc([r.need_text, r.repair_text].filter(Boolean).join("\n"))}${r.fee_ok ? "\n💳 pullik o'lchovga rozi" : ""}</span></div>` : ""}
       ${r.city || r.address ? `<div class="sum-row"><span>Manzil</span><span>${esc([r.city, r.address].filter(Boolean).join(", "))}</span></div>` : ""}
       ${r.style_name ? `<div class="sum-row"><span>Uslub</span><span>${esc(r.style_name)}</span></div>` : ""}
       ${r.model_name ? `<div class="sum-row"><span>Asos</span><span>${esc(r.model_name)}</span></div>` : ""}
@@ -616,10 +694,10 @@ function refresh() {
   else if (S.view === "style") {
     if (!styleOf(S.style)) { S.view = "styles"; return refresh(); }
     v.innerHTML = styleHTML();
-    bar(`<button class="btn soft" onclick="go('styles')">←</button><button class="btn grow" onclick="toForm()">${t("order_style")}</button>`);
+    bar(`<button class="btn soft" onclick="go('styles')">←</button>${phoneOf() ? `<a class="btn soft" href="${telHref(phoneOf())}" aria-label="${t("call")}">📞</a>` : ""}<button class="btn grow" onclick="toForm()">${t("order_style")}</button>`);
   } else if (S.view === "form") {
     v.innerHTML = formHTML();
-    bar(`<button class="btn soft" onclick="go(F.style ? 'style' : 'styles')">←</button><button class="btn grow" ${sending ? "disabled" : ""} onclick="submit()">${sending ? t("sending") : t("send")}</button>`);
+    bar(`<button class="btn soft" onclick="go(F.style ? 'style' : 'styles')">←</button><button class="btn grow" ${sending ? "disabled" : ""} onclick="submit()">${sending ? t("sending") : F.need === "price" ? t("send_call") : t("send")}</button>`);
   } else if (S.view === "done") {
     const r = S.done;
     v.innerHTML = `<div class="done"><div class="big">📨</div><h2>${t("done_t")}</h2><p class="muted">№ ${r.id} · ${esc(r.kind_name)}${r.style_name ? " · " + esc(r.style_name) : ""}</p>
