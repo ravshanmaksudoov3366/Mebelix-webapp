@@ -191,8 +191,8 @@ body.web .bar { left: max(0px, calc(50% - 320px)); right: max(0px, calc(50% - 32
 .pick img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex: none; background: var(--bg2); }
 .pick .x { margin-left: auto; color: var(--hint); font-size: 20px; padding: 6px; }
 .unit-hint { font-size: 12.5px; color: var(--hint); margin-top: 6px; }
-.adm-tabs { display: flex; gap: 6px; padding: 12px 12px 0; }
-.adm-tabs button { flex: 1; padding: 9px 6px; border-radius: 10px; background: var(--card); font-weight: 600; font-size: 13.5px; }
+.adm-tabs { display: flex; gap: 4px; padding: 12px 12px 0; }
+.adm-tabs button { flex: 1; padding: 9px 2px; border-radius: 10px; background: var(--card); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
 .adm-tabs button.on { background: var(--accent); color: var(--accent-text); }
 .ag { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 .ag div { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--bg2); }
@@ -219,6 +219,15 @@ select.in { appearance: none; -webkit-appearance: none; }
 .feats { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .feats div { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
 .feats span { font-size: 18px; width: 24px; text-align: center; flex: none; }
+.ked { display: grid; grid-template-columns: 58px 1fr; gap: 8px; }
+.ked .in { padding: 10px 12px; font-size: 15px; }
+.ked .ic-in { text-align: center; font-size: 20px; padding: 8px 4px; }
+.ked-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.ked-row select { flex: 1; min-width: 150px; }
+.ked-row .mv { width: 38px; height: 38px; border-radius: 10px; background: var(--bg2); font-size: 16px; }
+.ked-row .vis { display: flex; gap: 6px; align-items: center; font-size: 13.5px; }
+.ked-row .vis input { width: 18px; height: 18px; accent-color: var(--accent); }
+.section.off { opacity: .55; }
 .calc-res { margin-top: 12px; background: var(--soft); border-radius: 12px; padding: 12px 14px; }
 .calc-res b { display: block; font-size: 19px; margin: 2px 0; }
 .fee { background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
@@ -611,16 +620,17 @@ function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.
 /* ---------------- admin ---------------- */
 const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
 async function loadAdmin() {
-  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone }); }
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone, kinds: d.kinds_admin }); }
   catch (e) { S.adm.list = []; toast(e.message); }
   refresh();
 }
 function adminHTML() {
-  const tabs = [["list", "📋 Arizalar"], ["prices", "💰 Narxlar"], ["gallery", "🖼 Namunalar"]];
+  const tabs = [["list", "📋 Arizalar"], ["prices", "💰 Narxlar"], ["kinds", "🪑 Turlar"], ["gallery", "🖼 Namunalar"]];
   let h = `<div class="adm-tabs">${tabs.map(([k, n]) => `<button class="${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; S.adm.open=0; refresh()">${n}</button>`).join("")}</div>`;
   if (!S.adm.list) return h + `<div class="skeleton"></div>`;
   if (S.adm.tab === "prices") return h + ratesHTML();
   if (S.adm.tab === "gallery") return h + galleryAdminHTML();
+  if (S.adm.tab === "kinds") return h + kindsAdminHTML();
   if (S.adm.open) return h + adminDetail(S.adm.list.find(r => r.id === S.adm.open));
   const c = S.adm.counts || {};
   h += `<div class="chips">${ADM_F.map(([k, n]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; S.adm.list=null; refresh(); loadAdmin()">${n}${k && c[k] ? " · " + c[k] : ""}</button>`).join("")}</div>`;
@@ -642,6 +652,35 @@ async function saveRates() {
   const body = { measure_fee: $("#r_fee").value, call_phone: $("#r_phone").value }; S.cfg.styles.forEach(s => { body[s.id] = {}; S.cfg.units.forEach(u => body[s.id][u.id] = $(`#r_${s.id}_${u.id}`).value); });
   try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.styles.forEach(s => s.rates = d.rates[s.id]); S.adm.fee = S.cfg.measure_fee = d.measure_fee; S.adm.phone = S.cfg.call_phone = d.call_phone; toast("Saqlandi ✓"); refresh(); }
   catch (e) { alertBox(e.message); }
+}
+/* mebel turlari: nom, belgi, narx turi, ko'rinishi, tartibi */
+function kindsAdminHTML() {
+  const K = S.adm.kinds || [];
+  const opt = (v, n, cur) => `<option value="${v}" ${cur === v ? "selected" : ""}>${n}</option>`;
+  return `<div class="section" style="margin-top:12px"><p class="small muted" style="margin:0">Mijoz «Nima kerak?» bo'limida shu turlarni ko'radi. Narx turi kalkulyator va narxlar jadvali uchun kerak. Ishlatilgan turni o'chirsangiz — u yashiriladi, eski arizalar buzilmaydi.</p></div>
+    ${K.map((k, i) => `<div class="section ${k.hidden ? "off" : ""}">
+      <div class="ked"><input class="in ic-in" value="${esc(k.icon)}" maxlength="8" oninput="S.adm.kinds[${i}].icon=this.value">
+        <input class="in" value="${esc(k.uz)}" placeholder="Nomi (o'zbekcha)" maxlength="40" oninput="S.adm.kinds[${i}].uz=this.value"></div>
+      <input class="in" style="margin-top:8px" value="${esc(k.ru)}" placeholder="Nomi (ruscha)" maxlength="40" oninput="S.adm.kinds[${i}].ru=this.value">
+      <div class="ked-row"><select class="in" onchange="S.adm.kinds[${i}].price=this.value">${opt("kitchen", "Narx: 1 pogon metr", k.price)}${opt("wardrobe", "Narx: 1 m²", k.price)}${opt("", "Narx: kelishiladi", k.price)}</select>
+        <label class="vis"><input type="checkbox" ${k.hidden ? "" : "checked"} onchange="S.adm.kinds[${i}].hidden=!this.checked; refresh()">Ko'rinsin</label></div>
+      <div class="ked-row"><button class="mv" onclick="moveKind(${i},-1)" ${i ? "" : "disabled"}>↑</button><button class="mv" onclick="moveKind(${i},1)" ${i < K.length - 1 ? "" : "disabled"}>↓</button>
+        ${k.builtin ? `<span class="small muted">standart tur</span>` : `<button class="btn small soft" style="margin-left:auto" onclick="delKind(${i})">✕ O'chirish</button>`}</div>
+    </div>`).join("")}
+    <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn soft" onclick="addKind()">＋ Yangi tur qo'shish</button>
+      <button class="btn" onclick="saveKinds()">Saqlash</button></div>`;
+}
+function moveKind(i, d) { const K = S.adm.kinds, j = i + d; if (j < 0 || j >= K.length) return; [K[i], K[j]] = [K[j], K[i]]; refresh(); }
+function addKind() { S.adm.kinds.push({ id: "", uz: "", ru: "", icon: "🪑", price: "", hidden: false, builtin: false }); refresh(); setTimeout(() => scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 50); }
+async function delKind(i) { if (!await confirmBox(`«${S.adm.kinds[i].uz || "Yangi tur"}» o'chirilsinmi?`)) return; S.adm.kinds.splice(i, 1); refresh(); }
+async function saveKinds() {
+  try {
+    const d = await api("/api/admin/custom/kinds", { json: { kinds: S.adm.kinds } });
+    S.adm.kinds = d.kinds_admin; S.cfg.kinds = d.config.kinds;
+    F.kinds = F.kinds.filter(k => kindOf(k)); saveDraft();
+    toast("Saqlandi ✓"); refresh();
+  } catch (e) { alertBox(e.message); }
 }
 function galleryAdminHTML() {
   const st = S.adm.gstyle, items = S.adm.gallery.filter(g => g.style === st);

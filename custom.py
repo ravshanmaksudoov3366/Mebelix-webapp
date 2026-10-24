@@ -56,7 +56,9 @@ STYLES = {
 # ------------------------------------------------------------------ mebel turlari
 # price: qaysi narx bilan ko'rsatiladi — "kitchen" (1 pogon metr), "wardrobe" (1 m²), None — kelishiladi
 # dims: eski arizalardagi o'lchamlar (yangi ariza formasida o'lcham so'ralmaydi — usta o'lchaydi).
-KINDS = {
+# BASE_KINDS — standart turlar; admin «🪑 Turlar» bo'limida nomini, belgisini, narx turini, tartibini o'zgartiradi,
+# yangi tur qo'shadi yoki yashiradi. Natija sozlamalarda saqlanadi va KINDS ga qo'llanadi (apply_kinds).
+BASE_KINDS = {
     "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухня", "icon": "🍳", "price": "kitchen",
                 "dims": [("w", "1-devor uzunligi", "Длина 1-й стены"), ("w2", "2-devor (burchak bo'lsa)", "2-я стена (если угловая)")]},
     "wardrobe": {"uz": "Shkaf / garderob", "ru": "Шкаф / гардероб", "icon": "🚪", "price": "wardrobe",
@@ -74,6 +76,30 @@ KINDS = {
     "bed": {"uz": "Karavot", "ru": "Кровать", "icon": "🛏", "price": None, "hidden": True,
             "dims": [("w", "Matras eni", "Ширина матраса"), ("l", "Matras bo'yi", "Длина матраса")]},
 }
+KINDS = {k: dict(v) for k, v in BASE_KINDS.items()}
+KIND_PRICES = ("kitchen", "wardrobe")  # admin tanlaydigan narx turlari; None — kelishiladi
+DIMS_BY_PRICE = {"kitchen": BASE_KINDS["kitchen"]["dims"], "wardrobe": BASE_KINDS["wardrobe"]["dims"], None: []}
+MAX_KINDS = 30
+
+
+def apply_kinds(items: list):
+    """Admin saqlagan turlar ro'yxatini KINDS ga qo'llaydi (tartib saqlanadi). Standart turlar hech qachon
+    yo'qolmaydi — ro'yxatda bo'lmasa yashirin holda qo'shiladi (eski arizalar nomi buzilmasin)."""
+    new = {}
+    for it in items or []:
+        kid = str(it.get("id") or "")
+        if not kid or kid in new:
+            continue
+        base = BASE_KINDS.get(kid, {})
+        price = it.get("price") if it.get("price") in KIND_PRICES else None
+        new[kid] = {"uz": str(it.get("uz") or base.get("uz") or kid), "ru": str(it.get("ru") or it.get("uz") or base.get("ru") or kid),
+                    "icon": str(it.get("icon") or base.get("icon") or "🪑"), "price": price, "hidden": bool(it.get("hidden")),
+                    "dims": base.get("dims") if base and base.get("price") == price else DIMS_BY_PRICE[price]}
+    for kid, v in BASE_KINDS.items():
+        if kid not in new:
+            new[kid] = {**v, "hidden": True}
+    KINDS.clear()
+    KINDS.update(new)
 # Narx turlari (admin har uslub uchun kiritadi). hidden — mijozga va admin formaga chiqmaydi (eski ma'lumot).
 PRICE_UNITS = {
     "kitchen": {"uz": "Oshxona mebeli — 1 pogon metr", "ru": "Кухня — 1 погонный метр", "short_uz": "1 pogon metr",
@@ -212,6 +238,12 @@ class CustomStore:
             if col not in have:
                 self.db.execute(f"ALTER TABLE custom_requests ADD COLUMN {col} {typ}")
         self.db.commit()
+        try:
+            saved = json.loads(shop.settings().get("custom_kinds") or "null")
+        except ValueError:
+            saved = None
+        if isinstance(saved, list) and saved:
+            apply_kinds(saved)
         self.photo_dir = os.path.join(os.path.dirname(shop.upload_dir.rstrip("/")), "custom")
         os.makedirs(self.photo_dir, exist_ok=True)
 
@@ -258,6 +290,46 @@ class CustomStore:
         v = re.sub(r"\D", "", str(raw or ""))
         self.shop.set_setting("custom_measure_fee", str(int(v) if v else 0))
         return self.measure_fee()
+
+    # ------------------------------------------------ mebel turlari (admin boshqaradi)
+    def _kind_used(self, kid: str) -> bool:
+        q = ("SELECT 1 FROM custom_requests WHERE kind=? OR kinds LIKE ? LIMIT 1")
+        if self.db.execute(q, (kid, f'%"{kid}"%')).fetchone():
+            return True
+        return bool(self.db.execute("SELECT 1 FROM custom_gallery WHERE kind=? LIMIT 1", (kid,)).fetchone())
+
+    def kinds_admin(self) -> list:
+        return [{"id": k, "uz": v["uz"], "ru": v["ru"], "icon": v["icon"], "price": v.get("price") or "",
+                 "hidden": bool(v.get("hidden")), "builtin": k in BASE_KINDS} for k, v in KINDS.items()]
+
+    def save_kinds(self, data: list) -> list:
+        if not isinstance(data, list):
+            raise ShopError("Noto'g'ri ma'lumot")
+        items, seen = [], set()
+        for i, it in enumerate(data[:MAX_KINDS]):
+            if not isinstance(it, dict):
+                continue
+            uz = re.sub(r"\s+", " ", str(it.get("uz") or "")).strip()[:40]
+            ru = re.sub(r"\s+", " ", str(it.get("ru") or "")).strip()[:40]
+            if not uz:
+                raise ShopError(f"{i + 1}-turning nomini yozing")
+            kid = str(it.get("id") or "")
+            if kid not in KINDS or kid in seen:
+                kid = "t" + str(int(time.time() * 1000))[-9:] + str(i)
+            seen.add(kid)
+            icon = str(it.get("icon") or "").strip()[:8] or "🪑"
+            items.append({"id": kid, "uz": uz, "ru": ru or uz, "icon": icon,
+                          "price": it.get("price") if it.get("price") in KIND_PRICES else "",
+                          "hidden": bool(it.get("hidden"))})
+        for kid, v in KINDS.items():  # ro'yxatdan olib tashlanganlar: ishlatilgan bo'lsa yashiramiz, aks holda o'chadi
+            if kid not in seen and (kid in BASE_KINDS or self._kind_used(kid)):
+                items.append({"id": kid, "uz": v["uz"], "ru": v["ru"], "icon": v["icon"], "price": v.get("price") or "",
+                              "hidden": True})
+        if not any(not it["hidden"] for it in items):
+            raise ShopError("Kamida bitta tur mijozga ko'rinishi kerak")
+        self.shop.set_setting("custom_kinds", json.dumps(items, ensure_ascii=False))
+        apply_kinds(items)
+        return self.kinds_admin()
 
     def call_phone(self) -> str:
         v = self.shop.settings().get("custom_call_phone")

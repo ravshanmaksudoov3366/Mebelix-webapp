@@ -920,7 +920,8 @@ async def api_admin_custom(request):
     get_admin(request)
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
                               "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin(),
-                              "measure_fee": cs.measure_fee(), "call_phone": cs.call_phone()})
+                              "measure_fee": cs.measure_fee(), "call_phone": cs.call_phone(),
+                              "kinds_admin": cs.kinds_admin()})
 
 
 def gallery_admin() -> list:
@@ -975,6 +976,13 @@ async def api_admin_custom_update(request):
     r = cs.update_admin(int(request.match_info["id"]), await request.json())
     asyncio.create_task(refresh_custom_messages(r))
     return web.json_response({"request": custom_admin(r)})
+
+
+async def api_admin_custom_kinds(request):
+    get_admin(request)
+    data = await request.json()
+    return web.json_response({"kinds_admin": cs.save_kinds(data.get("kinds")),
+                              "config": cs.config(norm_lang(request.headers.get("X-Lang")))})
 
 
 async def api_admin_custom_rates(request):
@@ -1609,6 +1617,7 @@ def make_app() -> web.Application:
     app.router.add_post("/api/custom/mine", api_custom_mine)
     app.router.add_get("/api/admin/custom", api_admin_custom)
     app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
+    app.router.add_post("/api/admin/custom/kinds", api_admin_custom_kinds)
     app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
     app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)
     app.router.add_post("/api/admin/custom/gallery/{gid}", api_admin_gallery_update)
