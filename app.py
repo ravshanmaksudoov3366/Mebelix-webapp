@@ -34,6 +34,7 @@ from aiogram.types import (
 import aiohttp
 
 import custom as cust
+import social as soc
 import sitepages
 from offer import render_offer
 from shop import (
@@ -89,7 +90,7 @@ WEBAPP_URL = (os.getenv("WEBAPP_URL") or os.getenv("RENDER_EXTERNAL_URL") or "")
 # Telegram ichidagi ilova (Mini App) — /app; bosh sahifa (/) — hamma uchun ochiq veb-sayt
 APP_URL = WEBAPP_URL + "app"
 SHOP = {
-    "name": os.getenv("SHOP_NAME", "Mebel Do'koni"),
+    "name": os.getenv("SHOP_NAME", "iSofa"),
     "phone": os.getenv("SHOP_PHONE", ""),
     "address": os.getenv("SHOP_ADDRESS", ""),
     "bot": (os.getenv("BOT_USERNAME") or "Mebelixuz_bot").lstrip("@"),  # ishga tushganda botning o'zidan olinadi
@@ -108,6 +109,8 @@ log = logging.getLogger("shop")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 shop = Shop(DB_PATH, UPLOAD_DIR)
 cs = cust.CustomStore(shop)   # o'lchamga (individual) buyurtmalar
+ss = soc.SocialStore(shop)    # Instagram / Facebook navbati
+meta = soc.Meta()
 CUSTOM_URL = WEBAPP_URL + "custom"
 # Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
 if os.getenv("PAY_CARD") and not shop.settings()["pay_card"]:
@@ -564,7 +567,9 @@ async def cb_lang(c: CallbackQuery):
 @dp.message(Command("admin"))
 async def cmd_admin(m: Message):
     if is_admin(m.from_user.id):
-        await m.answer("🗂 Admin panel:", reply_markup=shop_button("🗂 Admin panelni ochish", "?admin=1"))
+        await m.answer("🗂 Admin panel:\n\n📲 Instagram/Facebook: shu yerga rasm yuboring (matnini rasm ostiga yozing).\n"
+                       "/meta — ulanish va sozlamalar · /navbat — navbatdagi postlar",
+                       reply_markup=shop_button("🗂 Admin panelni ochish", "?admin=1"))
     else:
         await m.answer(f"Sizning ID: <code>{m.from_user.id}</code>\nAdmin emassiz.")
 
@@ -766,6 +771,254 @@ async def cb_broadcast(c: CallbackQuery):
     await c.answer("✅")
 
 
+# ------------------------------------------------------------------ Instagram / Facebook (admin rasm yuboradi)
+_albums: dict = {}          # media_group_id -> {"chat", "files", "caption"}
+_social_pending: dict = {}  # kalit -> {"files": [file_id], "caption": str}
+
+
+def social_url(rel: str) -> str:
+    return WEBAPP_URL + "uploads/" + rel
+
+
+def social_footer() -> str:
+    lines = [f"✨ {SHOP['name']} — mebel o'lchamingizga moslab", "📏 Usta uyingizga kelib o'lchaydi"]
+    if cs.call_phone():
+        lines.append(f"📞 {cs.call_phone()}")
+    lines.append(f"🛋 Katalog va buyurtma: t.me/{SHOP['bot']}")
+    return "\n".join(lines)
+
+
+async def social_ask(chat_id: int, files: list, caption: str):
+    key = uuid.uuid4().hex[:8]
+    _social_pending[key] = {"files": files[:10], "caption": caption}
+    n = len(files[:10])
+    rows = [[InlineKeyboardButton(text="📸 Post", callback_data=f"so:{key}:post"),
+             InlineKeyboardButton(text="⭕ Stories", callback_data=f"so:{key}:story")],
+            [InlineKeyboardButton(text="📸 Post + ⭕ Stories", callback_data=f"so:{key}:both")]]
+    if n > 1:
+        rows.append([InlineKeyboardButton(text="🖼 Karusel — bitta postda hammasi", callback_data=f"so:{key}:carousel")])
+    rows.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"so:{key}:no")])
+    text = f"📲 <b>{n} ta rasm.</b> Instagram va Facebook'ga qanday joylaymiz?"
+    text += f"\n\n📝 Matn: {esc(caption[:300])}" if caption else "\n\n📝 Matn yozilmagan — standart matn va heshteglar qo'yiladi."
+    if not soc.configured():
+        text += "\n\n⚠️ Meta hali ulanmagan (META_TOKEN, FB_PAGE_ID). Navbatga qo'yaveraman — ulangach chiqadi."
+    await bot.send_message(chat_id, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+async def _album_done(gid: str):
+    await asyncio.sleep(1.5)
+    a = _albums.pop(gid, None)
+    if a:
+        await social_ask(a["chat"], a["files"], a["caption"])
+
+
+@dp.message(F.chat.type == "private", F.photo | F.document.mime_type.startswith("image/"))
+async def admin_photo(m: Message):
+    """Admin rasm yuborsa — Instagram/Facebook'ga joylashni taklif qilamiz (albom bo'lsa, birga)."""
+    if not is_admin(m.from_user.id):
+        return await refuse_user(m)
+    fid = m.photo[-1].file_id if m.photo else m.document.file_id
+    cap = (m.caption or "").strip()
+    if m.media_group_id:
+        a = _albums.setdefault(m.media_group_id, {"chat": m.chat.id, "files": [], "caption": ""})
+        a["files"].append(fid)
+        a["caption"] = a["caption"] or cap
+        if len(a["files"]) == 1:
+            asyncio.create_task(_album_done(m.media_group_id))
+        return
+    await social_ask(m.chat.id, [fid], cap)
+
+
+@dp.callback_query(F.data.startswith("so:"))
+async def cb_social_kind(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, key, kind = c.data.split(":")
+    if kind == "no":
+        _social_pending.pop(key, None)
+        await c.message.edit_text("❌ Bekor qilindi.")
+        return await c.answer()
+    if key not in _social_pending:
+        await c.message.edit_text("Bu so'rov eskirgan. Rasmni qaytadan yuboring.")
+        return await c.answer()
+    p = _social_pending[key]
+    split = kind != "carousel" and len(p["files"]) > 1
+    slot = soc.local_str(ss.next_slot())
+    q = (f"Har bir rasm alohida kunga, {ss.post_time()} da" if split else f"{slot} da")
+    await c.message.edit_text(f"{soc.KINDS[kind]} · {len(p['files'])} ta rasm\n\nQachon joylaymiz?",
+                              reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                                  [InlineKeyboardButton(text="⚡ Hozir", callback_data=f"sw:{key}:{kind}:now")],
+                                  [InlineKeyboardButton(text=f"🗓 Navbatga ({q})", callback_data=f"sw:{key}:{kind}:queue")],
+                                  [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"so:{key}:no")]]))
+    await c.answer()
+
+
+def _prepare(datas: list, kind: str, fixed: bool) -> list:
+    folder = ss.folder
+    out = []
+    for d in datas:
+        it = {}
+        if kind in ("post", "both", "carousel"):
+            it["feed"] = "social/" + soc.save_jpeg(soc.prepare_feed(d, fixed), folder)
+        if kind in ("story", "both"):
+            it["story"] = "social/" + soc.save_jpeg(soc.prepare_story(d), folder)
+        out.append(it)
+    return out
+
+
+async def social_publish(item: dict) -> dict:
+    ss.set(item["id"], status="posting")
+    res = await soc.publish(meta, item, social_url, ss.full_caption(item["caption"], social_footer()))
+    good = soc.ok(res)
+    ss.set(item["id"], status="posted" if good else "failed", posted_at=int(time.time()), result=res,
+           error="" if good else "; ".join(str(v) for v in res.values())[:500])
+    return res
+
+
+@dp.callback_query(F.data.startswith("sw:"))
+async def cb_social_when(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, key, kind, when = c.data.split(":")
+    p = _social_pending.pop(key, None)
+    if not p:
+        await c.message.edit_text("Bu so'rov eskirgan. Rasmni qaytadan yuboring.")
+        return await c.answer()
+    await c.answer("⏳")
+    await c.message.edit_text("⏳ Rasmlar tayyorlanmoqda…")
+    try:
+        datas = [(await bot.download(f)).read() for f in p["files"]]
+        multi = len(datas) > 1
+        if multi and kind != "carousel" and when == "queue":
+            groups = [[d] for d in datas]  # navbatda — har kuni bittadan
+        else:
+            groups = [datas]
+        items = []
+        for g in groups:
+            fixed = len(g) > 1  # karuselda hamma rasm bir xil 4:5
+            imgs = await asyncio.to_thread(_prepare, g, kind, fixed)
+            items.append(ss.add(kind, imgs, p["caption"], when))
+    except Exception as e:  # noqa: BLE001 — admin xatoni ko'rsin
+        log.exception("social prepare")
+        return await c.message.edit_text(f"⚠️ Rasmni tayyorlab bo'lmadi: {esc(str(e))}")
+    if when == "queue":
+        lines = [f"🗓 #{it['id']} — {soc.local_str(it['scheduled_at'])}" for it in items]
+        return await c.message.edit_text(f"✅ Navbatga qo'yildi ({soc.KINDS[kind]}):\n" + "\n".join(lines)
+                                         + "\n\nNavbat: /navbat")
+    if not soc.configured():
+        return await c.message.edit_text("⚠️ Meta hali ulanmagan — rasm navbatda turibdi va ulangan zahoti chiqadi.\n"
+                                         "Tekshirish: /meta")
+    await c.message.edit_text("⏳ Instagram va Facebook'ga joylanmoqda…")
+    texts = []
+    for it in items:
+        res = await social_publish(ss.get(it["id"]))
+        texts.append(soc.result_text(res))
+    await c.message.edit_text("📲 Natija:\n" + "\n".join(texts))
+
+
+@dp.message(Command("meta"))
+async def cmd_meta(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    q = ss.queued()
+    tail = (f"\n\n🕖 Kunlik post vaqti: <b>{ss.post_time()}</b> (/post_vaqti 19:00)\n🗓 Navbatda: {len(q)} ta (/navbat)"
+            f"\n#️⃣ Heshteglar: {esc(ss.tags()) or '—'} (/heshteg ...)"
+            f"\n\n🔗 Instagram bio uchun havola:\n{WEBAPP_URL}custom?src=ig\n🔗 Facebook uchun:\n{WEBAPP_URL}custom?src=fb")
+    if not soc.configured():
+        return await m.answer("⚠️ Meta ulanmagan. Render → Environment ga META_TOKEN va FB_PAGE_ID ni yozing." + tail)
+    try:
+        info = await meta.connect()
+        await m.answer(f"✅ Ulangan\n📘 Facebook: <b>{esc(info['page'])}</b>\n📸 Instagram: "
+                       + (f"<b>@{esc(info['instagram'])}</b>" if info["instagram"] else "⚠️ bog'lanmagan") + tail)
+    except (soc.MetaError, aiohttp.ClientError, asyncio.TimeoutError) as e:
+        await m.answer(f"⚠️ Ulanishda xato: {esc(str(e))}" + tail)
+
+
+@dp.message(Command("navbat"))
+async def cmd_queue(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    q = ss.queued()
+    if not q:
+        return await m.answer("🗓 Navbat bo'sh. Rasm yuborsangiz, joylashni taklif qilaman.")
+    lines, rows = [], []
+    for it in q[:20]:
+        cap = (it["caption"] or "standart matn")[:40]
+        lines.append(f"#{it['id']} · {soc.local_str(it['scheduled_at'])} · {soc.KINDS[it['kind']]} · "
+                     f"{len(it['images'])} rasm · {esc(cap)}")
+        rows.append([InlineKeyboardButton(text=f"⚡ #{it['id']} hozir", callback_data=f"sq:{it['id']}:now"),
+                     InlineKeyboardButton(text=f"❌ #{it['id']}", callback_data=f"sq:{it['id']}:del")])
+    await m.answer("🗓 <b>Navbat</b>\n" + "\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows[:20]))
+
+
+@dp.callback_query(F.data.startswith("sq:"))
+async def cb_social_queue(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, pid, act = c.data.split(":")
+    try:
+        it = ss.get(int(pid))
+    except KeyError:
+        return await c.answer("Topilmadi", show_alert=True)
+    if it["status"] != "queued":
+        return await c.answer(f"#{pid}: {soc.STATUS.get(it['status'], it['status'])}", show_alert=True)
+    if act == "del":
+        ss.cancel(it["id"])
+        await c.answer("❌ Bekor qilindi")
+        return await c.message.answer(f"❌ #{pid} navbatdan olindi.")
+    if not soc.configured():
+        return await c.answer("Meta hali ulanmagan", show_alert=True)
+    await c.answer("⏳")
+    res = await social_publish(it)
+    await c.message.answer(f"📲 #{pid}:\n" + soc.result_text(res))
+
+
+@dp.message(Command("post_vaqti"))
+async def cmd_post_time(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    try:
+        v = ss.set_post_time(arg[1] if len(arg) > 1 else "")
+    except ValueError as e:
+        return await m.answer(f"{e}\nHozir: {ss.post_time()}")
+    ss.reschedule()
+    await m.answer(f"✅ Kunlik post vaqti: <b>{v}</b>. Navbatdagilar shu vaqtga ko'chirildi.")
+
+
+@dp.message(Command("heshteg"))
+async def cmd_tags(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(f"#️⃣ Hozirgi heshteglar:\n{esc(ss.tags()) or '—'}\n\n"
+                              "O'zgartirish: /heshteg #isofa #mebel ...\nO'chirish: /heshteg -")
+    v = ss.set_tags("" if arg[1].strip() == "-" else arg[1])
+    await m.answer("✅ Heshteglar saqlandi:\n" + (esc(v) or "— (heshtegsiz)"))
+
+
+async def social_loop():
+    """Navbatdagi postlarni vaqti kelganda joylaydi va natijani adminlarga yozadi."""
+    while True:
+        await asyncio.sleep(60)
+        if not soc.configured():
+            continue
+        for it in ss.due():
+            try:
+                res = await social_publish(it)
+                text = f"📲 Navbatdagi #{it['id']} ({soc.KINDS[it['kind']]}):\n" + soc.result_text(res)
+            except Exception as e:  # noqa: BLE001
+                log.exception("social_loop")
+                ss.set(it["id"], status="failed", error=str(e)[:500])
+                text = f"⚠️ Navbatdagi #{it['id']} joylanmadi: {esc(str(e))}"
+            for aid in ADMIN_IDS:
+                try:
+                    await bot.send_message(aid, text)
+                except TelegramAPIError:
+                    pass
+
+
 @dp.message(F.chat.type == "private")
 async def refuse_user(m: Message):
     """Mijozlar botga yoza olmaydi — savollar uchun admin nikini ko'rsatamiz."""
@@ -910,6 +1163,7 @@ def custom_admin(r: dict) -> dict:
     out["dims_text"] = cust.dims_text(r)
     out["visit_text"] = cust.visit_text(r)
     out["lead"] = cust.lead(r)
+    out["source_text"] = cust.source_text(r)
     out["lead_name"] = cust.lead_name(r)
     out["need_text"] = cust.NEED_WHEN.get(r.get("need_when"), ("",))[0]
     out["repair_text"] = cust.REPAIR.get(r.get("repair"), ("",))[0]
@@ -1659,6 +1913,8 @@ async def main():
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     log.info("Web server: http://0.0.0.0:%s", PORT)
     app_tasks.append(asyncio.create_task(translation_loop()))
+    if bot:
+        app_tasks.append(asyncio.create_task(social_loop()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
@@ -1669,6 +1925,11 @@ async def main():
         SHOP["bot"] = (await bot.get_me()).username or SHOP["bot"]
     except TelegramAPIError as e:
         log.warning("bot nomini olib bo'lmadi: %s", e)
+    try:  # botning ko'rinadigan nomi do'kon nomi bilan bir xil bo'lsin (masalan «iSofa»)
+        if (await bot.get_my_name()).name != SHOP["name"]:
+            await bot.set_my_name(SHOP["name"])
+    except TelegramAPIError as e:
+        log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
     await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛋 Do'kon", web_app=WebAppInfo(url=APP_URL)))
     await dp.start_polling(bot)
 

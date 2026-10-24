@@ -277,6 +277,9 @@ const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? 
 const haptic = () => { try { tg.HapticFeedback.impactOccurred("light"); } catch (e) {} };
 const notifyH = t => { try { tg.HapticFeedback.notificationOccurred(t); } catch (e) {} };
 const qs = new URLSearchParams(location.search);
+/* mijoz qayerdan kelgani: ?src=ig — birinchi kelgan manba eslab qolinadi */
+const SRC = String(qs.get("src") || store.get("src", "") || "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 20);
+if (qs.get("src") && !store.get("src", "")) store.set("src", SRC);
 const normLang = l => String(l || "").toLowerCase().startsWith("ru") ? "ru" : "uz";
 let LANG = normLang(qs.get("lang") || store.get("lang", "") || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code));
 
@@ -580,7 +583,7 @@ async function submit() {
     const fd = new FormData();
     fd.append("data", JSON.stringify({ style: F.style, kinds: F.kinds, kind: F.kinds[0], need_when: F.need, repair: F.need === "price" ? "" : F.repair, fee_ok: F.need !== "price" && F.fee,
       measure_visit: F.need !== "price", visit_day: F.need === "price" ? "" : F.day, visit_time: F.day === "call" ? "" : F.time,
-      color: F.color, note: F.note, sample_id: F.sample || 0, name: F.name, phone: F.phone, city: F.city, model_id: S.cfg.model ? S.cfg.model.id : 0 }));
+      color: F.color, note: F.note, sample_id: F.sample || 0, name: F.name, phone: F.phone, city: F.city, model_id: S.cfg.model ? S.cfg.model.id : 0, source: SRC }));
     F.photos.forEach((p, i) => fd.append("photo", p.blob, `rasm${i + 1}.jpg`));
     const { request } = await api("/api/custom/request", { form: fd });
     notifyH("success");
@@ -714,6 +717,7 @@ function adminDetail(r) {
   return `<div class="section" style="margin-top:12px"><div class="req-h"><b style="font-size:18px">№ ${r.id} · ${esc(r.kind_name)}</b><span class="tag">${esc(r.status_text)}</span></div>
       <div class="sum-row"><span>Mijoz</span><span>${esc(r.name)}${r.user_id < 0 ? "\n🌐 saytdan" : r.username ? "\n@" + esc(r.username) : ""}</span></div>
       <div class="sum-row"><span>Telefon</span><span><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></span></div>
+      ${r.source_text ? `<div class="sum-row"><span>Manba</span><span>${esc(r.source_text)}</span></div>` : ""}
       ${r.lead_name ? `<div class="sum-row"><span>Saralash</span><span><span class="lead ${r.lead}">${esc(r.lead_name)}</span>\n${esc([r.need_text, r.repair_text].filter(Boolean).join("\n"))}${r.fee_ok ? "\n💳 pullik o'lchovga rozi" : ""}</span></div>` : ""}
       ${r.city || r.address ? `<div class="sum-row"><span>Manzil</span><span>${esc([r.city, r.address].filter(Boolean).join(", "))}</span></div>` : ""}
       ${r.style_name ? `<div class="sum-row"><span>Uslub</span><span>${esc(r.style_name)}</span></div>` : ""}

@@ -1,6 +1,6 @@
-/* Mebelix: oddiy service worker — saytni telefonga «ilova» qilib o'rnatish uchun.
+/* iSofa: oddiy service worker — saytni telefonga «ilova» qilib o'rnatish uchun.
    Sahifalar har doim internetdan olinadi (narx va mavjudlik yangi bo'lsin); internet bo'lmasa — oxirgi nusxa. */
-const CACHE = "mebelix-v1";
+const CACHE = "isofa-v1";
 self.addEventListener("install", e => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(
   caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));

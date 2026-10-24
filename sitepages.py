@@ -1,4 +1,4 @@
-"""Mebelix veb-sayti: server tomonda tayyorlanadigan sahifalar (Google/Yandex uchun ham ko'rinadi).
+"""iSofa veb-sayti: server tomonda tayyorlanadigan sahifalar (Google/Yandex uchun ham ko'rinadi).
 
 Bu modul faqat matn (HTML/XML) yasaydi — aiohttp va botga bog'liq emas, shuning uchun alohida sinab ko'rsa bo'ladi.
 Ma'lumotlar Shop.catalog() dan keladi: u yerda ta'minotchi, kirim narxi kabi ichki maydonlar allaqachon olib tashlangan.

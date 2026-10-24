@@ -178,7 +178,9 @@ CREATE TABLE IF NOT EXISTS custom_gallery (
 REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''",
                    "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''",
                    "need_when": "TEXT DEFAULT ''", "repair": "TEXT DEFAULT ''", "fee_ok": "INTEGER DEFAULT 0",
-                   "kinds": "TEXT DEFAULT '[]'"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
+                   "kinds": "TEXT DEFAULT '[]'", "source": "TEXT DEFAULT ''"}
+# Mijoz qayerdan kelgani (havoladagi ?src=...)
+SOURCES = {"ig": "📸 Instagram", "fb": "📘 Facebook", "tg": "✈️ Telegram", "site": "🌐 Sayt", "ads": "📣 Reklama"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
 
 
 def kinds_of(r: dict) -> list:
@@ -500,6 +502,7 @@ class CustomStore:
         if not price_only and self.measure_fee() and not fee_ok:
             raise ShopError("O'lchov shartlariga rozilikni belgilang", "Отметьте согласие с условиями замера")
         visit = not price_only and (bool(payload.get("measure_visit")) or not dims)
+        source = re.sub(r"[^a-z0-9_-]", "", str(payload.get("source") or "").lower())[:20]
         visit_day = payload.get("visit_day") if payload.get("visit_day") in VISIT_DAYS and not price_only else ""
         visit_time = payload.get("visit_time") if payload.get("visit_time") in VISIT_TIMES and visit_day != "call" else ""
         color = (payload.get("color") or "").strip()[:80]
@@ -537,13 +540,13 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "style,sample_id,sample_image,visit_day,visit_time,need_when,repair,fee_ok,kinds) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "style,sample_id,sample_image,visit_day,visit_time,need_when,repair,fee_ok,kinds,source) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username") or "", name, phone, city, address, kind, model_id, model_name,
              json.dumps(dims), 1 if visit else 0, "", color, note, json.dumps(saved), lo, hi, "new",
              json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now,
              style, sample_id, sample_image, visit_day, visit_time, need_when, repair, 1 if fee_ok and not price_only else 0,
-             json.dumps(kinds)))
+             json.dumps(kinds), source))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -612,6 +615,11 @@ def visit_text(r: dict, lang: str = "uz") -> str:
     return ", ".join(parts)
 
 
+def source_text(r: dict) -> str:
+    s = r.get("source") or ""
+    return SOURCES.get(s, s)
+
+
 def lead(r: dict) -> str:
     """🔥 issiq: shu oy kerak va ta'mir tugagan/ketyapti, o'lchovga rozi. ❄️ sovuq: faqat narx so'raydi."""
     if r.get("need_when") == "price":
@@ -651,6 +659,8 @@ def admin_text(r: dict) -> str:
     lines = [f"📐 <b>Individual ariza #{r['id']}</b> — {stage_name(r['status'])}" + (f"\n<b>{ln}</b>" if ln else ""),
              f"🕒 {when}", "",
              f"👤 {e(r['name'])} ({who})", f"📞 {e(r['phone'])}"]
+    if r.get("source"):
+        lines.append(f"📍 Manba: {e(source_text(r))}")
     place = ", ".join(e(x) for x in (r.get("city"), r.get("address")) if x)
     if place:
         lines.append(f"🏠 {place}")

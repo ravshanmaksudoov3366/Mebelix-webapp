@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Mebel Do'koni</title>
+<title>iSofa</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root {
@@ -783,7 +783,7 @@ function openViewer(pid, idx) {
   const p = prod(pid); if (!p || !p.images.length) return;
   showViewer(p.images, idx, p.name);
 }
-function showViewer(srcs, idx = 0, name = "mebelix") {
+function showViewer(srcs, idx = 0, name = "isofa") {
   Object.assign(V, { open: true, srcs, name, idx, s: 1, x: 0, y: 0 });
   const tr = $("#vtrack");
   tr.innerHTML = srcs.map(src => `<div class="vslide"><img src="${esc(src)}" alt="" draggable="false"></div>`).join("");
@@ -854,7 +854,7 @@ async function saveImage() {
     const a = document.createElement("a"); a.href = src; a.download = "chek.jpg"; document.body.appendChild(a); a.click(); a.remove(); return;
   }
   const url = new URL(src, location.href).href;
-  const name = (V.name || "mebelix").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
+  const name = (V.name || "isofa").replace(/[^\p{L}\p{N}]+/gu, "_").slice(0, 40) + "_" + (V.idx + 1) + ".jpg";
   try {
     if (IN_TG && tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
       tg.downloadFile({ url, file_name: name }, ok => ok && toast(t("saving_img")));
@@ -1310,7 +1310,7 @@ function viewAdmin() {
       <input class="in" id="setAsm" inputmode="numeric" value="${esc(st2.assembly_pct ?? "5")}" style="width:100px">
       <h3 style="margin-top:18px">🧾 Sotuvchi rekvizitlari <span class="muted small">(oferta va dalolatnoma uchun)</span></h3>
       <div class="small muted">YaTT yoki MChJ ochilgach to'ldiring. Bo'sh joylar hujjatlarda «______» bo'lib chiqadi.</div>
-      <label class="f">Nomi (masalan: «Mebelix» MChJ yoki YaTT Maksudov R.)</label><input class="in" id="setSName" value="${esc(st2.seller_name || "")}">
+      <label class="f">Nomi (masalan: «iSofa» MChJ yoki YaTT Maksudov R.)</label><input class="in" id="setSName" value="${esc(st2.seller_name || "")}">
       <label class="f">STIR</label><input class="in" id="setSTin" inputmode="numeric" value="${esc(st2.seller_tin || "")}">
       <label class="f">Manzil</label><input class="in" id="setSAddr" value="${esc(st2.seller_address || "")}">
       <label class="f">Telefon</label><input class="in" id="setSPhone" inputmode="tel" value="${esc(st2.seller_phone || "")}">

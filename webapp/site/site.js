@@ -1,4 +1,4 @@
-/* Mebelix — veb-sayt: savatcha, filtr, galereya. Savatcha Telegram ilovasi bilan bir xil joyda saqlanadi
+/* iSofa — veb-sayt: savatcha, filtr, galereya. Savatcha Telegram ilovasi bilan bir xil joyda saqlanadi
    (localStorage "cart"), shuning uchun «Rasmiylashtirish» bosilganda ilova o'sha savatchani ko'radi. */
 "use strict";
 (function () {

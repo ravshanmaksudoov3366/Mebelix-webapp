@@ -17,8 +17,13 @@ services:
       - key: GROUP_ID
         value: "-1004481485199"
       - key: SHOP_NAME
-        value: Mebelix
+        value: iSofa
       - key: SHOP_PHONE
         value: "+998 99 333 33 66"
       - key: SHOP_ADDRESS
         value: ""
+      # Instagram / Facebook avto-post (Meta): tizim foydalanuvchisi tokeni va Facebook sahifa ID si
+      - key: META_TOKEN
+        sync: false
+      - key: FB_PAGE_ID
+        sync: false
