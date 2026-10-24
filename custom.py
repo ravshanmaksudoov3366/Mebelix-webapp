@@ -1,6 +1,7 @@
-"""O'lchamga (individual) buyurtmalar: arizalar, bosqichlar, taxminiy narx.
+"""O'lchamga (individual) buyurtmalar: uslublar (Modern / Neoklassika / Klassika), namuna rasmlar,
+uslub bo'yicha narxlar (divan — 1 metr, shkaf — 1 m², oshxona — 1 pogon metr), arizalar va bosqichlar.
 
-Tayyor mebel buyurtmalaridan alohida jadvalda saqlanadi (custom_requests) va o'z bosqichlariga ega.
+Tayyor mebel buyurtmalaridan alohida jadvallarda saqlanadi va o'z bosqichlariga ega.
 Bu fayl web-freymvorkka bog'liq emas — Shop bilan bitta SQLite bazadan foydalanadi.
 """
 import html
@@ -12,36 +13,54 @@ import time
 
 from shop import ShopError, normalize_phone, fmt_price
 
+# ------------------------------------------------------------------ dizayn uslublari
+STYLES = {
+    "modern": {"uz": "Modern", "ru": "Модерн",
+               "d_uz": "Tekis chiziqlar, sodda shakllar, zamonaviy ranglar. Ortiqcha bezaksiz — toza va keng ko'rinadi.",
+               "d_ru": "Прямые линии, простые формы, современные цвета. Без лишнего декора — чисто и просторно."},
+    "newclassic": {"uz": "Neoklassika", "ru": "Неоклассика",
+                   "d_uz": "Klassikaning nafisligi va zamonaviy qulaylik: yengil naqshlar, och ranglar, oltin yoki "
+                           "bronza detallar.",
+                   "d_ru": "Изящество классики и современный комфорт: лёгкий декор, светлые тона, золотые или "
+                           "бронзовые детали."},
+    "classic": {"uz": "Klassika", "ru": "Классика",
+                "d_uz": "Boy naqshlar, o'yma bezaklar, tabiiy yog'och va hashamatli matolar — an'anaviy chiroy.",
+                "d_ru": "Богатый декор, резьба, натуральное дерево и роскошные ткани — традиционная красота."},
+}
+
 # ------------------------------------------------------------------ mebel turlari
-# dims: o'lcham maydonlari (sm). main — narx hisoblanadigan asosiy uzunlik (metrda olinadi).
-# unit: "m" — narx 1 metr uchun; "dona" — bitta mahsulot uchun.
+# price: qaysi narx bilan hisoblanadi — "sofa" (1 metr), "wardrobe" (1 m²), "kitchen" (1 pogon metr), None — kelishiladi
+# dims: o'lcham maydonlari (sm), hammasi ixtiyoriy — mijoz bilmasa, usta o'lchaydi.
 KINDS = {
-    "sofa": {"uz": "Divan", "ru": "Диван", "icon": "🛋", "unit": "m", "main": ["w"],
-             "dims": [("w", "Uzunligi", "Длина"), ("d", "Chuqurligi", "Глубина"), ("h", "Balandligi", "Высота")]},
-    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "unit": "m", "main": ["w", "w2"],
-               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона"),
-                        ("d", "Chuqurligi", "Глубина")]},
-    "armchair": {"uz": "Kreslo", "ru": "Кресло", "icon": "💺", "unit": "dona", "main": [],
-                 "dims": [("w", "Eni", "Ширина"), ("d", "Chuqurligi", "Глубина"), ("h", "Balandligi", "Высота")]},
-    "bed": {"uz": "Karavot", "ru": "Кровать", "icon": "🛏", "unit": "dona", "main": [],
+    "sofa": {"uz": "Divan", "ru": "Диван", "icon": "🛋", "price": "sofa",
+             "dims": [("w", "Uzunligi", "Длина")]},
+    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "price": "sofa",
+               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона")]},
+    "wardrobe": {"uz": "Shkaf", "ru": "Шкаф", "icon": "🚪", "price": "wardrobe",
+                 "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
+    "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухня", "icon": "🍳", "price": "kitchen",
+                "dims": [("w", "1-devor uzunligi", "Длина 1-й стены"), ("w2", "2-devor (burchak bo'lsa)", "2-я стена (если угловая)")]},
+    "other": {"uz": "Boshqa mebel", "ru": "Другая мебель", "icon": "🪑", "price": None, "dims": []},
+    # eski arizalar uchun (tanlovda ko'rsatilmaydi)
+    "armchair": {"uz": "Kreslo", "ru": "Кресло", "icon": "💺", "price": None, "hidden": True,
+                 "dims": [("w", "Eni", "Ширина")]},
+    "bed": {"uz": "Karavot", "ru": "Кровать", "icon": "🛏", "price": None, "hidden": True,
             "dims": [("w", "Matras eni", "Ширина матраса"), ("l", "Matras bo'yi", "Длина матраса")]},
-    "wardrobe": {"uz": "Shkaf", "ru": "Шкаф", "icon": "🚪", "unit": "m", "main": ["w"],
-                 "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота"), ("d", "Chuqurligi", "Глубина")]},
-    "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухня", "icon": "🍳", "unit": "m", "main": ["w", "w2"],
-                "dims": [("w", "1-devor uzunligi", "Длина 1-й стены"), ("w2", "2-devor (burchak bo'lsa)", "2-я стена (если угловая)"),
-                         ("h", "Shift balandligi", "Высота потолка")]},
-    "other": {"uz": "Boshqa mebel", "ru": "Другая мебель", "icon": "🪑", "unit": "dona", "main": [],
-              "dims": [("w", "Eni", "Ширина"), ("d", "Chuqurligi", "Глубина"), ("h", "Balandligi", "Высота")]},
 }
-# Material darajalari — narx koeffitsienti
-TIERS = {
-    "econom": {"uz": "Ekonom", "ru": "Эконом", "k": 1.0,
-               "d_uz": "Oddiy mato, LDSP — arzon va pishiq", "d_ru": "Простая ткань, ЛДСП — недорого и прочно"},
-    "standard": {"uz": "Standart", "ru": "Стандарт", "k": 1.2,
-                 "d_uz": "Velyur, rogojka, MDF fasad — eng ko'p tanlanadi", "d_ru": "Велюр, рогожка, фасады МДФ — выбирают чаще всего"},
-    "premium": {"uz": "Premium", "ru": "Премиум", "k": 1.45,
-                "d_uz": "Ekokoja, premium matolar, massiv yog'och", "d_ru": "Экокожа, премиум-ткани, массив дерева"},
+# Narx turlari (admin shu uchtasini har uslub uchun kiritadi)
+PRICE_UNITS = {
+    "sofa": {"uz": "Divan — 1 metr", "ru": "Диван — 1 метр", "short_uz": "1 metr", "short_ru": "1 метр",
+             "hint_uz": "divan uzunligi bo'yicha", "hint_ru": "по длине дивана"},
+    "wardrobe": {"uz": "Shkaf — 1 m²", "ru": "Шкаф — 1 м²", "short_uz": "1 m²", "short_ru": "1 м²",
+                 "hint_uz": "eni × balandligi (masalan 2 m × 2,5 m = 5 m²)",
+                 "hint_ru": "ширина × высота (например 2 м × 2,5 м = 5 м²)"},
+    "kitchen": {"uz": "Oshxona — 1 pogon metr", "ru": "Кухня — 1 погонный метр", "short_uz": "1 pogon metr",
+                "short_ru": "1 пог. метр", "hint_uz": "devor bo'ylab uzunligi (pastki va yuqori shkaflar bilan)",
+                "hint_ru": "длина вдоль стены (с нижними и верхними шкафами)"},
 }
+# Eski arizalardagi material darajasi (faqat ko'rsatish uchun)
+TIERS = {"econom": {"uz": "Ekonom", "ru": "Эконом"}, "standard": {"uz": "Standart", "ru": "Стандарт"},
+         "premium": {"uz": "Premium", "ru": "Премиум"}}
 STAGES = {
     "new": ("🆕 Yangi ariza", "🆕 Новая заявка"),
     "measure": ("📏 O'lchov", "📏 Замер"),
@@ -55,7 +74,6 @@ STAGES = {
 }
 STAGE_ORDER = ["new", "measure", "design", "contract", "production", "ready", "delivered", "done"]
 ACTIVE = ("new", "measure", "design", "contract", "production", "ready", "delivered")
-# Bosqich o'zgarganda mijozga boradigan xabar
 STAGE_MSG = {
     "measure": ("📏 Ariza №{id}: o'lchov bosqichi. Usta yoki menejer siz bilan bog'lanib, o'lchash vaqtini kelishadi.",
                 "📏 Заявка №{id}: этап замера. Мастер или менеджер свяжется с вами и согласует время замера."),
@@ -72,6 +90,7 @@ STAGE_MSG = {
                   "❌ Заявка №{id} отменена. Если есть вопросы, напишите администратору."),
 }
 MAX_PHOTOS = 6
+GALLERY_MAX = 300
 
 CUSTOM_SCHEMA = """
 CREATE TABLE IF NOT EXISTS custom_requests (
@@ -83,7 +102,12 @@ CREATE TABLE IF NOT EXISTS custom_requests (
     status TEXT DEFAULT 'new', events TEXT DEFAULT '[]', admin_msgs TEXT DEFAULT '[]', lang TEXT DEFAULT 'uz',
     created INTEGER, updated INTEGER
 );
+CREATE TABLE IF NOT EXISTS custom_gallery (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, style TEXT NOT NULL, kind TEXT DEFAULT '', image TEXT NOT NULL,
+    caption TEXT DEFAULT '', caption_ru TEXT DEFAULT '', sort INTEGER DEFAULT 0, created INTEGER
+);
 """
+REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''"}
 
 
 def kind_name(kind: str, lang: str = "uz") -> str:
@@ -91,13 +115,31 @@ def kind_name(kind: str, lang: str = "uz") -> str:
     return k["ru" if lang == "ru" else "uz"]
 
 
+def style_name(style: str, lang: str = "uz") -> str:
+    s = STYLES.get(style)
+    return s["ru" if lang == "ru" else "uz"] if s else ""
+
+
 def stage_name(st: str, lang: str = "uz") -> str:
     return STAGES.get(st, (st, st))[1 if lang == "ru" else 0]
 
 
-def default_rates() -> dict:
-    """Boshlang'ich holatda narx kiritilmagan: mijozga taxminiy narx ko'rsatilmaydi, menejer o'zi hisoblaydi."""
-    return {k: 0 for k in KINDS}
+def num(v) -> float:
+    try:
+        return float(str(v or "").replace(",", ".").strip() or 0)
+    except ValueError:
+        return 0.0
+
+
+def quantity(kind: str, dims: dict) -> float:
+    """Narx hisoblanadigan miqdor: divan — metr, shkaf — m², oshxona — pogon metr. O'lcham bo'lmasa 0."""
+    k = KINDS.get(kind) or {}
+    unit = k.get("price")
+    if unit == "sofa" or unit == "kitchen":
+        return (num(dims.get("w")) + num(dims.get("w2"))) / 100
+    if unit == "wardrobe":
+        return num(dims.get("w")) / 100 * num(dims.get("h")) / 100
+    return 0.0
 
 
 class CustomStore:
@@ -105,63 +147,114 @@ class CustomStore:
         self.shop = shop
         self.db = shop.db
         self.db.executescript(CUSTOM_SCHEMA)
+        have = {r[1] for r in self.db.execute("PRAGMA table_info(custom_requests)").fetchall()}
+        for col, typ in REQUEST_COLUMNS.items():
+            if col not in have:
+                self.db.execute(f"ALTER TABLE custom_requests ADD COLUMN {col} {typ}")
         self.db.commit()
         self.photo_dir = os.path.join(os.path.dirname(shop.upload_dir.rstrip("/")), "custom")
         os.makedirs(self.photo_dir, exist_ok=True)
 
-    # ------------------------------------------------ narx
+    # ------------------------------------------------ narxlar: {uslub: {sofa, wardrobe, kitchen}}
     def rates(self) -> dict:
         try:
-            saved = json.loads(self.shop.settings().get("custom_rates") or "{}")
+            saved = json.loads(self.shop.settings().get("custom_style_rates") or "{}")
         except ValueError:
             saved = {}
-        r = default_rates()
-        for k in r:
-            try:
-                r[k] = max(0, int(saved.get(k) or 0))
-            except (TypeError, ValueError):
-                pass
-        return r
+        out = {}
+        for s in STYLES:
+            out[s] = {}
+            for u in PRICE_UNITS:
+                try:
+                    out[s][u] = max(0, int((saved.get(s) or {}).get(u) or 0))
+                except (TypeError, ValueError, AttributeError):
+                    out[s][u] = 0
+        return out
 
     def save_rates(self, data: dict) -> dict:
-        r = default_rates()
-        for k in r:
-            raw = re.sub(r"\D", "", str((data or {}).get(k) or ""))
-            r[k] = int(raw) if raw else 0
-            if r[k] > 10 ** 10:
-                raise ShopError("Narx juda katta")
-        self.shop.set_setting("custom_rates", json.dumps(r))
-        return r
+        out = {}
+        for s in STYLES:
+            out[s] = {}
+            for u in PRICE_UNITS:
+                raw = re.sub(r"\D", "", str(((data or {}).get(s) or {}).get(u) or ""))
+                out[s][u] = int(raw) if raw else 0
+                if out[s][u] > 10 ** 10:
+                    raise ShopError("Narx juda katta")
+        self.shop.set_setting("custom_style_rates", json.dumps(out))
+        return out
 
-    def estimate(self, kind: str, dims: dict, tier: str) -> tuple:
-        """Taxminiy narx oralig'i (min, max). Narx kiritilmagan yoki o'lcham yo'q bo'lsa (0, 0)."""
-        k = KINDS.get(kind)
-        rate = self.rates().get(kind, 0)
-        if not k or not rate:
+    def estimate(self, kind: str, dims: dict, style: str) -> tuple:
+        """Taxminiy narx oralig'i (min, max): narx × miqdor ±10%. Narx yoki o'lcham bo'lmasa (0, 0)."""
+        unit = (KINDS.get(kind) or {}).get("price")
+        rate = self.rates().get(style, {}).get(unit, 0) if unit else 0
+        q = quantity(kind, dims)
+        if not rate or q <= 0:
             return 0, 0
-        coef = TIERS.get(tier, TIERS["standard"])["k"]
-        if k["unit"] == "m":
-            length_cm = sum(float(dims.get(f) or 0) for f in k["main"])
-            if length_cm <= 0:
-                return 0, 0
-            base = rate * length_cm / 100
-        else:
-            base = rate
-        mid = base * coef
-        lo = int(math.floor(mid * 0.9 / 10000) * 10000)
-        hi = int(math.ceil(mid * 1.1 / 10000) * 10000)
-        return lo, hi
+        mid = rate * q
+        return int(math.floor(mid * 0.9 / 10000) * 10000), int(math.ceil(mid * 1.1 / 10000) * 10000)
 
+    # ------------------------------------------------ namuna rasmlar
+    def gallery(self, style: str = "") -> list:
+        q = "SELECT * FROM custom_gallery" + (" WHERE style=?" if style else "") + " ORDER BY sort, id"
+        return [dict(r) for r in self.db.execute(q, (style,) if style else ()).fetchall()]
+
+    def gallery_add(self, style: str, kind: str, caption: str, images: list) -> list:
+        if style not in STYLES:
+            raise ShopError("Uslubni tanlang")
+        if kind and kind not in KINDS:
+            kind = ""
+        if not images:
+            raise ShopError("Rasm tanlang")
+        if self.db.execute("SELECT COUNT(*) FROM custom_gallery").fetchone()[0] + len(images) > GALLERY_MAX:
+            raise ShopError(f"Namuna rasmlar soni {GALLERY_MAX} tadan oshmasin. Eskilarini o'chiring.")
+        now = int(time.time())
+        for data in images:
+            path = self.shop.save_image(data)  # "uploads/..." — ommaviy (namunalar hamma uchun)
+            self.db.execute("INSERT INTO custom_gallery(style, kind, image, caption, sort, created) VALUES (?,?,?,?,?,?)",
+                            (style, kind, path, (caption or "").strip()[:120], now, now))
+        self.db.commit()
+        return self.gallery()
+
+    def gallery_update(self, gid: int, data: dict) -> list:
+        r = self.db.execute("SELECT * FROM custom_gallery WHERE id=?", (gid,)).fetchone()
+        if not r:
+            raise ShopError("Rasm topilmadi")
+        style = data.get("style") if data.get("style") in STYLES else r["style"]
+        kind = data.get("kind", r["kind"])
+        kind = kind if kind in KINDS else ""
+        caption = str(data.get("caption", r["caption"]) or "").strip()[:120]
+        self.db.execute("UPDATE custom_gallery SET style=?, kind=?, caption=? WHERE id=?", (style, kind, caption, gid))
+        self.db.commit()
+        return self.gallery()
+
+    def gallery_delete(self, gid: int) -> list:
+        r = self.db.execute("SELECT image FROM custom_gallery WHERE id=?", (gid,)).fetchone()
+        if r:
+            self.db.execute("DELETE FROM custom_gallery WHERE id=?", (gid,))
+            self.db.commit()
+            used = self.db.execute("SELECT 1 FROM custom_requests WHERE sample_image=? LIMIT 1", (r["image"],)).fetchone()
+            if not used:
+                self.shop._remove_unused_files([r["image"]])
+        return self.gallery()
+
+    # ------------------------------------------------ ilova uchun sozlamalar
     def config(self, lang: str = "uz") -> dict:
         ru = lang == "ru"
         rates = self.rates()
+        gal = self.gallery()
+        styles = []
+        for sid, s in STYLES.items():
+            items = [{"id": g["id"], "kind": g["kind"], "image": "/" + g["image"], "caption": g["caption"]}
+                     for g in gal if g["style"] == sid]
+            styles.append({"id": sid, "name": s["ru" if ru else "uz"], "desc": s["d_ru" if ru else "d_uz"],
+                           "rates": rates[sid], "gallery": items, "cover": items[0]["image"] if items else ""})
         return {
-            "kinds": [{"id": k, "name": v["ru" if ru else "uz"], "icon": v["icon"], "unit": v["unit"],
-                       "rate": rates.get(k, 0), "main": v["main"],
+            "styles": styles,
+            "units": [{"id": u, "name": v["ru" if ru else "uz"], "short": v["short_ru" if ru else "short_uz"],
+                       "hint": v["hint_ru" if ru else "hint_uz"]} for u, v in PRICE_UNITS.items()],
+            "kinds": [{"id": k, "name": v["ru" if ru else "uz"], "icon": v["icon"], "price": v["price"],
                        "dims": [{"id": f, "label": (lr if ru else lu)} for f, lu, lr in v["dims"]]}
-                      for k, v in KINDS.items()],
-            "tiers": [{"id": k, "name": v["ru" if ru else "uz"], "desc": v["d_ru" if ru else "d_uz"], "k": v["k"]}
-                      for k, v in TIERS.items()],
+                      for k, v in KINDS.items() if not v.get("hidden")],
             "stages": [{"id": s, "name": stage_name(s, lang)} for s in STAGE_ORDER],
             "max_photos": MAX_PHOTOS,
         }
@@ -184,7 +277,8 @@ class CustomStore:
 
     def list(self, status: str = "", limit: int = 200) -> list:
         if status == "active":
-            q, a = f"SELECT * FROM custom_requests WHERE status IN ({','.join('?' * len(ACTIVE))}) ORDER BY id DESC LIMIT ?", (*ACTIVE, limit)
+            q, a = (f"SELECT * FROM custom_requests WHERE status IN ({','.join('?' * len(ACTIVE))}) "
+                    "ORDER BY id DESC LIMIT ?", (*ACTIVE, limit))
         elif status in STAGES:
             q, a = "SELECT * FROM custom_requests WHERE status=? ORDER BY id DESC LIMIT ?", (status, limit)
         else:
@@ -204,10 +298,10 @@ class CustomStore:
         return out
 
     def create(self, user: dict, payload: dict, photos: list, lang: str = "uz") -> dict:
+        style = payload.get("style") if payload.get("style") in STYLES else ""
         kind = payload.get("kind")
-        if kind not in KINDS:
-            raise ShopError("Mebel turini tanlang", "Выберите тип мебели")
-        visit = bool(payload.get("measure_visit"))
+        if kind not in KINDS or KINDS[kind].get("hidden"):
+            raise ShopError("Qanday mebel kerakligini tanlang", "Выберите, какая мебель нужна")
         dims = {}
         raw_dims = payload.get("dims") or {}
         for f, _, _ in KINDS[kind]["dims"]:
@@ -221,14 +315,20 @@ class CustomStore:
             if not 10 <= n <= 2000:
                 raise ShopError("O'lcham 10 dan 2000 sm gacha bo'lishi kerak", "Размер должен быть от 10 до 2000 см")
             dims[f] = round(n, 1)
-        first = KINDS[kind]["dims"][0][0]
-        if not visit and kind != "other" and first not in dims:
-            raise ShopError("Asosiy o'lchamni kiriting yoki «Usta kelib o'lchasin»ni tanlang",
-                            "Укажите основной размер или выберите «Нужен замер»")
-        tier = payload.get("tier") if payload.get("tier") in TIERS else "standard"
+        visit = bool(payload.get("measure_visit")) or not dims
         color = (payload.get("color") or "").strip()[:80]
         note = (payload.get("note") or "").strip()[:1000]
-        if kind == "other" and len(note) < 5:
+        sample_id, sample_image = None, ""
+        try:
+            sid = int(payload.get("sample_id") or 0)
+        except (TypeError, ValueError):
+            sid = 0
+        if sid:
+            g = self.db.execute("SELECT * FROM custom_gallery WHERE id=?", (sid,)).fetchone()
+            if g:
+                sample_id, sample_image = sid, g["image"]
+                style = style or g["style"]
+        if kind == "other" and len(note) < 5 and not sample_id:
             raise ShopError("Qanday mebel kerakligini qisqacha yozing", "Коротко опишите, какая мебель нужна")
         name = (payload.get("name") or "").strip()[:80]
         if len(name) < 2:
@@ -245,19 +345,17 @@ class CustomStore:
             r = self.db.execute("SELECT name FROM products WHERE id=?", (mid,)).fetchone()
             if r:
                 model_id, model_name = mid, r["name"]
-        saved = []
-        for data in photos[:MAX_PHOTOS]:
-            name_ = self.shop._save_jpeg(data, self.photo_dir, 1600, 82)
-            saved.append(name_)
-        lo, hi = self.estimate(kind, dims, tier)
+        saved = [self.shop._save_jpeg(data, self.photo_dir, 1600, 82) for data in photos[:MAX_PHOTOS]]
+        lo, hi = self.estimate(kind, dims, style)
         now = int(time.time())
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
-            "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
+            "style,sample_id,sample_image) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username") or "", name, phone, city, address, kind, model_id, model_name,
-             json.dumps(dims), 1 if visit else 0, tier, color, note, json.dumps(saved), lo, hi, "new",
-             json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now))
+             json.dumps(dims), 1 if visit else 0, "", color, note, json.dumps(saved), lo, hi, "new",
+             json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now,
+             style, sample_id, sample_image))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -276,10 +374,11 @@ class CustomStore:
 
     def update_admin(self, rid: int, data: dict) -> dict:
         r = self.get(rid)
-        def num(k):
+
+        def money_field(k):
             raw = re.sub(r"\D", "", str(data.get(k, r[k]) or ""))
             return int(raw) if raw else 0
-        price, prepay = num("price"), num("prepay")
+        price, prepay = money_field("price"), money_field("prepay")
         if prepay and price and prepay > price:
             raise ShopError("Oldindan to'lov narxdan katta bo'lishi mumkin emas")
         due = str(data.get("due", r["due"]) or "").strip()[:60]
@@ -308,6 +407,11 @@ def dims_text(r: dict, lang: str = "uz") -> str:
         if f in r["dims"]:
             v = r["dims"][f]
             parts.append(f"{lr if lang == 'ru' else lu}: {int(v) if float(v).is_integer() else v} sm")
+    q = quantity(r["kind"], r["dims"])
+    unit = k.get("price")
+    if q and unit:
+        u = PRICE_UNITS[unit]["short_ru" if lang == "ru" else "short_uz"].replace("1 ", "")
+        parts.append(f"= {round(q, 2)} {u}")
     return "\n".join(parts)
 
 
@@ -317,7 +421,8 @@ def public(r: dict, lang: str = "uz") -> dict:
     out["photos"] = len(r.get("photos") or [])
     out["kind_name"] = kind_name(r["kind"], lang)
     out["status_text"] = stage_name(r["status"], lang)
-    out["tier_name"] = TIERS.get(r.get("tier"), {}).get("ru" if lang == "ru" else "uz", "")
+    out["style_name"] = style_name(r.get("style") or "", lang)
+    out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     return out
 
 
@@ -336,23 +441,26 @@ def admin_text(r: dict) -> str:
     if place:
         lines.append(f"🏠 {place}")
     lines += ["", f"{(KINDS.get(r['kind']) or KINDS['other'])['icon']} <b>{e(kind_name(r['kind']))}</b>"
-              + (f" — asos: {e(r['model_name'])}" if r.get("model_name") else "")]
+              + (f" — uslub: <b>{e(style_name(r.get('style') or ''))}</b>" if r.get("style") else "")
+              + (f"\n🛋 Asos: {e(r['model_name'])}" if r.get("model_name") else "")]
+    if r.get("sample_image"):
+        lines.append("🖼 Namuna rasmlardan birini tanladi (yuqorida)")
     d = dims_text(r)
     if d:
         lines.append("📏 " + e(d).replace("\n", "\n📏 "))
     if r.get("measure_visit"):
-        lines.append("📏 <b>Usta borib o'lchashi kerak</b>")
+        lines.append("📏 <b>O'lchamni bilmaydi — usta borib o'lchashi kerak</b>")
     tier = TIERS.get(r.get("tier"), {}).get("uz")
     if tier:
-        lines.append(f"🧵 Material: {e(tier)}" + (f", rang: {e(r['color'])}" if r.get("color") else ""))
-    elif r.get("color"):
+        lines.append(f"🧵 Material: {e(tier)}")
+    if r.get("color"):
         lines.append(f"🎨 Rang: {e(r['color'])}")
     if r.get("note"):
         lines.append(f"📝 {e(r['note'])}")
     if r.get("photos"):
-        lines.append(f"🖼 Rasmlar: {len(r['photos'])} ta")
+        lines.append(f"📷 Mijoz rasmlari: {len(r['photos'])} ta")
     if r.get("estimate_min"):
-        lines.append(f"\n💡 Saytdagi taxminiy narx: {fmt_price(r['estimate_min'])} – {fmt_price(r['estimate_max'])}")
+        lines.append(f"\n💡 Ko'rsatilgan taxminiy narx: {fmt_price(r['estimate_min'])} – {fmt_price(r['estimate_max'])}")
     if r.get("price"):
         lines.append(f"💰 <b>Kelishilgan narx: {fmt_price(r['price'])}</b>"
                      + (f"\n💵 Oldindan to'lov: {fmt_price(r['prepay'])}" if r.get("prepay") else ""))
@@ -365,7 +473,7 @@ def admin_text(r: dict) -> str:
 
 def next_stages(status: str) -> list:
     """Keyingi bosqich va bekor qilish (yakunlangan/bekor qilinganda — qayta ochish)."""
-    if status in ("done",):
+    if status == "done":
         return []
     if status == "cancelled":
         return ["new"]

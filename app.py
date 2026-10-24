@@ -904,6 +904,8 @@ def custom_admin(r: dict) -> dict:
     out["photos"] = len(r.get("photos") or [])
     out["next"] = cust.next_stages(r["status"])
     out["tier_name"] = cust.TIERS.get(r.get("tier"), {}).get("uz", "")
+    out["style_name"] = cust.style_name(r.get("style") or "")
+    out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     out["dims_text"] = cust.dims_text(r)
     return out
 
@@ -911,7 +913,46 @@ def custom_admin(r: dict) -> dict:
 async def api_admin_custom(request):
     get_admin(request)
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
-                              "counts": cs.counts(), "rates": cs.rates()})
+                              "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin()})
+
+
+def gallery_admin() -> list:
+    return [{**g, "image": "/" + g["image"]} for g in cs.gallery()]
+
+
+async def api_admin_gallery_add(request):
+    """Namuna rasmlar: multipart — style, kind, caption va bir nechta photo."""
+    get_admin(request)
+    fields, images = {}, []
+    reader = await request.multipart()
+    async for part in reader:
+        if part.name == "photo" and len(images) < 20:
+            buf = bytearray()
+            while True:
+                chunk = await part.read_chunk(256 * 1024)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > CUSTOM_PHOTO_MAX:
+                    raise ShopError("Rasm juda katta (15 MB dan oshmasin)")
+            if buf:
+                images.append(bytes(buf))
+        elif part.name:
+            fields[part.name] = (await part.text())[:200]
+    cs.gallery_add(fields.get("style", ""), fields.get("kind", ""), fields.get("caption", ""), images)
+    return web.json_response({"gallery": gallery_admin()})
+
+
+async def api_admin_gallery_update(request):
+    get_admin(request)
+    cs.gallery_update(int(request.match_info["gid"]), await request.json())
+    return web.json_response({"gallery": gallery_admin()})
+
+
+async def api_admin_gallery_delete(request):
+    get_admin(request)
+    cs.gallery_delete(int(request.match_info["gid"]))
+    return web.json_response({"gallery": gallery_admin()})
 
 
 async def api_admin_custom_status(request):
@@ -956,6 +997,9 @@ async def notify_custom_new(r: dict):
     for chat in NOTIFY_CHATS:
         try:
             photos = [os.path.join(cs.photo_dir, p) for p in r["photos"]]
+            if r.get("sample_image"):  # mijoz tanlagan namuna — birinchi rasm
+                photos.insert(0, os.path.join(UPLOAD_DIR, os.path.basename(r["sample_image"])))
+            photos = [p for p in photos if os.path.isfile(p)]
             if len(photos) == 1:
                 await bot.send_photo(chat, FSInputFile(photos[0]))
             elif photos:
@@ -1555,6 +1599,9 @@ def make_app() -> web.Application:
     app.router.add_post("/api/custom/mine", api_custom_mine)
     app.router.add_get("/api/admin/custom", api_admin_custom)
     app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
+    app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
+    app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)
+    app.router.add_post("/api/admin/custom/gallery/{gid}", api_admin_gallery_update)
     app.router.add_post("/api/admin/custom/{id}/status", api_admin_custom_status)
     app.router.add_post("/api/admin/custom/{id}", api_admin_custom_update)
     app.router.add_get("/api/admin/custom/{id}/photo/{i}", api_admin_custom_photo)
