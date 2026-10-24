@@ -775,8 +775,22 @@ class Shop:
         if not payload.get("offer"):
             raise ShopError("Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring",
                             "Чтобы оформить заказ, примите условия публичной оферты")
-        # yig'ib berish: faqat yetkazib berishda va yig'iladigan mahsulot bo'lsa; narxiga ustama qo'shiladi
-        assembly = bool(c.get("assembly")) and delivery == "delivery" and any(i["assembly"] for i in items)
+        # yig'ib berish: faqat yetkazib berishda; mijoz har bir yig'iladigan mahsulot uchun alohida tanlaydi.
+        # i["can_asm"] — mahsulot yig'iladigan; i["assembly"] — mijoz shuni yig'ib berishni so'radi.
+        raw_ids = c.get("assembly_ids")
+        if isinstance(raw_ids, list):
+            want = set()
+            for x in raw_ids[:50]:
+                try:
+                    want.add(int(x))
+                except (TypeError, ValueError):
+                    pass
+        else:  # eski ilova: bitta «ha/yo'q» — hamma yig'iladiganlar
+            want = {i["id"] for i in items} if c.get("assembly") else set()
+        for i in items:
+            i["can_asm"] = i["assembly"]
+            i["assembly"] = bool(i["can_asm"] and delivery == "delivery" and i["id"] in want)
+        assembly = any(i["assembly"] for i in items)
         assembly_fee = 0
         if assembly:
             pct_a = int(self.settings()["assembly_pct"] or 0)
@@ -960,6 +974,7 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
     if not for_admin and lang == "ru":
         o = Shop.localize_order(o, "ru")
         lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'], 'ru')}"
+                          + ("\n   🔧 соберём" if o.get("assembly") and i.get("assembly") else "")
                           + (f"\n   🚚 Доставка: {e(i['delivery_days'])}" if i.get("delivery_days") else "")
                           for i in o["items"])
         return (f"<b>Заказ #{o['id']}</b>\nСтатус: {o['status_text']}\n\n{lines}\n\n"
@@ -968,6 +983,7 @@ def order_text(o: dict, for_admin: bool, lang: str = "uz") -> str:
                 + (f"\nПредоплата: {fmt_price(o['prepay'], 'ru')}\nОстаток: {fmt_price(o['total'] - o['prepay'], 'ru')}"
                    if o.get("prepay") else ""))
     lines = "\n".join(f"• {e(i['name'])} × {i['qty']} = {fmt_price(i['price'] * i['qty'])}"
+                      + ("\n   🔧 yig'ib beriladi" if o.get("assembly") and i.get("assembly") else "")
                       + (f"\n   🚚 Yetkazish: {e(i['delivery_days'])}" if i.get("delivery_days") else "")
                       + (supplier_lines(i, e) if for_admin else "")
                       for i in o["items"])

@@ -391,9 +391,10 @@ const I18N = {
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
-    asm_title: "Yig'ib berish", asm_q: "Mebelni yig'ib, o'rnatib beraylikmi?", asm_yes: "Ha, yig'ib bering (+{sum})",
-    asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati yig'iladigan mahsulotlar narxining {p}% i: {items}.",
-    asm_line: "Yig'ib berish ({p}%)", e_asm: "Mebelni yig'ib berish kerakmi — tanlang",
+    asm_title: "Yig'ib berish", asm_q: "Qaysilarini yig'ib, o'rnatib beraylik?", asm_yes: "Ha, yig'ib bering (+{sum})",
+    asm_one: "🔧 Yig'ib bering (+{sum})", asm_self: "O'zim yig'aman", asm_tag: "🔧 yig'ib beriladi",
+    asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati — mahsulot narxining {p}% i. Har biri uchun alohida tanlang.",
+    asm_line: "Yig'ib berish ({p}%)", e_asm: "Har bir mahsulot uchun yig'ib berish kerakmi — tanlang",
     asm_avail: "🔧 Yig'ib berish xizmati bor: +{p}% (buyurtmada tanlanadi)",
     offer_agree: "shartlariga roziman", offer_link: "Ommaviy oferta", offer_title: "Ommaviy oferta",
     e_offer: "Buyurtma berish uchun ommaviy oferta shartlariga rozilik bildiring",
@@ -452,9 +453,10 @@ const I18N = {
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
-    asm_title: "Сборка", asm_q: "Собрать и установить мебель?", asm_yes: "Да, соберите (+{sum})",
-    asm_no: "Нет, соберу сам", asm_info: "Услуга сборки — {p}% от цены собираемых товаров: {items}.",
-    asm_line: "Сборка ({p}%)", e_asm: "Выберите, нужна ли сборка мебели",
+    asm_title: "Сборка", asm_q: "Что собрать и установить?", asm_yes: "Да, соберите (+{sum})",
+    asm_one: "🔧 Соберите (+{sum})", asm_self: "Соберу сам", asm_tag: "🔧 соберём",
+    asm_no: "Нет, соберу сам", asm_info: "Сборка — {p}% от цены товара. Выберите для каждого отдельно.",
+    asm_line: "Сборка ({p}%)", e_asm: "Выберите для каждого товара, нужна ли сборка",
     asm_avail: "🔧 Есть услуга сборки: +{p}% (выбирается при заказе)",
     offer_agree: "— принимаю условия", offer_link: "Публичная оферта", offer_title: "Публичная оферта",
     e_offer: "Чтобы оформить заказ, примите условия публичной оферты",
@@ -886,7 +888,7 @@ function openCheckout() {
         delivery: pr.delivery || "delivery", city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
         lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? t("prev_addr") : "", prevGeo: pr.lat != null,
         pay: S.payments.includes(pr.pay) ? pr.pay : S.payments[0], note: "",
-        assembly: null, offer: false,
+        asm: {}, offer: false,  // asm: {mahsulot id: true (yig'ib bering) | false (o'zim)}
         receipt: null, receiptUrl: "", receiptBusy: false, err: "" };
   openSheet({ title: t("checkout"), rerender: checkoutHTML,
     main: () => [t("send_order"), submitOrder],
@@ -895,8 +897,12 @@ function openCheckout() {
 // yig'ib berish: faqat yetkazib berishda va yig'iladigan mahsulot bo'lsa; narxi — shu mahsulotlar narxining S.asmPct %
 const asmItems = () => cartItems().filter(x => x.p.assembly);
 const asmAsk = () => F.delivery === "delivery" && S.asmPct > 0 && asmItems().length > 0;
-const asmFee = () => Math.ceil(asmItems().reduce((a, x) => a + x.p.price * x.qty, 0) * S.asmPct / 100 / 1000) * 1000;
-const coTotal = () => cartTotal() + (asmAsk() && F.assembly ? asmFee() : 0);
+const feeOf = list => Math.ceil(list.reduce((a, x) => a + x.p.price * x.qty, 0) * S.asmPct / 100 / 1000) * 1000;
+const asmChosen = () => asmItems().filter(x => F.asm[x.p.id] === true);
+const asmFee = () => feeOf(asmChosen());
+const asmAnswered = () => asmItems().every(x => typeof F.asm[x.p.id] === "boolean");
+const coTotal = () => cartTotal() + (asmAsk() ? asmFee() : 0);
+function setAsm(id, v) { F.asm[id] = v; F.err = ""; refresh(); }
 function openOffer() {
   openSheet({ title: t("offer_title"), body: `<div class="section offer">${S.offer}</div>`, main: () => [t("close"), closeSheet] });
 }
@@ -944,9 +950,9 @@ function checkoutHTML() {
     ${asmAsk() ? `<div class="section"><h3>🔧 ${t("asm_title")}</h3>
       <div class="small muted" style="margin-bottom:8px">${t("asm_info", { p: S.asmPct, items: asmItems().map(x => esc(x.p.name)).join(", ") })}</div>
       <div style="font-weight:600;margin-bottom:8px">${t("asm_q")}</div>
-      <div class="opts">
-        <button class="${F.assembly === true ? "on" : ""}" onclick="F.assembly=true; F.err=''; refresh()">${t("asm_yes", { sum: money(asmFee()) })}</button>
-        <button class="${F.assembly === false ? "on" : ""}" onclick="F.assembly=false; F.err=''; refresh()">${t("asm_no")}</button></div>
+      ${asmItems().map(x => `<div style="margin-bottom:10px"><div class="small" style="margin-bottom:6px"><b>${esc(x.p.name)}</b>${x.qty > 1 ? ` × ${x.qty}` : ""}</div>
+        <div class="opts"><button class="${F.asm[x.p.id] === true ? "on" : ""}" onclick="setAsm(${x.p.id}, true)">${t("asm_one", { sum: money(feeOf([x])) })}</button>
+        <button class="${F.asm[x.p.id] === false ? "on" : ""}" onclick="setAsm(${x.p.id}, false)">${t("asm_self")}</button></div></div>`).join("")}
     </div>` : ""}
     <div class="section"><h3>${t("rest_pay")}</h3>
       <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(payName(p))}</button>`).join("")}</div>
@@ -955,7 +961,7 @@ function checkoutHTML() {
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
       ${F.delivery === "delivery" ? `<div class="sum"><span class="muted">${t("delivery")}</span><span class="free">${t("by_manager")}</span></div>` : ""}
-      ${asmAsk() && F.assembly ? `<div class="sum"><span class="muted">${t("asm_line", { p: S.asmPct })}</span><span>${money(asmFee())}</span></div>` : ""}
+      ${asmAsk() && asmChosen().length ? `<div class="sum"><span class="muted">${t("asm_line", { p: S.asmPct })}</span><span>${money(asmFee())}</span></div>` : ""}
       <div class="sum total"><span>${t("total")}</span><span>${money(total)}</span></div>
       <div class="sum"><span class="muted">${t("prepay_sum", { p: pp.pct || 10 })}</span><span>${money(pre)}</span></div>
       <div class="sum"><span class="muted">${t("on_receive")}</span><span>${money(total - pre)}</span></div>
@@ -1182,7 +1188,7 @@ async function submitOrder() {
     : !(S.prepay && S.prepay.card) ? t("e_card")
     : F.receiptBusy ? t("e_rc_busy")
     : !F.receipt ? t("e_rc", { sum: money(prepayOf(coTotal())) })
-    : asmAsk() && F.assembly === null ? t("e_asm")
+    : asmAsk() && !asmAnswered() ? t("e_asm")
     : !F.offer ? t("e_offer") : "";
   if (F.err) { notifyH("error"); refresh(); const e = document.querySelector(".sheet.on .err:last-of-type"); e && e.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
   sending = true; mainBusy(true);
@@ -1195,7 +1201,8 @@ async function submitOrder() {
       // shaharga xaritadan aniqlangan manzil nomini ham qo'shamiz (admin ko'rishi uchun)
       customer: { name: F.name, phone: F.phone, delivery: F.delivery,
                   city: F.delivery === "delivery" && F.geo && !F.prevGeo ? `${F.city} — ${F.geo}` : F.city, address: F.address,
-                  lat: F.lat, lon: F.lon, pay: F.pay, note: F.note, assembly: asmAsk() && F.assembly === true },
+                  lat: F.lat, lon: F.lon, pay: F.pay, note: F.note,
+                  assembly: asmAsk() && asmChosen().length > 0, assembly_ids: asmAsk() ? asmChosen().map(x => x.p.id) : [] },
       offer: F.offer, offer_ver: S.offerVer }));
     fd.append("receipt", F.receipt, "chek.jpg");
     const { order } = await api("/api/order", { form: fd });
@@ -1349,6 +1356,7 @@ function openAdminOrder(id) {
       <div class="rcpt-big" id="rcpt${o.id}">${o.has_receipt ? "⏳ Chek yuklanmoqda..." : "Chek yo'q"}</div></div>` : ""}
     <div class="section">${o.items.map(i => `<div class="row"><div class="thumb">${picHTML(i)}</div><div class="grow">
       <div class="pname">${esc(i.name)}</div><div class="small muted">${money(i.price)} × ${i.qty}</div>
+      ${o.assembly && i.assembly ? `<div class="small" style="color:var(--link)">🔧 yig'ib beriladi</div>` : ""}
       ${i.delivery_days ? `<div class="dd">🚚 ${esc(i.delivery_days)}</div>` : ""}${supInfoHTML(i)}</div><b>${money(i.price * i.qty)}</b></div>`).join("")}
       ${o.assembly ? `<div class="sum"><span class="muted">🔧 Yig'ib berish</span><span>${money(o.assembly_fee)}</span></div>
         <div class="sum"><span class="muted">👷 Yig'uvchi</span><span>${o.assembler && o.assembler.id ? `<b>${esc(o.assembler.name)}</b>
