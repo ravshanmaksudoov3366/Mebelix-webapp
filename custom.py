@@ -151,7 +151,23 @@ CREATE TABLE IF NOT EXISTS custom_gallery (
 """
 REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''",
                    "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''",
-                   "need_when": "TEXT DEFAULT ''", "repair": "TEXT DEFAULT ''", "fee_ok": "INTEGER DEFAULT 0"}
+                   "need_when": "TEXT DEFAULT ''", "repair": "TEXT DEFAULT ''", "fee_ok": "INTEGER DEFAULT 0",
+                   "kinds": "TEXT DEFAULT '[]'"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
+
+
+def kinds_of(r: dict) -> list:
+    """Arizadagi mebel turlari ro'yxati (eski arizalarda faqat bitta — kind)."""
+    ks = r.get("kinds")
+    if isinstance(ks, str):
+        try:
+            ks = json.loads(ks or "[]")
+        except ValueError:
+            ks = []
+    return [k for k in (ks or []) if k in KINDS] or [r.get("kind") or "other"]
+
+
+def kinds_name(r: dict, lang: str = "uz") -> str:
+    return ", ".join(kind_name(k, lang) for k in kinds_of(r))
 
 
 def kind_name(kind: str, lang: str = "uz") -> str:
@@ -345,7 +361,8 @@ class CustomStore:
         d = dict(r)
         for f, dflt in (("dims", "{}"), ("photos", "[]"), ("events", "[]"), ("admin_msgs", "[]")):
             d[f] = json.loads(d.get(f) or dflt)
-        d["kind_name"] = kind_name(d["kind"], d.get("lang") or "uz")
+        d["kinds"] = kinds_of(d)
+        d["kind_name"] = kinds_name(d, d.get("lang") or "uz")
         d["status_text"] = stage_name(d["status"])
         return d
 
@@ -379,9 +396,16 @@ class CustomStore:
 
     def create(self, user: dict, payload: dict, photos: list, lang: str = "uz") -> dict:
         style = payload.get("style") if payload.get("style") in STYLES else ""
-        kind = payload.get("kind")
-        if kind not in KINDS or KINDS[kind].get("hidden"):
+        raw_kinds = payload.get("kinds")
+        if not isinstance(raw_kinds, list):
+            raw_kinds = [payload.get("kind")]
+        kinds = []
+        for k in raw_kinds:
+            if k in KINDS and not KINDS[k].get("hidden") and k not in kinds:
+                kinds.append(k)
+        if not kinds:
             raise ShopError("Qanday mebel kerakligini tanlang", "Выберите, какая мебель нужна")
+        kind = kinds[0]
         dims = {}
         raw_dims = payload.get("dims") or {}
         for f, _, _ in KINDS[kind]["dims"]:
@@ -418,7 +442,7 @@ class CustomStore:
             if g:
                 sample_id, sample_image = sid, g["image"]
                 style = style or g["style"]
-        if kind == "other" and len(note) < 5 and not sample_id:
+        if kinds == ["other"] and len(note) < 5 and not sample_id:
             raise ShopError("Qanday mebel kerakligini qisqacha yozing", "Коротко опишите, какая мебель нужна")
         name = (payload.get("name") or "").strip()[:80]
         if len(name) < 2:
@@ -441,12 +465,13 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "style,sample_id,sample_image,visit_day,visit_time,need_when,repair,fee_ok) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "style,sample_id,sample_image,visit_day,visit_time,need_when,repair,fee_ok,kinds) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (user["id"], user.get("username") or "", name, phone, city, address, kind, model_id, model_name,
              json.dumps(dims), 1 if visit else 0, "", color, note, json.dumps(saved), lo, hi, "new",
              json.dumps([["new", now, "mijoz"]]), "ru" if lang == "ru" else "uz", now, now,
-             style, sample_id, sample_image, visit_day, visit_time, need_when, repair, 1 if fee_ok and not price_only else 0))
+             style, sample_id, sample_image, visit_day, visit_time, need_when, repair, 1 if fee_ok and not price_only else 0,
+             json.dumps(kinds)))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -533,7 +558,7 @@ def public(r: dict, lang: str = "uz") -> dict:
     """Mijozga: ichki izoh, guruh xabarlari va rasmlar yo'li yuborilmaydi."""
     out = {k: v for k, v in r.items() if k not in ("admin_msgs", "admin_note", "photos", "user_id", "username")}
     out["photos"] = len(r.get("photos") or [])
-    out["kind_name"] = kind_name(r["kind"], lang)
+    out["kind_name"] = kinds_name(r, lang)
     out["status_text"] = stage_name(r["status"], lang)
     out["style_name"] = style_name(r.get("style") or "", lang)
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
@@ -557,7 +582,7 @@ def admin_text(r: dict) -> str:
     place = ", ".join(e(x) for x in (r.get("city"), r.get("address")) if x)
     if place:
         lines.append(f"🏠 {place}")
-    lines += ["", f"{(KINDS.get(r['kind']) or KINDS['other'])['icon']} <b>{e(kind_name(r['kind']))}</b>"
+    lines += ["", " ".join(KINDS[k]["icon"] for k in kinds_of(r)) + f" <b>{e(kinds_name(r))}</b>"
               + (f" — uslub: <b>{e(style_name(r.get('style') or ''))}</b>" if r.get("style") else "")
               + (f"\n🛋 Asos: {e(r['model_name'])}" if r.get("model_name") else "")]
     if r.get("sample_image"):

@@ -291,7 +291,7 @@ const I18N = {
     want_this: "Shunga o'xshashini xohlayman", order_style: "📏 Ustani o'lchovga chaqirish",
     f_title: "Ustani o'lchovga chaqirish", f_sub: "Usta uyingizga kelib o'lchaydi, aniq narxni aytadi va shartnomani joyida tuzasiz.",
     f_when: "Usta qachon kelsin?", f_time: "Qaysi vaqtda?", f_more: "Qo'shimcha ma'lumot (ixtiyoriy)", visit: "Usta keladi", f_style: "Uslub", change: "o'zgartirish", f_sample: "Tanlangan namuna", f_model: "Asos qilib olingan model",
-    f_kind: "Nima kerak?", f_size: "O'lchamni bilasizmi?", size_no: "Bilmayman", size_no_t: "usta kelib o'lchaydi",
+    f_kind: "Nima kerak?", f_kind_h: "Bir nechtasini tanlashingiz mumkin", f_size: "O'lchamni bilasizmi?", size_no: "Bilmayman", size_no_t: "usta kelib o'lchaydi",
     size_yes: "Bilaman", size_yes_t: "taxminiy narxni ko'raman", dims_hint: "Santimetrda yozing. Taxminiy bo'lsa ham bo'ladi.",
     est: "Taxminiy narx", est_t: "Aniq narx o'lchov va eskizdan keyin kelishiladi.", est_none: "Narxni menejer hisoblab, siz bilan bog'lanadi.",
     color: "Rang (ixtiyoriy)", color_ph: "Masalan: oq, bej, yong'oq rangi", note: "Istaklaringiz (ixtiyoriy)",
@@ -325,7 +325,7 @@ const I18N = {
     want_this: "Хочу похожее", order_style: "📏 Вызвать мастера на замер",
     f_title: "Вызов мастера на замер", f_sub: "Мастер приедет, сделает замер, назовёт точную цену — договор можно заключить на месте.",
     f_when: "Когда удобно принять мастера?", f_time: "В какое время?", f_more: "Дополнительно (необязательно)", visit: "Замер", f_style: "Стиль", change: "изменить", f_sample: "Выбранный пример", f_model: "За основу взята модель",
-    f_kind: "Что нужно?", f_size: "Знаете размеры?", size_no: "Не знаю", size_no_t: "мастер приедет и измерит",
+    f_kind: "Что нужно?", f_kind_h: "Можно выбрать несколько", f_size: "Знаете размеры?", size_no: "Не знаю", size_no_t: "мастер приедет и измерит",
     size_yes: "Знаю", size_yes_t: "увижу примерную цену", dims_hint: "В сантиметрах. Можно примерно.",
     est: "Примерная цена", est_t: "Точная цена — после замера и эскиза.", est_none: "Менеджер рассчитает цену и свяжется с вами.",
     color: "Цвет (необязательно)", color_ph: "Например: белый, бежевый, орех", note: "Пожелания (необязательно)",
@@ -365,8 +365,11 @@ const S = { cfg: null, view: "styles", style: "", gk: "", lb: null, mine: null, 
   calc: { kind: "kitchen", L: "3", W: "2", H: "2.4" },
   adm: { tab: "list", status: "active", list: null, rates: null, gallery: [], counts: {}, open: 0, gstyle: "modern", gkind: "" } };
 const draftKey = "custom_draft3";
-const F = Object.assign({ style: "", kind: "", need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", name: "", phone: "", city: "", sample: 0 },
+const F = Object.assign({ style: "", kinds: [], need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", name: "", phone: "", city: "", sample: 0 },
   store.get(draftKey, {}), { photos: [] });
+const hasKind = id => F.kinds.includes(id);
+const onlyOther = () => F.kinds.length === 1 && F.kinds[0] === "other";
+function toggleKind(id) { F.kinds = hasKind(id) ? F.kinds.filter(k => k !== id) : [...F.kinds, id]; err = ""; haptic(); saveDraft(); refresh(); }
 const saveDraft = () => { const { photos, ...rest } = F; store.set(draftKey, rest); };
 let err = "", sending = false;
 const styleOf = id => (S.cfg.styles.find(s => s.id === id) || null);
@@ -443,7 +446,7 @@ function stylesHTML() {
       <div class="ov"><div><b>${esc(s.name)}</b><small>${esc(s.tag)}</small></div><span class="go">${t("open_s")}</span></div></button>`).join("")}</div>
     ${callHTML()}`;
 }
-function openStyle(id) { S.style = id; S.gk = ""; if (F.kind && kindOf(F.kind) && kindOf(F.kind).price) S.calc.kind = F.kind; haptic(); go("style"); }
+function openStyle(id) { S.style = id; S.gk = ""; const pk = F.kinds.find(k => kindOf(k) && kindOf(k).price); if (pk) S.calc.kind = pk; haptic(); go("style"); }
 
 /* ---------------- 2. uslub ichida: narxlar va namunalar ---------------- */
 function styleHTML() {
@@ -482,7 +485,7 @@ function drawLb() {
 function lbMove(d) { const n = S.lb.list.length; S.lb.i = (S.lb.i + d + n) % n; drawLb(); }
 function pickSample(id) {
   const g = sampleOf(id); S.lb = null; drawLb();
-  F.sample = id; F.style = S.style; if (g && g.kind) F.kind = g.kind; saveDraft(); notifyH("success"); go("form");
+  F.sample = id; F.style = S.style; if (g && g.kind && !hasKind(g.kind)) F.kinds.push(g.kind); saveDraft(); notifyH("success"); go("form");
 }
 function toForm() { F.style = S.style; saveDraft(); go("form"); }
 
@@ -490,16 +493,16 @@ function toForm() { F.style = S.style; saveDraft(); go("form"); }
 function formHTML() {
   const s = styleOf(F.style), g = F.sample ? sampleOf(F.sample) : null, m = S.cfg.model;
   const E = err ? `<div class="err">⚠️ ${esc(err)}</div>` : "";
-  const noteF = `<label class="f">${F.kind === "other" ? t("note_other") : t("note")}</label><textarea class="in" placeholder="${t("note_ph")}" oninput="F.note=this.value; saveDraft()">${esc(F.note)}</textarea>`;
+  const noteF = `<label class="f">${hasKind("other") ? t("note_other") : t("note")}</label><textarea class="in" placeholder="${t("note_ph")}" oninput="F.note=this.value; saveDraft()">${esc(F.note)}</textarea>`;
   return `<div class="intro"><h2>${t("f_title")}</h2><p>${t("f_sub")}</p></div>${E}
     ${s || g || m ? `<div class="section">
       ${s ? `<div class="pick"><div><div class="small muted">${t("f_style")}</div><b>${esc(s.name)}</b></div><button class="x" style="font-size:14px;color:var(--link)" onclick="go('styles')">${t("change")}</button></div>` : ""}
       ${g ? `<div class="pick" style="margin-top:12px"><img src="${esc(g.image)}" alt=""><div><div class="small muted">${t("f_sample")}</div><b>${esc(g.caption || s.name)}</b></div><button class="x" onclick="F.sample=0; saveDraft(); refresh()">✕</button></div>` : ""}
       ${m ? `<div class="pick" style="margin-top:12px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     </div>` : ""}
-    <div class="section"><label class="f">${t("f_kind")}</label>
-      <div class="chiprow">${S.cfg.kinds.map(x => `<button class="kchip ${F.kind === x.id ? "on" : ""}" onclick="F.kind='${x.id}'; err=''; saveDraft(); refresh()">${x.icon} ${esc(x.name)}</button>`).join("")}</div>
-      ${F.kind === "other" ? noteF : ""}
+    <div class="section"><label class="f">${t("f_kind")}</label><div class="unit-hint" style="margin:-2px 0 10px">${t("f_kind_h")}</div>
+      <div class="chiprow">${S.cfg.kinds.map(x => `<button class="kchip ${hasKind(x.id) ? "on" : ""}" onclick="toggleKind('${x.id}')">${hasKind(x.id) ? "✓ " : x.icon + " "}${esc(x.name)}</button>`).join("")}</div>
+      ${hasKind("other") ? noteF : ""}
     </div>
     <div class="section"><label class="f">${t("f_need")}</label>
       <div class="chiprow">${S.cfg.need_when.map(x => `<button class="kchip ${F.need === x.id ? "on" : ""}" onclick="F.need='${x.id}'; err=''; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>
@@ -518,8 +521,8 @@ function formHTML() {
     </div>
     ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><b>💳 ${t("fee_t", { f: money(S.cfg.measure_fee) })}</b><div class="small">${t("fee_p")}</div>
       <label class="check"><input type="checkbox" ${F.fee ? "checked" : ""} onchange="F.fee=this.checked; err=''; saveDraft()"><span>${t("fee_ok")}</span></label></div>` : ""}
-    <div class="section"><details class="more-f"${F.photos.length || (F.kind !== "other" && F.note) || F.color ? " open" : ""}><summary>${t("f_more")}</summary>
-      ${F.kind !== "other" ? noteF : ""}
+    <div class="section"><details class="more-f"${F.photos.length || (!hasKind("other") && F.note) || F.color ? " open" : ""}><summary>${t("f_more")}</summary>
+      ${!hasKind("other") ? noteF : ""}
       <label class="f">${t("color")}</label><input class="in" value="${esc(F.color)}" placeholder="${t("color_ph")}" oninput="F.color=this.value; saveDraft()">
       <label class="f">${t("photo")}</label>
       <div class="photos">${F.photos.map((p, i) => `<div class="photo"><img src="${p.url}" alt=""><button onclick="delPhoto(${i})">✕</button></div>`).join("")}
@@ -528,8 +531,8 @@ function formHTML() {
     </details></div>`;
 }
 function validate() {
-  if (!F.kind) return t("e_kind");
-  if (F.kind === "other" && F.note.trim().length < 5 && !F.sample) return t("e_note");
+  if (!F.kinds.length) return t("e_kind");
+  if (onlyOther() && F.note.trim().length < 5 && !F.sample) return t("e_note");
   if (!F.need) return t("e_need");
   if (F.need !== "price" && !F.repair) return t("e_repair");
   if (F.need !== "price" && S.cfg.measure_fee && !F.fee) return t("e_fee");
@@ -566,14 +569,14 @@ async function submit() {
   try {
     if (!IN_TG && !store.get("wtok", "")) store.set("wtok", (await api("/api/web/session", { method: "POST" })).token);
     const fd = new FormData();
-    fd.append("data", JSON.stringify({ style: F.style, kind: F.kind, need_when: F.need, repair: F.need === "price" ? "" : F.repair, fee_ok: F.need !== "price" && F.fee,
+    fd.append("data", JSON.stringify({ style: F.style, kinds: F.kinds, kind: F.kinds[0], need_when: F.need, repair: F.need === "price" ? "" : F.repair, fee_ok: F.need !== "price" && F.fee,
       measure_visit: F.need !== "price", visit_day: F.need === "price" ? "" : F.day, visit_time: F.day === "call" ? "" : F.time,
       color: F.color, note: F.note, sample_id: F.sample || 0, name: F.name, phone: F.phone, city: F.city, model_id: S.cfg.model ? S.cfg.model.id : 0 }));
     F.photos.forEach((p, i) => fd.append("photo", p.blob, `rasm${i + 1}.jpg`));
     const { request } = await api("/api/custom/request", { form: fd });
     notifyH("success");
     const keep = { name: F.name, phone: F.phone, city: F.city };
-    Object.assign(F, { style: "", kind: "", need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", sample: 0, photos: [] }, keep);
+    Object.assign(F, { style: "", kinds: [], need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", sample: 0, photos: [] }, keep);
     saveDraft(); S.cfg.model = null;
     S.done = request; S.mine = null; S.view = "done"; scrollTo(0, 0);
   } catch (e) { err = e.message; notifyH("error"); scrollTo({ top: 0, behavior: "smooth" }); }
@@ -763,9 +766,10 @@ async function loadCfg() {
   const d = await api(`/api/custom/config?lang=${LANG}${model ? "&model=" + encodeURIComponent(model) : ""}`);
   const keepModel = S.cfg && S.cfg.model === null;  // ariza yuborilgach model tozalangan bo'lsa — qaytarmaymiz
   S.cfg = d; if (keepModel) S.cfg.model = null;
-  if (d.model && !F.kind && !keepModel) {  // modelning bo'limidan mebel turini taxmin qilamiz
+  if (d.model && !F.kinds.length && !keepModel) {  // modelning bo'limidan mebel turini taxmin qilamiz
     const nm = (d.model_cat + " " + d.model.name).toLowerCase();
-    F.kind = /burchak|углов/.test(nm) ? "corner" : /divan|диван/.test(nm) ? "sofa" : /shkaf|шкаф/.test(nm) ? "wardrobe" : /oshxona|кухн/.test(nm) ? "kitchen" : "";
+    const gk = /burchak|углов/.test(nm) ? "corner" : /divan|диван/.test(nm) ? "sofa" : /shkaf|шкаф/.test(nm) ? "wardrobe" : /oshxona|кухн/.test(nm) ? "kitchen" : /komod|комод/.test(nm) ? "komod" : "";
+    if (gk) F.kinds = [gk];
   }
   if (F.sample && !sampleOf(F.sample)) F.sample = 0;
 }
