@@ -68,6 +68,11 @@ T = {
         "home_desc": "{shop} — onlayn mebel do'koni. Divanlar, yotoqxona to'plamlari, oshxona garniturlari, shkaflar. "
                      "Uyingizgacha yetkazish va yig'ib berish. Oldindan atigi {pct}% to'lov.",
         "prod_title": "{name} — narxi {price} | {shop}",
+        "nav_custom": "O'lchamga buyurtma",
+        "door_ready": "Tayyor mebellar", "door_ready_t": "Katalogdan tanlang — narxi aniq, tez yetkazamiz.",
+        "door_custom": "O'lchamga buyurtma", "door_custom_t": "Xonangizga moslab, o'zingiz xohlagan o'lcham, mato va rangda yasab beramiz.",
+        "door_custom_btn": "Ariza qoldirish", "door_ready_btn": "Katalogni ko'rish",
+        "my_size": "Shu modelni o'z o'lchamimda buyurtma qilish",
     },
     "ru": {
         "tagline": "Онлайн-магазин мебели",
@@ -126,6 +131,11 @@ T = {
         "home_desc": "{shop} — онлайн-магазин мебели. Диваны, спальные гарнитуры, кухни, шкафы. "
                      "Доставка до двери и сборка. Предоплата всего {pct}%.",
         "prod_title": "{name} — цена {price} | {shop}",
+        "nav_custom": "Мебель на заказ",
+        "door_ready": "Готовая мебель", "door_ready_t": "Выберите в каталоге — цена известна, доставим быстро.",
+        "door_custom": "Мебель на заказ", "door_custom_t": "Сделаем под вашу комнату — в нужном размере, ткани и цвете.",
+        "door_custom_btn": "Оставить заявку", "door_ready_btn": "Смотреть каталог",
+        "my_size": "Заказать эту модель в моём размере",
     },
 }
 
@@ -249,6 +259,7 @@ def header(ctx: dict, active: str = "") -> str:
     sw = "".join(f'<a href="{e(path)}?lang={l}" class="{"on" if l == lang else ""}" data-lang="{l}" hreflang="{l}">'
                  f'{l.upper()}</a>' for l in ("uz", "ru"))
     links = (f'<a href="{home}#katalog">{e(tr(lang, "nav_catalog"))}</a>'
+             f'<a href="/custom?lang={lang}">{e(tr(lang, "nav_custom"))}</a>'
              f'<a href="{home}#qanday">{e(tr(lang, "nav_how"))}</a>'
              f'<a href="{home}#tolov">{e(tr(lang, "nav_info"))}</a>'
              f'<a href="{home}#aloqa">{e(tr(lang, "nav_contact"))}</a>')
@@ -473,6 +484,13 @@ def page_home(ctx: dict) -> str:
 </div>
 <div class="wrap feats">{feats_html}</div></section>
 
+<section class="sec doors-sec"><div class="wrap doors">
+  <a class="door" href="#katalog"><span class="door-ic">🛋</span><div><h2>{e(tr(lang, 'door_ready'))}</h2><p>{e(tr(lang, 'door_ready_t'))}</p>
+    <span class="door-go">{e(tr(lang, 'door_ready_btn'))} →</span></div></a>
+  <a class="door dark" href="/custom?lang={lang}"><span class="door-ic">📐</span><div><h2>{e(tr(lang, 'door_custom'))}</h2><p>{e(tr(lang, 'door_custom_t'))}</p>
+    <span class="door-go">{e(tr(lang, 'door_custom_btn'))} →</span></div></a>
+</div></section>
+
 {f'<section class="sec" id="bolimlar"><div class="wrap"><h2 class="sec-t">{e(tr(lang, "cats_title"))}</h2><div class="cats">{cat_cards}</div></div></section>' if cat_cards else ''}
 
 <section class="sec" id="katalog"><div class="wrap">
@@ -547,6 +565,7 @@ def page_product(ctx: dict, p: dict) -> str:
     if p.get("in_stock"):
         buttons = (f'<button class="btn big" data-add="{p["id"]}">{ICONS["cart"]}<span>{e(tr(lang, "add"))}</span></button>'
                    f'<button class="btn big ghost" data-buy="{p["id"]}">{e(tr(lang, "buy_now"))}</button>')
+    buttons += (f'<a class="size-link" href="/custom?model={p["id"]}&lang={lang}">📐 {e(tr(lang, "my_size"))}</a>')
     if bot:
         buttons += (f'<a class="tg-link" href="https://t.me/{e(bot)}?start=p{p["id"]}" target="_blank" rel="noopener">'
                     f'{ICONS["tg"]}{e(tr(lang, "tg_order"))}</a>')

@@ -33,6 +33,7 @@ from aiogram.types import (
 
 import aiohttp
 
+import custom as cust
 import sitepages
 from offer import render_offer
 from shop import (
@@ -106,6 +107,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("shop")
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 shop = Shop(DB_PATH, UPLOAD_DIR)
+cs = cust.CustomStore(shop)   # o'lchamga (individual) buyurtmalar
+CUSTOM_URL = WEBAPP_URL + "custom"
 # Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
 if os.getenv("PAY_CARD") and not shop.settings()["pay_card"]:
     shop.save_settings({"pay_card": os.getenv("PAY_CARD"), "pay_owner": os.getenv("PAY_OWNER", ""),
@@ -177,6 +180,12 @@ TX = {
         "ask": "\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
         "no_chat": "Bu botga xabar yozib bo'lmaydi 🙏\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
         "open": "🛋 Katalogni ochish",
+        "open_ready": "🛋 Tayyor mebellar",
+        "open_custom": "📐 O'lchamga buyurtma",
+        "custom_hint": "\n\n🛋 <b>Tayyor mebellar</b> — katalogdan tanlab, tez olasiz.\n📐 <b>O'lchamga buyurtma</b> — xonangizga moslab, "
+                       "o'zingiz xohlagan o'lcham va matoda yasab beramiz.",
+        "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada siz bilan bog'lanib, o'lchov va narxni "
+                       "kelishadi. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
         "menu": "🛋 Do'kon",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
         "manager": "💬 <b>Menejer:</b>",
@@ -191,6 +200,12 @@ TX = {
         "ask": "\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "open": "🛋 Открыть каталог",
+        "open_ready": "🛋 Готовая мебель",
+        "open_custom": "📐 Мебель на заказ",
+        "custom_hint": "\n\n🛋 <b>Готовая мебель</b> — выбираете в каталоге и быстро получаете.\n📐 <b>Мебель на заказ</b> — сделаем "
+                       "под вашу комнату, в нужном размере и ткани.",
+        "custom_sent": "📐 <b>Заявка принята!</b> №{id}\n\nМенеджер скоро свяжется с вами, чтобы согласовать замер и цену. "
+                       "Статус заявки — в разделе «Мебель на заказ» → «Мои заявки».",
         "menu": "🛋 Магазин",
         "sent": "Ваше сообщение отправлено менеджеру. Скоро ответим 🙏",
         "manager": "💬 <b>Менеджер:</b>",
@@ -469,6 +484,14 @@ def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{APP_URL}{suffix}{sep}lang={lang}"))]])
 
 
+def two_doors(lang="uz") -> InlineKeyboardMarkup:
+    """Ikki eshik: tayyor mebellar katalogi va o'lchamga buyurtma — mijoz chalkashmasligi uchun alohida ilovalar."""
+    lang = norm_lang(lang)
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=tx(lang, "open_ready"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}"))],
+        [InlineKeyboardButton(text=tx(lang, "open_custom"), web_app=WebAppInfo(url=f"{CUSTOM_URL}?lang={lang}"))]])
+
+
 def lang_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="lang:uz"),
@@ -489,8 +512,8 @@ async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
         text += f"\n\n📞 {esc(SHOP['phone'])}"
     if SHOP["address"]:
         text += f"\n📍 {esc(SHOP['address'])}"
-    text += tx(lang, "ask", contact=admin_contact())
-    await bot.send_message(chat_id, text, reply_markup=shop_button(lang=lang))
+    text += tx(lang, "custom_hint") + tx(lang, "ask", contact=admin_contact())
+    await bot.send_message(chat_id, text, reply_markup=two_doors(lang))
     if suffix:
         try:
             p = shop.localize_product(shop.product(int(suffix.split("=")[1])), lang)
@@ -548,6 +571,20 @@ async def cmd_admin(m: Message):
 @dp.message(Command("id"))
 async def cmd_id(m: Message):
     await m.answer(f"Sizning Telegram ID: <code>{m.from_user.id}</code>")
+
+
+@dp.callback_query(F.data.startswith("cs:"))
+async def cb_custom_stage(c: CallbackQuery):
+    """Guruhdagi individual ariza tugmalari (faqat admin)."""
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, rid, status = c.data.split(":")
+    try:
+        r = cs.set_status(int(rid), status, who=f"admin: {c.from_user.full_name}")
+    except ShopError as e:
+        return await c.answer(str(e), show_alert=True)
+    await notify_custom_status(r)
+    await c.answer(cust.stage_name(status))
 
 
 @dp.callback_query(F.data.startswith("st:"))
@@ -788,6 +825,187 @@ async def api_catalog(request):
     return web.json_response({"shop": info, **shop.catalog(norm_lang(request.query.get("lang")))})
 
 
+# ------------------------------------------------------------------ o'lchamga buyurtma (/custom)
+CUSTOM_PHOTO_MAX = 15 * 1024 * 1024
+
+
+async def page_custom(request):
+    return web.FileResponse(BASE / "webapp" / "custom.html", headers={"Cache-Control": "no-cache"})
+
+
+async def api_custom_config(request):
+    lang = norm_lang(request.query.get("lang"))
+    model = None
+    try:
+        mid = int(request.query.get("model") or 0)
+    except ValueError:
+        mid = 0
+    if mid:
+        try:
+            p = shop.localize_product(shop.product(mid), lang)
+            if p.get("active"):
+                model = {"id": p["id"], "name": p["name"], "price": p["price"], "cat_id": p.get("cat_id"),
+                         "image": sitepages.first_image(p), "specs": p.get("specs") or []}
+        except ShopError:
+            pass
+    cats = {c["id"]: c["name"] for c in shop.categories()}
+    return web.json_response({"shop": {**SHOP, "admin": shop.settings().get("admin_contact", "")},
+                              "model": model, "model_cat": cats.get((model or {}).get("cat_id"), ""),
+                              **cs.config(lang)})
+
+
+async def read_custom_form(request) -> tuple:
+    payload, photos = {}, []
+    if not request.content_type.startswith("multipart/"):
+        return await request.json(), []
+    reader = await request.multipart()
+    async for part in reader:
+        if part.name == "data":
+            payload = json.loads(await part.text() or "{}")
+        elif part.name == "photo" and len(photos) < cust.MAX_PHOTOS:
+            buf = bytearray()
+            while True:
+                chunk = await part.read_chunk(256 * 1024)
+                if not chunk:
+                    break
+                buf += chunk
+                if len(buf) > CUSTOM_PHOTO_MAX:
+                    raise ShopError("Rasm juda katta (15 MB dan oshmasin)", "Фото слишком большое (не более 15 МБ)")
+            if buf:
+                photos.append(bytes(buf))
+    return payload, photos
+
+
+async def api_custom_request(request):
+    u = get_user(request)
+    lang = norm_lang(request.headers.get("X-Lang"))
+    payload, photos = await read_custom_form(request)
+    if u.get("web"):
+        if not rate_ok("wc:" + client_ip(request), 6):
+            raise ShopError("Juda ko'p ariza yuborildi. Iltimos, adminga yozing.",
+                            "Слишком много заявок. Пожалуйста, напишите администратору.")
+        u = {**u, "first_name": (payload.get("name") or "").strip()[:80] or "Sayt mijozi"}
+    r = cs.create(u, payload, photos, lang)
+    if u.get("web"):
+        await register_user(u)
+    asyncio.create_task(notify_custom_new(r))
+    return web.json_response({"request": cust.public(r, lang)})
+
+
+async def api_custom_mine(request):
+    u = get_user(request)
+    lang = norm_lang(request.headers.get("X-Lang"))
+    return web.json_response({"requests": [cust.public(r, lang) for r in cs.user_list(u["id"])],
+                              "is_admin": is_admin(u["id"])})
+
+
+def custom_admin(r: dict) -> dict:
+    out = {k: v for k, v in r.items() if k != "admin_msgs"}
+    out["photos"] = len(r.get("photos") or [])
+    out["next"] = cust.next_stages(r["status"])
+    out["tier_name"] = cust.TIERS.get(r.get("tier"), {}).get("uz", "")
+    out["dims_text"] = cust.dims_text(r)
+    return out
+
+
+async def api_admin_custom(request):
+    get_admin(request)
+    return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
+                              "counts": cs.counts(), "rates": cs.rates()})
+
+
+async def api_admin_custom_status(request):
+    u = get_admin(request)
+    body = await request.json()
+    r = cs.set_status(int(request.match_info["id"]), body.get("status", ""), who=f"admin: {u.get('first_name', '')}")
+    asyncio.create_task(notify_custom_status(r))
+    return web.json_response({"request": custom_admin(r)})
+
+
+async def api_admin_custom_update(request):
+    get_admin(request)
+    r = cs.update_admin(int(request.match_info["id"]), await request.json())
+    asyncio.create_task(refresh_custom_messages(r))
+    return web.json_response({"request": custom_admin(r)})
+
+
+async def api_admin_custom_rates(request):
+    get_admin(request)
+    return web.json_response({"rates": cs.save_rates(await request.json())})
+
+
+async def api_admin_custom_photo(request):
+    get_admin(request)
+    path = cs.photo_path(int(request.match_info["id"]), int(request.match_info["i"]))
+    if not os.path.isfile(path):
+        raise ShopError("Rasm topilmadi")
+    return web.FileResponse(path, headers={"Cache-Control": "private, no-store"})
+
+
+def custom_kb(r: dict) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text=("❌ Bekor qilish" if s == "cancelled" else "🔄 Qayta ochish" if s == "new"
+                                        else "➡️ " + cust.stage_name(s)), callback_data=f"cs:{r['id']}:{s}")]
+            for s in cust.next_stages(r["status"])]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def notify_custom_new(r: dict):
+    if not bot:
+        return
+    msgs = []
+    for chat in NOTIFY_CHATS:
+        try:
+            photos = [os.path.join(cs.photo_dir, p) for p in r["photos"]]
+            if len(photos) == 1:
+                await bot.send_photo(chat, FSInputFile(photos[0]))
+            elif photos:
+                await bot.send_media_group(chat, [InputMediaPhoto(media=FSInputFile(p)) for p in photos[:10]])
+            m = await bot.send_message(chat, cust.admin_text(r), reply_markup=custom_kb(r))
+            msgs.append([chat, m.message_id])
+        except TelegramAPIError as e:
+            log.warning("individual ariza guruhga yuborilmadi: %s", e)
+    cs.set_admin_msgs(r["id"], msgs)
+    if is_web(r["user_id"]):
+        return
+    try:
+        lang = r.get("lang") or lang_of(r["user_id"])
+        await bot.send_message(r["user_id"], tx(lang, "custom_sent", id=r["id"]))
+    except TelegramAPIError as e:
+        log.warning("mijozga yuborilmadi: %s", e)
+
+
+async def refresh_custom_messages(r: dict):
+    if not bot:
+        return
+    for entry in r.get("admin_msgs") or []:
+        try:
+            await bot.edit_message_text(cust.admin_text(r), chat_id=entry[0], message_id=entry[1],
+                                        reply_markup=custom_kb(r))
+        except TelegramAPIError:
+            pass
+
+
+async def notify_custom_status(r: dict):
+    if not bot:
+        return
+    await refresh_custom_messages(r)
+    msg = cust.STAGE_MSG.get(r["status"])
+    if not msg or is_web(r["user_id"]):
+        return
+    lang = r.get("lang") or lang_of(r["user_id"])
+    text = msg[1 if lang == "ru" else 0].format(id=r["id"])
+    if r["status"] == "contract" and r.get("price"):
+        text += (f"\n\n💰 {'Цена' if lang == 'ru' else 'Narx'}: <b>{fmt_price(r['price'], lang)}</b>"
+                 + (f"\n💵 {'Предоплата' if lang == 'ru' else 'Oldindan to‘lov'}: {fmt_price(r['prepay'], lang)}"
+                    if r.get("prepay") else ""))
+    try:
+        await bot.send_message(r["user_id"], text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="📐 " + ("Мои заявки" if lang == "ru" else "Arizalarim"),
+                                 web_app=WebAppInfo(url=f"{CUSTOM_URL}?go=mine&lang={lang}"))]]))
+    except TelegramAPIError:
+        pass
+
+
 # ------------------------------------------------------------------ veb-sayt (/, /p/..., /oferta)
 SITE_DIR = BASE / "webapp" / "site"
 
@@ -958,7 +1176,8 @@ async def api_admin_data(request):
                               "orders": [public(o, admin=True) for o in shop.orders(request.query.get("status", ""))],
                               "products": shop.products(include_hidden=True), "categories": shop.categories(),
                               "suppliers": shop.suppliers(),
-                              "statuses": STATUSES, "actions": ACTIONS, "flow": FLOW, "settings": shop.settings()})
+                              "statuses": STATUSES, "actions": ACTIONS, "flow": FLOW, "settings": shop.settings(),
+                              "custom": cs.counts()})
 
 
 async def api_admin_receipt(request):
@@ -1330,6 +1549,15 @@ def make_app() -> web.Application:
     app.router.add_get("/sw.js", page_sw)
     app.router.add_static("/s/", SITE_DIR)
     app.router.add_post("/api/web/session", api_web_session)
+    app.router.add_get("/custom", page_custom)
+    app.router.add_get("/api/custom/config", api_custom_config)
+    app.router.add_post("/api/custom/request", api_custom_request)
+    app.router.add_post("/api/custom/mine", api_custom_mine)
+    app.router.add_get("/api/admin/custom", api_admin_custom)
+    app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
+    app.router.add_post("/api/admin/custom/{id}/status", api_admin_custom_status)
+    app.router.add_post("/api/admin/custom/{id}", api_admin_custom_update)
+    app.router.add_get("/api/admin/custom/{id}/photo/{i}", api_admin_custom_photo)
     app.router.add_static("/uploads/", UPLOAD_DIR)
     app.router.add_get("/api/catalog", api_catalog)
     app.router.add_post("/api/me", api_me)

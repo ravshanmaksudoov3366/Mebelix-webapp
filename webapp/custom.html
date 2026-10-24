@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>O'lchamga buyurtma</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --bg2: var(--tg-theme-secondary-bg-color, #f3f1ee);
+  --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+  --text: var(--tg-theme-text-color, #1d1b19);
+  --hint: var(--tg-theme-hint-color, #8d8780);
+  --link: var(--tg-theme-link-color, #b4692f);
+  --accent: var(--tg-theme-button-color, #b4692f);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --danger: var(--tg-theme-destructive-text-color, #e0453a);
+  --line: color-mix(in srgb, var(--hint) 22%, transparent);
+  --soft: color-mix(in srgb, var(--accent) 12%, var(--card));
+  --r: 16px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg2); color: var(--text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+body.web { max-width: 640px; margin: 0 auto; min-height: 100vh; box-shadow: 0 0 0 1px var(--line); }
+html:has(body.web) { background: #ebe4da; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+input, textarea, select { font: inherit; color: var(--text); }
+.hidden { display: none !important; }
+.muted { color: var(--hint); }
+.small { font-size: 13px; }
+a { color: var(--link); }
+
+/* sarlavha: ikki eshik */
+header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 10px 14px 10px; border-bottom: 1px solid var(--line); }
+.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg2); border-radius: 12px; padding: 4px; }
+.doors a, .doors button { text-align: center; padding: 9px 6px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--hint); text-decoration: none; }
+.doors .on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.hrow { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 8px; }
+.hrow h1 { font-size: 18px; margin: 0; }
+.langsw { display: flex; gap: 2px; background: var(--bg2); border-radius: 9px; padding: 3px; }
+.langsw button { padding: 4px 9px; border-radius: 7px; font-size: 12px; font-weight: 700; color: var(--hint); }
+.langsw button.on { background: var(--card); color: var(--text); }
+.mine-btn { color: var(--link); font-weight: 600; font-size: 14px; }
+
+/* qadamlar */
+.progress { display: flex; gap: 5px; padding: 14px 16px 4px; }
+.progress i { flex: 1; height: 4px; border-radius: 3px; background: var(--line); transition: background .3s; }
+.progress i.on { background: var(--accent); }
+.step-t { padding: 6px 16px 2px; font-size: 13px; color: var(--hint); font-weight: 600; letter-spacing: .02em; }
+h2.q { margin: 2px 16px 14px; font-size: 22px; line-height: 1.25; }
+.section { background: var(--card); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
+.kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 12px; }
+.kind { background: var(--card); border-radius: var(--r); padding: 16px 14px; text-align: left; border: 2px solid transparent; transition: border-color .15s, transform .15s; }
+.kind:active { transform: scale(.98); }
+.kind.on { border-color: var(--accent); background: var(--soft); }
+.kind .ic { font-size: 30px; display: block; margin-bottom: 8px; }
+.kind b { display: block; font-size: 15px; }
+.kind small { color: var(--hint); font-size: 12px; }
+.model { display: flex; gap: 12px; align-items: center; }
+.model img, .model .ph { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--bg2); flex: none; display: grid; place-items: center; font-size: 28px; }
+.model b { display: block; }
+.diagram { display: flex; justify-content: center; padding: 6px 0 4px; color: var(--accent); }
+.diagram svg { width: 100%; max-width: 300px; height: auto; }
+.diagram text { font: 700 13px -apple-system, sans-serif; fill: var(--accent); }
+label.f { display: block; font-size: 13px; color: var(--hint); margin: 12px 0 6px; }
+label.f:first-child { margin-top: 0; }
+.in { width: 100%; border: 1px solid var(--line); background: var(--bg2); border-radius: 12px; padding: 12px 14px; outline: none; font-size: 16px; }
+.in:focus { border-color: var(--accent); }
+.unit { position: relative; }
+.unit .in { padding-right: 46px; }
+.unit::after { content: "sm"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--hint); font-size: 14px; pointer-events: none; }
+html[lang=ru] .unit::after { content: "см"; }
+textarea.in { min-height: 84px; resize: vertical; }
+.check { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--bg2); margin-top: 12px; cursor: pointer; }
+.check input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; margin: 1px 0 0; }
+.tiers { display: flex; flex-direction: column; gap: 8px; }
+.tier { text-align: left; border: 2px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--card); display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.tier.on { border-color: var(--accent); background: var(--soft); }
+.tier b { display: block; }
+.tier small { color: var(--hint); }
+.tier .k { font-size: 13px; color: var(--hint); white-space: nowrap; }
+.colors { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.color { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--card); box-shadow: 0 0 0 1px var(--line); }
+.color.on { box-shadow: 0 0 0 2.5px var(--accent); }
+.photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.photo { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--bg2); }
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+.photo button { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 14px; }
+.addph { aspect-ratio: 1; border-radius: 12px; border: 2px dashed var(--line); display: grid; place-items: center; text-align: center; color: var(--hint); font-size: 13px; }
+.addph span { font-size: 26px; display: block; }
+.est { background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 16px; }
+.est b { font-size: 21px; display: block; margin: 2px 0; }
+.sum-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.sum-row:last-child { border: 0; }
+.sum-row span:first-child { color: var(--hint); }
+.sum-row span:last-child { text-align: right; font-weight: 500; white-space: pre-line; }
+.err { color: var(--danger); font-size: 14px; margin: 0 16px 12px; }
+
+/* pastki tugma */
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); display: flex; gap: 8px; }
+body.web .bar { left: max(0px, calc(50% - 320px)); right: max(0px, calc(50% - 320px)); }
+.btn { background: var(--accent); color: var(--accent-text); border-radius: 12px; padding: 14px 18px; font-weight: 600; font-size: 16px; text-align: center; }
+.btn.soft { background: var(--soft); color: var(--link); }
+.btn.grow { flex: 1; }
+.btn[disabled] { opacity: .55; pointer-events: none; }
+.btn.small { padding: 8px 12px; font-size: 14px; border-radius: 10px; }
+
+/* arizalar ro'yxati */
+.req { background: var(--card); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
+.req-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.tag { display: inline-block; padding: 4px 10px; border-radius: 20px; background: var(--soft); color: var(--link); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tag.red { background: color-mix(in srgb, var(--danger) 14%, var(--card)); color: var(--danger); }
+.stages { display: flex; gap: 4px; margin: 12px 0 8px; }
+.stages i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); }
+.stages i.on { background: var(--accent); }
+.empty { text-align: center; padding: 50px 20px; color: var(--hint); }
+.empty .big { font-size: 52px; }
+.done { text-align: center; padding: 40px 22px 10px; }
+.done .big { font-size: 64px; }
+.done h2 { margin: 10px 0; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 12px 10px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; background: var(--card); padding: 7px 13px; border-radius: 20px; font-size: 14px; white-space: nowrap; }
+.chip.on { background: var(--accent); color: var(--accent-text); }
+.ph-grid { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
+.ph-grid img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; flex: none; background: var(--bg2); }
+.admin-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: rgba(20,20,20,.9); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; max-width: 90%; text-align: center; }
+.skeleton { height: 120px; border-radius: var(--r); margin: 12px; background: linear-gradient(90deg, var(--card) 25%, var(--bg2) 50%, var(--card) 75%); background-size: 200% 100%; animation: sk 1.2s infinite; }
+@keyframes sk { to { background-position: -200% 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="doors"><a id="toReady" href="/app">🛋 <span data-t="ready">Tayyor mebellar</span></a><button class="on" onclick="go('wizard')">📐 <span data-t="custom">O'lchamga</span></button></div>
+  <div class="hrow"><h1 id="title" data-t="title">O'lchamga buyurtma</h1>
+    <div style="display:flex;gap:10px;align-items:center"><button class="mine-btn" id="mineBtn" onclick="go('mine')" data-t="mine">Arizalarim</button>
+      <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div></div>
+</header>
+<main id="view"><div class="skeleton"></div><div class="skeleton"></div></main>
+<div class="bar hidden" id="bar"></div>
+<input type="file" id="fileIn" accept="image/*" multiple class="hidden">
+
+<script>
+"use strict";
+const tg = window.Telegram && window.Telegram.WebApp;
+const IN_TG = !!(tg && tg.initData);
+if (tg) { tg.ready(); tg.expand(); }
+document.body.classList.add(IN_TG ? "tg" : "web");
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const haptic = () => { try { tg.HapticFeedback.impactOccurred("light"); } catch (e) {} };
+const notifyH = t => { try { tg.HapticFeedback.notificationOccurred(t); } catch (e) {} };
+const qs = new URLSearchParams(location.search);
+const normLang = l => String(l || "").toLowerCase().startsWith("ru") ? "ru" : "uz";
+let LANG = normLang(qs.get("lang") || store.get("lang", "") || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code));
+
+const I18N = {
+  uz: { ready: "Tayyor mebellar", custom: "O'lchamga", title: "O'lchamga buyurtma", mine: "Arizalarim", step: "{n}-qadam / {t}",
+    q_kind: "Qanday mebel kerak?", q_dims: "O'lchamlarni kiriting", q_mat: "Material va rang", q_photo: "Rasmlar (ixtiyoriy)", q_contact: "Aloqa va tekshirish",
+    based: "Asos qilib olingan model", per_m: "o'lchamga qarab", per_item: "donasiga",
+    dims_hint: "O'lchamlarni santimetrda yozing. Aniq bilmasangiz — taxminiy yozing yoki ustani chaqiring.",
+    visit: "O'lchamni bilmayman — usta kelib o'lchasin", visit_t: "Toshkentda o'lchov bepul. Usta xonani o'lchab, eng to'g'ri variantni taklif qiladi.",
+    tier: "Material darajasi", color: "Rang", color_ph: "Masalan: kulrang, bej, to'q yashil", note: "Qo'shimcha istaklar",
+    note_ph: "Masalan: yoyiladigan bo'lsin, ichida quti, oyoqlari yog'och…", note_other: "Qanday mebel kerak? Qisqacha yozing",
+    photo_t: "Xona rasmi yoki yoqqan mebel rasmini qo'shing — usta tezroq va aniqroq hisoblaydi.", add_photo: "Rasm qo'shish",
+    name: "Ismingiz", phone: "Telefon raqam", city: "Shahar / tuman", address: "Manzil (ixtiyoriy)",
+    est: "Taxminiy narx", est_t: "Aniq narx o'lchov va eskizdan keyin kelishiladi.", est_none: "Narxni menejer hisoblab, siz bilan bog'lanadi.",
+    summary: "Arizangiz", kind: "Mebel", dims: "O'lchamlar", mat: "Material",
+    next: "Davom etish", back: "Orqaga", send: "Ariza yuborish", sending: "Yuborilmoqda…",
+    e_kind: "Mebel turini tanlang", e_dims: "Asosiy o'lchamni kiriting yoki «usta kelib o'lchasin»ni belgilang", e_num: "O'lchamni raqam bilan yozing",
+    e_note: "Qanday mebel kerakligini yozing", e_name: "Ismingizni kiriting", e_phone: "Telefon raqamni to'g'ri kiriting",
+    done_t: "Arizangiz yuborildi!", done_tg: "Menejer tez orada siz bilan bog'lanadi. Holatni «Arizalarim»da va botda ko'rasiz.",
+    done_web: "Menejer tez orada siz bilan telefon orqali bog'lanadi. Holatni shu sahifadagi «Arizalarim»da ko'rasiz.",
+    new_req: "Yana ariza berish", to_mine: "Arizalarimni ko'rish", no_req: "Hali ariza yubormagansiz", start: "Ariza berish",
+    price: "Narx", prepay: "Oldindan to'lov", due: "Muddat", ask: "Savollar bo'yicha adminga yozing: {a}",
+    net_err: "Internet bilan aloqa yo'q", gen_err: "Xatolik yuz berdi", photos_n: "{n} ta rasm", visit_s: "usta o'lchaydi" },
+  ru: { ready: "Готовая мебель", custom: "На заказ", title: "Мебель на заказ", mine: "Мои заявки", step: "Шаг {n} из {t}",
+    q_kind: "Какая мебель нужна?", q_dims: "Укажите размеры", q_mat: "Материал и цвет", q_photo: "Фото (по желанию)", q_contact: "Контакты и проверка",
+    based: "За основу взята модель", per_m: "зависит от размера", per_item: "за штуку",
+    dims_hint: "Укажите размеры в сантиметрах. Если не знаете точно — укажите примерно или вызовите мастера.",
+    visit: "Не знаю размеры — нужен замер", visit_t: "Замер по Ташкенту бесплатно. Мастер измерит комнату и предложит лучший вариант.",
+    tier: "Уровень материалов", color: "Цвет", color_ph: "Например: серый, бежевый, тёмно-зелёный", note: "Дополнительные пожелания",
+    note_ph: "Например: раскладной, с ящиком для белья, деревянные ножки…", note_other: "Какая мебель нужна? Опишите коротко",
+    photo_t: "Добавьте фото комнаты или понравившейся мебели — мастер посчитает быстрее и точнее.", add_photo: "Добавить фото",
+    name: "Ваше имя", phone: "Номер телефона", city: "Город / район", address: "Адрес (необязательно)",
+    est: "Примерная цена", est_t: "Точная цена — после замера и эскиза.", est_none: "Менеджер рассчитает цену и свяжется с вами.",
+    summary: "Ваша заявка", kind: "Мебель", dims: "Размеры", mat: "Материал",
+    next: "Далее", back: "Назад", send: "Отправить заявку", sending: "Отправляем…",
+    e_kind: "Выберите тип мебели", e_dims: "Укажите основной размер или отметьте «нужен замер»", e_num: "Укажите размер числом",
+    e_note: "Опишите, какая мебель нужна", e_name: "Введите имя", e_phone: "Введите правильный номер телефона",
+    done_t: "Заявка отправлена!", done_tg: "Менеджер скоро свяжется с вами. Статус — в «Моих заявках» и в боте.",
+    done_web: "Менеджер скоро позвонит вам. Статус заявки — в разделе «Мои заявки» на этой странице.",
+    new_req: "Новая заявка", to_mine: "Мои заявки", no_req: "Вы ещё не отправляли заявок", start: "Оставить заявку",
+    price: "Цена", prepay: "Предоплата", due: "Срок", ask: "По вопросам пишите администратору: {a}",
+    net_err: "Нет соединения с интернетом", gen_err: "Произошла ошибка", photos_n: "фото: {n}", visit_s: "нужен замер" },
+};
+function t(k, v) { let s = (I18N[LANG] || I18N.uz)[k] ?? I18N.uz[k] ?? k; if (v) for (const x in v) s = s.split("{" + x + "}").join(v[x]); return s; }
+const money = n => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ") + (LANG === "ru" ? " сум" : " so'm");
+function toast(m) { const d = document.createElement("div"); d.className = "toast"; d.textContent = m; document.body.appendChild(d); setTimeout(() => d.remove(), 2400); }
+function alertBox(m) { if (IN_TG && tg.showAlert) tg.showAlert(m); else alert(m); }
+
+async function api(path, { method = "GET", json, form } = {}) {
+  const opt = { method, headers: { "X-Init-Data": (tg && tg.initData) || "", "X-Lang": LANG } };
+  if (!IN_TG && store.get("wtok", "")) opt.headers["X-Web-Token"] = store.get("wtok", "");
+  if (json) { opt.method = "POST"; opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(json); }
+  if (form) { opt.method = "POST"; opt.body = form; }
+  if (opt.method === "POST" && !opt.body) opt.body = "{}";
+  let res;
+  try { res = await fetch(path, opt); } catch (e) { throw new Error(t("net_err")); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || t("gen_err"));
+  return data;
+}
+
+/* ---------------- holat ---------------- */
+const S = { cfg: null, view: "wizard", step: 1, mine: null, isAdmin: false, adm: { status: "active", list: null, rates: {}, counts: {}, open: 0 } };
+const draftKey = "custom_draft";
+const F = Object.assign({ kind: "", dims: {}, visit: false, tier: "standard", color: "", note: "", name: "", phone: "", city: "", address: "", model: 0 },
+  store.get(draftKey, {}), { photos: [] });
+const saveDraft = () => { const { photos, ...rest } = F; store.set(draftKey, rest); };
+let err = "";
+const STEPS = 5;
+const kindCfg = () => (S.cfg.kinds.find(k => k.id === F.kind) || null);
+
+/* ---------------- o'lcham chizmalari ---------------- */
+const arrow = (x1, y1, x2, y2, label, lx, ly) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="currentColor" stroke-width="1.6" marker-start="url(#a)" marker-end="url(#a)"/><text x="${lx}" y="${ly}" text-anchor="middle">${label}</text>`;
+const DEFS = `<defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>`;
+function diagram(kind) {
+  const box = (d) => `<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" opacity=".85">${d}</g>`;
+  const S_ = {
+    sofa: `<svg viewBox="0 0 300 170">${DEFS}${box('<rect x="40" y="40" width="220" height="80" rx="12"/><rect x="40" y="40" width="220" height="22" rx="8"/><rect x="40" y="40" width="22" height="80" rx="8"/><rect x="238" y="40" width="22" height="80" rx="8"/>')}${arrow(40, 140, 260, 140, "A", 150, 162)}${arrow(278, 40, 278, 120, "B", 291, 85)}</svg>`,
+    corner: `<svg viewBox="0 0 300 200">${DEFS}${box('<path d="M40 40H260V110H120V170H40Z"/><path d="M40 40H260V58H58V170H40Z" opacity=".6"/>')}${arrow(40, 22, 260, 22, "A", 150, 16)}${arrow(22, 40, 22, 170, "B", 12, 110)}${arrow(270, 40, 270, 110, "C", 285, 80)}</svg>`,
+    wardrobe: `<svg viewBox="0 0 300 200">${DEFS}${box('<rect x="70" y="20" width="160" height="160" rx="4"/><line x1="123" y1="20" x2="123" y2="180"/><line x1="177" y1="20" x2="177" y2="180"/>')}${arrow(70, 192, 230, 192, "A", 150, 200)}${arrow(248, 20, 248, 180, "B", 262, 104)}</svg>`,
+    bed: `<svg viewBox="0 0 300 200">${DEFS}${box('<rect x="80" y="20" width="140" height="160" rx="8"/><rect x="80" y="20" width="140" height="26" rx="6"/><rect x="92" y="54" width="54" height="26" rx="8"/><rect x="154" y="54" width="54" height="26" rx="8"/>')}${arrow(80, 192, 220, 192, "A", 150, 200)}${arrow(238, 20, 238, 180, "B", 252, 104)}</svg>`,
+    kitchen: `<svg viewBox="0 0 300 200">${DEFS}${box('<path d="M40 30H260V70H80V180H40Z"/>')}${arrow(40, 16, 260, 16, "A", 150, 12)}${arrow(22, 30, 22, 180, "B", 12, 110)}</svg>`,
+  };
+  return S_[kind] ? `<div class="diagram">${S_[kind]}</div>` : "";
+}
+
+/* ---------------- taxminiy narx ---------------- */
+function estimate() {
+  const k = kindCfg(); if (!k || !k.rate) return null;
+  const tier = (S.cfg.tiers.find(x => x.id === F.tier) || { k: 1.2 }).k;
+  let base;
+  if (k.unit === "m") {
+    const cm = k.main.reduce((a, f) => a + (parseFloat(String(F.dims[f] || "").replace(",", ".")) || 0), 0);
+    if (!cm) return null; base = k.rate * cm / 100;
+  } else base = k.rate;
+  const mid = base * tier;
+  return [Math.floor(mid * 0.9 / 10000) * 10000, Math.ceil(mid * 1.1 / 10000) * 10000];
+}
+
+/* ---------------- qadamlar ---------------- */
+const COLORS = [["#f2efe9", "Oq"], ["#d9c7ad", "Bej"], ["#a9a29a", "Kulrang"], ["#4c4a48", "To'q kulrang"], ["#8a5a3b", "Jigarrang"], ["#2f4f3e", "Yashil"], ["#2b3f5c", "Ko'k"], ["#7a2e35", "Bordo"]];
+const COLORS_RU = ["Белый", "Бежевый", "Серый", "Графит", "Коричневый", "Зелёный", "Синий", "Бордо"];
+function stepHTML() {
+  const head = `<div class="progress">${Array.from({ length: STEPS }, (_, i) => `<i class="${i < S.step ? "on" : ""}"></i>`).join("")}</div>
+    <div class="step-t">${t("step", { n: S.step, t: STEPS })}</div>`;
+  const E = err ? `<div class="err">⚠️ ${esc(err)}</div>` : "";
+  const m = S.cfg.model;
+  const modelCard = m ? `<div class="section model">${m.image ? `<img src="${esc(m.image)}" alt="">` : `<div class="ph">🛋</div>`}
+    <div><div class="small muted">${t("based")}</div><b>${esc(m.name)}</b><div class="small muted">${money(m.price)}</div></div></div>` : "";
+  if (S.step === 1) {
+    return head + `<h2 class="q">${t("q_kind")}</h2>` + modelCard + E + `<div class="kinds">${S.cfg.kinds.map(k => `
+      <button class="kind ${F.kind === k.id ? "on" : ""}" onclick="pickKind('${k.id}')"><span class="ic">${k.icon}</span><b>${esc(k.name)}</b>
+      <small>${k.rate ? (k.unit === "m" ? t("per_m") : (LANG === "ru" ? "от " + money(k.rate * 0.9) : money(k.rate * 0.9) + " dan")) : "&nbsp;"}</small></button>`).join("")}</div>`;
+  }
+  if (S.step === 2) {
+    const k = kindCfg();
+    const fields = k.dims.map(d => `<label class="f">${letter(F.kind, d.id) ? `<b style="color:var(--accent)">${letter(F.kind, d.id)}</b> — ` : ""}${esc(d.label)}</label><div class="unit"><input class="in" inputmode="decimal" data-dim="${d.id}" value="${esc(F.dims[d.id] || "")}" placeholder="0" oninput="F.dims['${d.id}']=this.value; err=''; saveDraft(); updEst()"></div>`).join("");
+    return head + `<h2 class="q">${t("q_dims")}</h2>` + E + `<div class="section">${diagram(F.kind)}
+      <p class="small muted" style="margin:4px 0 6px">${t("dims_hint")}</p>${fields}
+      <label class="check"><input type="checkbox" ${F.visit ? "checked" : ""} onchange="F.visit=this.checked; err=''; saveDraft(); refresh()"><span><b>${t("visit")}</b><br><span class="small muted">${t("visit_t")}</span></span></label></div>
+      <div id="estBox">${estHTML()}</div>`;
+  }
+  if (S.step === 3) {
+    const names = LANG === "ru" ? COLORS_RU : COLORS.map(c => c[1]);
+    return head + `<h2 class="q">${t("q_mat")}</h2>` + E + `<div class="section"><label class="f">${t("tier")}</label><div class="tiers">${S.cfg.tiers.map(x => `
+      <button class="tier ${F.tier === x.id ? "on" : ""}" onclick="F.tier='${x.id}'; saveDraft(); haptic(); refresh()"><span><b>${esc(x.name)}</b><small>${esc(x.desc)}</small></span>
+      <span class="k">${x.id === "econom" ? "" : "+" + Math.round((x.k - 1) * 100) + "%"}</span></button>`).join("")}</div>
+      <label class="f">${t("color")}</label><div class="colors">${COLORS.map((c, i) => `<button class="color ${F.color === names[i] ? "on" : ""}" style="background:${c[0]}" title="${esc(names[i])}" onclick="F.color='${esc(names[i])}'; saveDraft(); refresh()"></button>`).join("")}</div>
+      <input class="in" style="margin-top:10px" value="${esc(F.color)}" placeholder="${t("color_ph")}" oninput="F.color=this.value; saveDraft()">
+      <label class="f">${F.kind === "other" ? t("note_other") : t("note")}</label><textarea class="in" placeholder="${t("note_ph")}" oninput="F.note=this.value; err=''; saveDraft()">${esc(F.note)}</textarea></div>
+      <div id="estBox">${estHTML()}</div>`;
+  }
+  if (S.step === 4) {
+    const max = S.cfg.max_photos;
+    return head + `<h2 class="q">${t("q_photo")}</h2>` + E + `<div class="section"><p class="small muted" style="margin:0 0 12px">${t("photo_t")}</p>
+      <div class="photos">${F.photos.map((p, i) => `<div class="photo"><img src="${p.url}" alt=""><button onclick="delPhoto(${i})">✕</button></div>`).join("")}
+      ${F.photos.length < max ? `<button class="addph" onclick="$('#fileIn').click()"><div><span>📷</span>${t("add_photo")}</div></button>` : ""}</div></div>`;
+  }
+  // 5: aloqa + xulosa
+  const k = kindCfg();
+  const dims = F.visit ? t("visit_s") : k.dims.filter(d => F.dims[d.id]).map(d => `${d.label}: ${F.dims[d.id]} ${LANG === "ru" ? "см" : "sm"}`).join("\n") || "—";
+  const tier = (S.cfg.tiers.find(x => x.id === F.tier) || {}).name || "";
+  return head + `<h2 class="q">${t("q_contact")}</h2>` + E + `<div class="section">
+      <label class="f">${t("name")}</label><input class="in" value="${esc(F.name)}" autocomplete="name" oninput="F.name=this.value; err=''; saveDraft()">
+      <label class="f">${t("phone")}</label><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" placeholder="+998 90 123 45 67" autocomplete="tel" oninput="F.phone=this.value; err=''; saveDraft()">
+      <label class="f">${t("city")}</label><input class="in" value="${esc(F.city)}" placeholder="Toshkent" oninput="F.city=this.value; saveDraft()">
+      <label class="f">${t("address")}</label><input class="in" value="${esc(F.address)}" oninput="F.address=this.value; saveDraft()"></div>
+    <div class="section"><b>${t("summary")}</b>
+      <div class="sum-row"><span>${t("kind")}</span><span>${k.icon} ${esc(k.name)}${S.cfg.model ? "\n" + esc(S.cfg.model.name) : ""}</span></div>
+      <div class="sum-row"><span>${t("dims")}</span><span>${esc(dims)}</span></div>
+      <div class="sum-row"><span>${t("mat")}</span><span>${esc(tier)}${F.color ? ", " + esc(F.color) : ""}</span></div>
+      ${F.note ? `<div class="sum-row"><span>📝</span><span>${esc(F.note)}</span></div>` : ""}
+      ${F.photos.length ? `<div class="sum-row"><span>🖼</span><span>${t("photos_n", { n: F.photos.length })}</span></div>` : ""}</div>
+    ${estHTML()}`;
+}
+function estHTML() {
+  if (!F.kind) return "";
+  const e = estimate();
+  return `<div class="est"><div class="small muted">${t("est")}</div>${e ? `<b>${money(e[0])} – ${money(e[1])}</b><div class="small muted">${t("est_t")}</div>` : `<div class="small">${t("est_none")}</div>`}</div>`;
+}
+function updEst() { const b = $("#estBox"); if (b) b.innerHTML = estHTML(); const e = $(".err"); if (e && !err) e.remove(); }
+// chizmadagi harflar: qaysi maydon qaysi o'lcham
+const LETTERS = { sofa: { w: "A", d: "B" }, corner: { w: "A", w2: "B", d: "C" }, wardrobe: { w: "A", h: "B" }, bed: { w: "A", l: "B" }, kitchen: { w: "A", w2: "B" } };
+const letter = (kind, f) => (LETTERS[kind] || {})[f] || "";
+function pickKind(id) { F.kind = id; err = ""; haptic(); saveDraft(); refresh(); setTimeout(next, 180); }
+
+function validate() {
+  if (S.step === 1 && !F.kind) return t("e_kind");
+  if (S.step === 2) {
+    const k = kindCfg();
+    for (const d of k.dims) { const v = String(F.dims[d.id] || "").replace(",", ".").trim(); if (v && !(parseFloat(v) >= 10 && parseFloat(v) <= 2000)) return t("e_num") + " (10–2000)"; }
+    if (!F.visit && F.kind !== "other" && !String(F.dims[k.dims[0].id] || "").trim()) return t("e_dims");
+  }
+  if (S.step === 3 && F.kind === "other" && F.note.trim().length < 5) return t("e_note");
+  if (S.step === 5) {
+    if (F.name.trim().length < 2) return t("e_name");
+    const dg = F.phone.replace(/\D/g, ""); if (dg.length < 9 || dg.length > 15) return t("e_phone");
+  }
+  return "";
+}
+function next() { err = validate(); if (err) { notifyH("error"); return refresh(); } if (S.step < STEPS) { S.step++; scrollTo(0, 0); refresh(); } else submit(); }
+function back() { err = ""; if (S.step > 1) { S.step--; scrollTo(0, 0); refresh(); } }
+
+/* ---------------- rasmlar (yuborishdan oldin kichraytiramiz) ---------------- */
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => { URL.revokeObjectURL(url); b ? res(b) : rej(); }, "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+$("#fileIn").onchange = async e => {
+  const files = Array.from(e.target.files || []).slice(0, S.cfg.max_photos - F.photos.length);
+  for (const f of files) { try { const b = await shrink(f); F.photos.push({ blob: b, url: URL.createObjectURL(b) }); } catch (x) { toast("⚠️ " + f.name); } }
+  e.target.value = ""; refresh();
+};
+function delPhoto(i) { URL.revokeObjectURL(F.photos[i].url); F.photos.splice(i, 1); refresh(); }
+
+let sending = false;
+async function submit() {
+  if (sending) return; sending = true; refresh();
+  try {
+    if (!IN_TG && !store.get("wtok", "")) store.set("wtok", (await api("/api/web/session", { method: "POST" })).token);
+    const fd = new FormData();
+    fd.append("data", JSON.stringify({ kind: F.kind, dims: F.dims, measure_visit: F.visit, tier: F.tier, color: F.color, note: F.note,
+      name: F.name, phone: F.phone, city: F.city, address: F.address, model_id: S.cfg.model ? S.cfg.model.id : 0 }));
+    F.photos.forEach((p, i) => fd.append("photo", p.blob, `rasm${i + 1}.jpg`));
+    const { request } = await api("/api/custom/request", { form: fd });
+    notifyH("success");
+    const keep = { name: F.name, phone: F.phone, city: F.city, address: F.address };
+    store.set(draftKey, keep);
+    Object.assign(F, { kind: "", dims: {}, visit: false, tier: "standard", color: "", note: "", photos: [], model: 0 }, keep);
+    S.cfg.model = null;
+    S.done = request; S.mine = null; S.step = 1; S.view = "done";
+  } catch (e) { err = e.message; notifyH("error"); }
+  finally { sending = false; refresh(); }
+}
+
+/* ---------------- arizalarim ---------------- */
+const STAGE_IDX = id => S.cfg.stages.findIndex(s => s.id === id);
+function reqCard(r, admin) {
+  const idx = STAGE_IDX(r.status), n = S.cfg.stages.length;
+  const red = r.status === "cancelled";
+  const dt = new Date(r.created * 1000), p2 = n => String(n).padStart(2, "0");
+  const when = `${p2(dt.getDate())}.${p2(dt.getMonth() + 1)}.${dt.getFullYear()}`;
+  return `<div class="req"${admin ? ` onclick="openReq(${r.id})" style="cursor:pointer"` : ""}><div class="req-h"><b>№ ${r.id} · ${esc(r.kind_name)}</b><span class="tag ${red ? "red" : ""}">${esc(r.status_text)}</span></div>
+    ${red ? "" : `<div class="stages">${Array.from({ length: n }, (_, i) => `<i class="${i <= idx ? "on" : ""}"></i>`).join("")}</div>`}
+    <div class="small muted">${when}${r.model_name ? " · " + esc(r.model_name) : ""}${admin ? " · " + esc(r.name) + " · " + esc(r.phone) : ""}</div>
+    ${r.price ? `<div style="margin-top:6px">${t("price")}: <b>${money(r.price)}</b>${r.prepay ? ` · ${t("prepay")}: ${money(r.prepay)}` : ""}</div>`
+      : r.estimate_min ? `<div class="small" style="margin-top:6px">${t("est")}: ${money(r.estimate_min)} – ${money(r.estimate_max)}</div>` : ""}
+    ${r.due ? `<div class="small">${t("due")}: ${esc(r.due)}</div>` : ""}</div>`;
+}
+async function loadMine() {
+  try { const d = await api("/api/custom/mine", { method: "POST" }); S.mine = d.requests; S.isAdmin = d.is_admin; }
+  catch (e) { S.mine = []; }
+  refresh();
+}
+function contactHTML() {
+  const a = S.cfg.shop.admin;
+  return a ? `<div class="section small">${t("ask", { a: `<a href="https://t.me/${esc(a)}" onclick="openUrl(this.href); return false">@${esc(a)}</a>` })}</div>` : "";
+}
+function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.openTelegramLink(u); else window.open(u, "_blank"); }
+
+/* ---------------- admin ---------------- */
+const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
+async function loadAdmin() {
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); S.adm.list = d.requests; S.adm.rates = d.rates; S.adm.counts = d.counts; }
+  catch (e) { S.adm.list = []; toast(e.message); }
+  refresh();
+}
+function adminHTML() {
+  if (S.adm.open) return adminDetail(S.adm.list.find(r => r.id === S.adm.open));
+  const c = S.adm.counts || {};
+  let h = `<div class="chips">${ADM_F.map(([k, n]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; S.adm.list=null; refresh(); loadAdmin()">${n}${k && c[k] ? " · " + c[k] : ""}</button>`).join("")}<button class="chip" onclick="S.adm.open=-1; refresh()">💰 Narxlar</button></div>`;
+  if (!S.adm.list) return h + `<div class="skeleton"></div>`;
+  return h + (S.adm.list.length ? S.adm.list.map(r => reqCard(r, true)).join("") : `<div class="empty"><div class="big">📭</div>Arizalar yo'q</div>`);
+}
+function ratesHTML() {
+  return `<h2 class="q" style="margin-top:14px">💰 Taxminiy narxlar</h2><div class="section"><p class="small muted" style="margin:0 0 6px">Mijozga ko'rsatiladigan taxminiy narx shu asosda hisoblanadi (Standart material ×1.2, Premium ×1.45, ±10%). Bo'sh qoldirilsa — narx ko'rsatilmaydi, «menejer hisoblaydi» deyiladi.</p>
+    ${S.cfg.kinds.map(k => `<label class="f">${k.icon} ${esc(k.name)} — ${k.unit === "m" ? "1 metr uchun (ekonom)" : "1 dona (ekonom)"}</label><input class="in" inputmode="numeric" id="rate_${k.id}" value="${S.adm.rates[k.id] || ""}" placeholder="kiritilmagan">`).join("")}
+    <button class="btn grow" style="width:100%;margin-top:14px" onclick="saveRates()">Saqlash</button></div>`;
+}
+async function saveRates() {
+  const body = {}; S.cfg.kinds.forEach(k => body[k.id] = $("#rate_" + k.id).value);
+  try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.kinds.forEach(k => k.rate = d.rates[k.id] || 0); toast("Saqlandi ✓"); S.adm.open = 0; refresh(); }
+  catch (e) { alertBox(e.message); }
+}
+function adminDetail(r) {
+  if (S.adm.open === -1) return ratesHTML();
+  if (!r) { S.adm.open = 0; return adminHTML(); }
+  const nextBtns = r.next.map(s => `<button class="btn small ${s === "cancelled" ? "soft" : ""}" onclick="setStage(${r.id},'${s}')">${s === "cancelled" ? "❌ Bekor qilish" : s === "new" ? "🔄 Qayta ochish" : "➡️ " + esc((S.cfg.stages.find(x => x.id === s) || {}).name || s)}</button>`).join("");
+  return `<div class="section" style="margin-top:12px"><div class="req-h"><b style="font-size:18px">№ ${r.id} · ${esc(r.kind_name)}</b><span class="tag">${esc(r.status_text)}</span></div>
+      <div class="sum-row"><span>Mijoz</span><span>${esc(r.name)}${r.user_id < 0 ? "\n🌐 saytdan" : r.username ? "\n@" + esc(r.username) : ""}</span></div>
+      <div class="sum-row"><span>Telefon</span><span><a href="tel:${esc(r.phone)}">${esc(r.phone)}</a></span></div>
+      ${r.city || r.address ? `<div class="sum-row"><span>Manzil</span><span>${esc([r.city, r.address].filter(Boolean).join(", "))}</span></div>` : ""}
+      ${r.model_name ? `<div class="sum-row"><span>Asos</span><span>${esc(r.model_name)}</span></div>` : ""}
+      <div class="sum-row"><span>O'lcham</span><span>${esc(r.dims_text || "—")}${r.measure_visit ? "\n📏 usta o'lchashi kerak" : ""}</span></div>
+      <div class="sum-row"><span>Material</span><span>${esc(r.tier_name)}${r.color ? ", " + esc(r.color) : ""}</span></div>
+      ${r.note ? `<div class="sum-row"><span>Istak</span><span>${esc(r.note)}</span></div>` : ""}
+      ${r.estimate_min ? `<div class="sum-row"><span>Taxminiy</span><span>${money(r.estimate_min)} – ${money(r.estimate_max)}</span></div>` : ""}
+      ${r.photos ? `<div class="ph-grid" id="phs">${Array.from({ length: r.photos }, () => `<img alt="">`).join("")}</div>` : ""}
+      <div class="admin-acts">${nextBtns}</div></div>
+    <div class="section"><b>Narx va muddat</b>
+      <div class="grid2"><div><label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}"></div>
+      <div><label class="f">Oldindan to'lov</label><input class="in" inputmode="numeric" id="aPrepay" value="${r.prepay || ""}"></div></div>
+      <label class="f">Tayyor bo'lish muddati</label><input class="in" id="aDue" value="${esc(r.due)}" placeholder="Masalan: 15-noyabr yoki 12 kun">
+      <label class="f">Ichki izoh (mijoz ko'rmaydi)</label><textarea class="in" id="aNote">${esc(r.admin_note)}</textarea>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="saveReq(${r.id})">Saqlash</button></div>`;
+}
+async function openReq(id) {
+  S.adm.open = id; refresh(); scrollTo(0, 0);
+  const r = S.adm.list.find(x => x.id === id);
+  for (let i = 0; i < (r.photos || 0); i++) {
+    try {
+      const res = await fetch(`/api/admin/custom/${id}/photo/${i}`, { headers: { "X-Init-Data": (tg && tg.initData) || "" } });
+      if (!res.ok) continue;
+      const url = URL.createObjectURL(await res.blob());
+      const img = document.querySelectorAll("#phs img")[i];
+      if (img) { img.src = url; img.onclick = () => window.open(url, "_blank"); }
+    } catch (e) {}
+  }
+}
+async function setStage(id, s) {
+  try { const { request } = await api(`/api/admin/custom/${id}/status`, { json: { status: s } }); replaceReq(request); notifyH("success"); toast("✓ " + request.status_text); }
+  catch (e) { alertBox(e.message); }
+}
+async function saveReq(id) {
+  try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, prepay: $("#aPrepay").value, due: $("#aDue").value, admin_note: $("#aNote").value } });
+        replaceReq(request); toast("Saqlandi ✓"); }
+  catch (e) { alertBox(e.message); }
+}
+function replaceReq(r) { const i = S.adm.list.findIndex(x => x.id === r.id); if (i >= 0) S.adm.list[i] = r; refresh(); openReq(r.id); }
+
+/* ---------------- chizish ---------------- */
+function bar(html) { const b = $("#bar"); if (!html) { b.classList.add("hidden"); b.innerHTML = ""; } else { b.classList.remove("hidden"); b.innerHTML = html; } }
+function refresh() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
+  document.querySelectorAll("#langsw button").forEach(b => b.classList.toggle("on", b.dataset.l === LANG));
+  $("#toReady").href = "/app?lang=" + LANG;
+  document.title = t("title");
+  const v = $("#view");
+  if (!S.cfg) return;
+  if (S.view === "wizard") {
+    v.innerHTML = stepHTML();
+    bar(`${S.step > 1 ? `<button class="btn soft" onclick="back()">←</button>` : ""}<button class="btn grow" ${sending ? "disabled" : ""} onclick="next()">${sending ? t("sending") : S.step === STEPS ? t("send") : t("next")}</button>`);
+  } else if (S.view === "done") {
+    const r = S.done;
+    v.innerHTML = `<div class="done"><div class="big">📨</div><h2>${t("done_t")}</h2><p class="muted">№ ${r.id} · ${esc(r.kind_name)}</p>
+      <p class="muted small">${IN_TG ? t("done_tg") : t("done_web")}</p></div>` + contactHTML();
+    bar(`<button class="btn soft grow" onclick="go('mine')">${t("to_mine")}</button><button class="btn grow" onclick="go('wizard')">${t("new_req")}</button>`);
+  } else if (S.view === "mine") {
+    if (!S.mine) { v.innerHTML = `<div class="skeleton"></div>`; loadMine(); bar(""); return; }
+    v.innerHTML = `<h2 class="q" style="margin-top:14px">${t("mine")}</h2>` + (S.mine.length ? S.mine.map(r => reqCard(r)).join("")
+      : `<div class="empty"><div class="big">📐</div>${t("no_req")}</div>`) + contactHTML()
+      + (S.isAdmin ? `<div class="section"><button class="btn" style="width:100%" onclick="go('admin')">🗂 Barcha arizalar (admin)</button></div>` : "");
+    bar(`<button class="btn grow" onclick="go('wizard')">${t("start")}</button>`);
+  } else if (S.view === "admin") {
+    v.innerHTML = adminHTML();
+    bar(S.adm.open ? `<button class="btn soft grow" onclick="S.adm.open=0; refresh()">← Ro'yxatga qaytish</button>` : "");
+  }
+  if (tg && tg.BackButton) ((S.view === "wizard" && S.step > 1) || S.view !== "wizard") ? tg.BackButton.show() : tg.BackButton.hide();
+}
+function go(view) { S.view = view; err = ""; if (view === "admin" && !S.adm.list) loadAdmin(); if (view === "mine") S.mine = null; scrollTo(0, 0); refresh(); }
+if (tg && tg.BackButton) tg.BackButton.onClick(() => {
+  if (S.view === "admin" && S.adm.open) { S.adm.open = 0; return refresh(); }
+  if (S.view === "wizard" && S.step > 1) return back();
+  go("wizard");
+});
+$("#langsw").onclick = async e => { const b = e.target.closest("[data-l]"); if (!b) return; LANG = b.dataset.l; store.set("lang", LANG); await loadCfg(); refresh(); };
+
+async function loadCfg() {
+  const model = qs.get("model") || "";
+  const d = await api(`/api/custom/config?lang=${LANG}${model ? "&model=" + encodeURIComponent(model) : ""}`);
+  S.cfg = d;
+  if (d.model && !F.kind) {  // modelning bo'limidan mebel turini taxmin qilamiz
+    const c = (d.model_cat || "").toLowerCase();
+    F.kind = /burchak|углов/.test(d.model.name.toLowerCase()) ? "corner" : /divan|диван/.test(c + d.model.name.toLowerCase()) ? "sofa"
+      : /yotoq|karavot|кроват|спальн/.test(c + d.model.name.toLowerCase()) ? "bed" : /shkaf|шкаф/.test(c) ? "wardrobe" : /oshxona|кухн/.test(c) ? "kitchen" : "";
+  }
+  F.model = d.model ? d.model.id : 0;
+}
+(async function init() {
+  refresh();
+  try { await loadCfg(); }
+  catch (e) { $("#view").innerHTML = `<div class="empty"><div class="big">⚠️</div>${esc(e.message)}<br><br><button class="btn" onclick="location.reload()">↻</button></div>`; return; }
+  if (IN_TG && !F.name) { const u = tg.initDataUnsafe && tg.initDataUnsafe.user; if (u) F.name = [u.first_name, u.last_name].filter(Boolean).join(" "); }
+  const g = qs.get("go");
+  if (g === "mine" || g === "admin") { S.view = g; if (g === "admin") loadAdmin(); }
+  else if (qs.get("admin")) { S.view = "admin"; loadAdmin(); }
+  refresh();
+})();
+</script>
+</body>
+</html>

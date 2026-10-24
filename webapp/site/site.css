@@ -126,6 +126,24 @@ p { margin: 0; }
 .feat b { display: block; font-size: 15px; line-height: 1.3; }
 .feat small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; margin-top: 3px; }
 
+/* ---------- ikki eshik ---------- */
+.doors-sec { padding-bottom: 0; }
+.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.door { display: flex; gap: 18px; align-items: flex-start; padding: 28px; border-radius: 24px; background: var(--surface);
+  border: 1px solid var(--line); transition: transform .2s, box-shadow .2s; }
+.door:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.door.dark { background: var(--dark); color: #fbf6ef; border-color: var(--dark); }
+.door-ic { font-size: 34px; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; flex: none; background: var(--accent-soft); }
+.door.dark .door-ic { background: #3a3129; }
+.door h2 { font: 500 28px/1.15 var(--serif); margin-bottom: 8px; }
+.door p { color: var(--ink-2); font-size: 15px; }
+.door.dark p { color: #cbbdad; }
+.door-go { display: inline-block; margin-top: 14px; font-weight: 700; color: var(--accent-ink); }
+.door.dark .door-go { color: var(--gold); }
+.size-link { flex-basis: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 15px; transition: background .2s; }
+.size-link:hover { background: #ead6c0; }
+
 /* ---------- bo'limlar ---------- */
 .sec { padding: 56px 0; }
 .sec-t { font: 500 clamp(30px, 3.6vw, 42px)/1.1 var(--serif); letter-spacing: -.01em; }
@@ -343,6 +361,7 @@ p { margin: 0; }
   .feats { grid-template-columns: repeat(2, 1fr); }
   .steps { grid-template-columns: repeat(2, 1fr); }
   .info { grid-template-columns: 1fr; gap: 24px; }
+  .doors { grid-template-columns: 1fr; gap: 12px; }
   .p-grid { grid-template-columns: 1fr; gap: 26px; }
   .gallery { position: static; }
   .foot-in { grid-template-columns: 1fr 1fr; }
@@ -389,6 +408,9 @@ p { margin: 0; }
   .add { height: 38px; justify-content: center; font-size: 13.5px; }
   .badge { top: 8px; left: 8px; font-size: 11px; padding: 4px 8px; }
   .steps { grid-template-columns: 1fr; gap: 20px; }
+  .door { padding: 20px; gap: 14px; border-radius: 20px; }
+  .door-ic { width: 52px; height: 52px; font-size: 28px; border-radius: 14px; }
+  .door h2 { font-size: 24px; }
   .band-in { flex-direction: column; align-items: flex-start; padding: 30px 24px; gap: 18px; margin: 30px 16px; border-radius: 22px; }
   .band .btn { margin-left: 0; width: 100%; }
   .band h2 { font-size: 26px; }

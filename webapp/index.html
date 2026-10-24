@@ -51,6 +51,13 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .chip { flex: none; border: 0; background: var(--bg2); padding: 7px 13px; border-radius: 20px; font-size: 14px; white-space: nowrap; }
 .chip.on { background: var(--accent); color: var(--accent-text); }
 
+/* ikki eshik: tayyor mebel / o'lchamga buyurtma */
+.doors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg2); border-radius: 12px; padding: 4px; margin-bottom: 10px; }
+.doors a, .doors button { text-align: center; padding: 8px 6px; border-radius: 9px; font-weight: 600; font-size: 13.5px; color: var(--hint); text-decoration: none; border: 0; background: none; }
+.doors .on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.custom-cta { display: flex; gap: 12px; align-items: center; background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; text-decoration: none; color: var(--text); }
+.custom-cta .ic { font-size: 30px; }
+.custom-cta b { display: block; }
 /* catalog */
 .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 0; }
 .toolbar select { border: 0; background: none; color: var(--link); font-size: 14px; }
@@ -287,6 +294,7 @@ a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
 <body>
 
 <header id="hdr">
+  <div class="doors"><button class="on" onclick="go('catalog')">🛋 <span data-t="door_ready">Tayyor mebellar</span></button><a id="toCustom" href="/custom">📐 <span data-t="door_custom">O'lchamga buyurtma</span></a></div>
   <div class="brand"><h1 id="shopName">🛋 Mebel</h1>
     <div class="brand-r"><a id="shopPhone" class="hidden"></a>
       <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div></div>
@@ -379,6 +387,8 @@ const I18N = {
     sent_title: "Buyurtmangiz yuborildi!", order_no: "Buyurtma raqami", prepaid: "Oldindan to'langan",
     sent_wait: "🧾 To'lov chekingiz tekshirilmoqda. Tasdiqlangach, buyurtmangiz qabul qilinadi va bot orqali xabar beramiz.",
     sent_wait_web: "🧾 To'lov chekingiz tekshirilmoqda. Tez orada siz bilan telefon orqali bog'lanamiz. Buyurtma holatini shu sahifadagi «Buyurtmalarim» bo'limida ko'rasiz.",
+    door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
+    my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
     asm_title: "Yig'ib berish", asm_q: "Mebelni yig'ib, o'rnatib beraylikmi?", asm_yes: "Ha, yig'ib bering (+{sum})",
@@ -438,6 +448,8 @@ const I18N = {
     sent_title: "Заказ отправлен!", order_no: "Номер заказа", prepaid: "Предоплачено",
     sent_wait: "🧾 Ваш чек проверяется. После подтверждения заказ будет принят — мы сообщим в боте.",
     sent_wait_web: "🧾 Ваш чек проверяется. Скоро мы свяжемся с вами по телефону. Статус заказа — в разделе «Мои заказы» на этой странице.",
+    door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
+    my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
     asm_title: "Сборка", asm_q: "Собрать и установить мебель?", asm_yes: "Да, соберите (+{sum})",
@@ -471,6 +483,7 @@ function applyStatic() {
   document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
   document.querySelectorAll("[data-tph]").forEach(el => el.placeholder = t(el.dataset.tph));
   document.querySelectorAll("#langsw button").forEach(b => b.classList.toggle("on", b.dataset.l === LANG));
+  const tc = document.getElementById("toCustom"); if (tc) tc.href = "/custom?lang=" + LANG;
 }
 
 /* ------------------------------------------------ yordamchilar */
@@ -737,7 +750,8 @@ function openProduct(id) {
       </div>
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
         ${p.specs.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table></div>` : ""}
-      ${p.description ? `<div class="section"><h3>${t("desc")}</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}`,
+      ${p.description ? `<div class="section"><h3>${t("desc")}</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}
+      <a class="custom-cta" href="/custom?model=${p.id}&lang=${LANG}"><span class="ic">📐</span><div><b>${t("my_size")}</b><span class="small muted">${t("my_size_t")}</span></div></a>`,
     main: () => !p.in_stock ? [null] : S.cart[p.id]
       ? [t("in_cart_go", { n: S.cart[p.id] }), () => { closeAll(); go("cart"); }]
       : [t("add_cart", { sum: money(p.price) }), () => { setQty(p.id, 1); notifyH("success"); }],
@@ -1214,6 +1228,8 @@ function viewAdmin() {
     <div class="stat"><b>${st.new}</b><span>Chek kutmoqda</span></div>
     <div class="stat"><b>${short(st.today_sum)}</b><span>Bugun · ${st.today_orders} ta</span></div>
     <div class="stat"><b>${short(st.month_sum)}</b><span>Shu oy · ${st.month_orders} ta</span></div></div>
+    ${d.custom ? `<a class="custom-cta" href="/custom?admin=1"><span class="ic">📐</span><div><b>Individual (o'lchamga) arizalar</b>
+      <span class="small muted">Faol: ${d.custom.active} · yangi: ${d.custom.new}</span></div><span class="muted" style="margin-left:auto">›</span></a>` : ""}
     <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="admTab('${k}')">${t}</button>`).join("")}</div>
     ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
       <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;
