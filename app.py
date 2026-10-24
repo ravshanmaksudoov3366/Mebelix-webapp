@@ -18,7 +18,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramMigrateToChat
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     CallbackQuery,
@@ -341,6 +341,68 @@ async def send_order_to(chat_id: int, o: dict, media: dict, role: str = "admin")
     return entry
 
 
+def migrate_role_chat(old_id: int, new_id: int) -> str:
+    """Guruh superguruhga aylansa (ID o'zgaradi) — sozlamadagi ID ni yangilaymiz. Qaysi rol ekanini qaytaradi."""
+    st = shop.settings()
+    for key in ("courier_chat", "assembler_chat"):
+        if st.get(key) and str(st[key]) == str(old_id):
+            shop.set_setting(key, str(new_id))
+            return key
+    return ""
+
+
+async def send_to_role_groups(o: dict) -> list:
+    """Kuryerlar va yig'uvchilar guruhlariga yuboradi. Guruh superguruhga aylangan bo'lsa — yangi ID bilan qayta urinadi."""
+    msgs = []
+    st = shop.settings()
+    for role, key, need in (("courier", "courier_chat", o["delivery"] == "delivery"),
+                            ("assembler", "assembler_chat", bool(o.get("assembly")))):
+        if not (need and st.get(key)):
+            continue
+        chat = int(st[key])
+        for _ in range(2):
+            try:
+                msgs.append(await send_order_to(chat, o, {"photos": order_photos(o, role)}, role))
+                break
+            except TelegramMigrateToChat as e:
+                log.info("%s guruhi superguruhga aylangan: %s -> %s", role, chat, e.migrate_to_chat_id)
+                migrate_role_chat(chat, e.migrate_to_chat_id)
+                chat = e.migrate_to_chat_id
+            except (TelegramAPIError, ValueError) as e:
+                log.warning("%s guruhiga yuborilmadi: %s", role, e)
+                await alert_admins(f"⚠️ Buyurtma #{o['id']} {ROLE_NAMES[role]} guruhiga yuborilmadi: {esc(e)}\n"
+                                   "Bot o'sha guruhda a'zo ekanini tekshiring.")
+                break
+    return msgs
+
+
+@dp.message(F.migrate_to_chat_id)
+async def on_group_migrated(m: Message):
+    """Guruh superguruhga aylanganda Telegram xizmat xabari keladi — ID ni darhol yangilaymiz."""
+    key = migrate_role_chat(m.chat.id, m.migrate_to_chat_id)
+    if key:
+        await alert_admins(f"ℹ️ {'Kuryerlar' if key == 'courier_chat' else 'Yig' + chr(39) + 'uvchilar'} guruhi "
+                           "superguruhga aylandi — yangi manzil avtomatik saqlandi.")
+
+
+@dp.message(Command("guruhga"))
+async def cmd_resend_roles(m: Message):
+    """/guruhga 13 — buyurtmani kuryer va yig'uvchilar guruhlariga qayta yuboradi."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    try:
+        o = shop.order(int(re.sub(r"\D", "", arg[1])))
+    except (IndexError, ValueError, ShopError):
+        return await m.answer("Buyurtma raqamini yozing: /guruhga 13")
+    new = await send_to_role_groups(o)
+    if new:
+        old = [e for e in o["admin_msgs"] if (e[3] if len(e) > 3 else "admin") == "admin"]
+        shop.set_admin_msgs(o["id"], old + new)
+    await m.answer(f"✅ Buyurtma #{o['id']} {len(new)} ta guruhga yuborildi." if new
+                   else "Yuboriladigan guruh topilmadi (kuryer/yig'uvchi guruhi ulanmagan yoki bu buyurtmaga kerak emas).")
+
+
 async def notify_new_order(o: dict):
     if not bot:
         return
@@ -365,17 +427,7 @@ async def notify_new_order(o: dict):
                 msgs.append(await send_order_to(aid, o, media))
             except TelegramAPIError as e:
                 log.warning("zaxira: adminga yuborilmadi %s: %s", aid, e)
-    st = shop.settings()
-    for role, key, need in (("courier", "courier_chat", o["delivery"] == "delivery"),
-                            ("assembler", "assembler_chat", bool(o.get("assembly")))):
-        if not (need and st.get(key)):
-            continue
-        try:
-            msgs.append(await send_order_to(int(st[key]), o, {"photos": order_photos(o, role)}, role))
-        except (TelegramAPIError, ValueError) as e:
-            log.warning("%s guruhiga yuborilmadi: %s", role, e)
-            await alert_admins(f"⚠️ Buyurtma #{o['id']} {ROLE_NAMES[role]} guruhiga yuborilmadi: {esc(e)}\n"
-                               "Bot o'sha guruhda a'zo ekanini tekshiring.")
+    msgs += await send_to_role_groups(o)
     shop.set_admin_msgs(o["id"], msgs)
     if is_web(o["user_id"]):
         return
