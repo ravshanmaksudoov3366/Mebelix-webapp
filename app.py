@@ -80,6 +80,9 @@ def load_env(path: Path):
 
 load_env(BASE / ".env")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+# Bot almashtirilganda (Mebelix → iSofa): eski bot tokeni. Eski bot mijozlarni yangi botga yo'naltiradi,
+# eski botdan ochilgan ilova ham ishlayveradi.
+OLD_BOT_TOKEN = os.getenv("OLD_BOT_TOKEN", "").strip()  # ixtiyoriy
 ADMIN_IDS = {int(x) for x in re.findall(r"\d+", os.getenv("ADMIN_IDS", ""))}
 # Buyurtmalar qo'shimcha yuboriladigan guruh (ixtiyoriy, masalan -1001234567890)
 GROUP_ID = int(os.getenv("GROUP_ID") or 0)
@@ -118,6 +121,9 @@ if os.getenv("PAY_CARD") and not shop.settings()["pay_card"]:
                         "prepay_pct": os.getenv("PREPAY_PCT", "10")})
 bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML)) if BOT_TOKEN else None
 dp = Dispatcher()
+old_bot = (Bot(OLD_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+           if OLD_BOT_TOKEN and OLD_BOT_TOKEN != BOT_TOKEN else None)
+old_dp = Dispatcher()
 
 
 def is_admin(uid: int) -> bool:
@@ -128,7 +134,8 @@ def is_admin(uid: int) -> bool:
 # Ularga manfiy, juda katta ID beriladi (Telegram guruhlari ID'lari bilan to'qnashmaydi).
 # Ularga botdan xabar yuborilmaydi — menejer telefon orqali bog'lanadi, holatni saytdagi «Buyurtmalarim»da ko'radi.
 WEB_ID_BASE = 10 ** 15
-_WEB_KEY = hashlib.sha256(b"mebelix-web:" + (BOT_TOKEN or "dev").encode()).digest()
+# saytdagi mijoz kalitlari bot almashganda ham eskirmasin — birinchi (eski) bot tokenidan olinadi
+_WEB_KEY = hashlib.sha256(b"mebelix-web:" + (OLD_BOT_TOKEN or BOT_TOKEN or "dev").encode()).digest()
 
 
 def is_web(uid) -> bool:
@@ -1019,6 +1026,75 @@ async def social_loop():
                     pass
 
 
+# ------------------------------------------------------------------ eski botdan yangisiga ko'chish
+def moved_text(lang: str) -> str:
+    b = SHOP["bot"]
+    if lang == "ru":
+        return (f"🛋 <b>Mebelix теперь {esc(SHOP['name'])}!</b>\n\nНаш новый бот: @{b}\nНажмите кнопку ниже и «Старт» — "
+                "каталог, заказы на заказ и все уведомления теперь там.")
+    return (f"🛋 <b>Mebelix endi {esc(SHOP['name'])}!</b>\n\nYangi botimiz: @{b}\nPastdagi tugmani bosib «Start» ni bosing — "
+            "katalog, o'lchamga buyurtma va barcha xabarlar endi o'sha yerda.")
+
+
+def moved_kb(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=("➡️ Перейти в бот" if lang == "ru" else "➡️ Yangi botga o'tish"), url=f"https://t.me/{SHOP['bot']}")]])
+
+
+@old_dp.message()
+async def old_bot_any(m: Message):
+    """Eski botga kim yozsa ham — yangi botga yo'naltiramiz."""
+    if m.chat.type != "private":
+        return
+    lang = lang_of(m.from_user.id) or "uz"
+    try:
+        await m.answer(moved_text(lang), reply_markup=moved_kb(lang))
+    except TelegramAPIError:
+        pass
+
+
+@dp.message(Command("kochish"))
+async def cmd_migrate(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    if not old_bot:
+        return await m.answer("Eski bot ulanmagan (OLD_BOT_TOKEN yo'q).")
+    n = len(shop.user_ids())
+    await m.answer("📣 Eski bot orqali barcha mijozlarga shu xabar yuboriladi:\n\n" + moved_text("uz")
+                   + f"\n\n👥 Mijozlar: <b>{n}</b> ta. Yuboraymi?",
+                   reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                       InlineKeyboardButton(text="✅ Yuborish", callback_data="mig:yes"),
+                       InlineKeyboardButton(text="❌ Bekor", callback_data="mig:no")]]))
+
+
+@dp.callback_query(F.data.startswith("mig:"))
+async def cb_migrate(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    if c.data != "mig:yes" or not old_bot:
+        await c.message.edit_text("❌ Bekor qilindi.")
+        return await c.answer()
+    groups = shop.user_ids_by_lang()
+    ids = [(u, "uz") for u in groups["uz"]] + [(u, "ru") for u in groups["ru"]]
+    await c.message.edit_text(f"⏳ Eski bot orqali {len(ids)} ta mijozga yuborilmoqda…")
+    await c.answer("✅")
+
+    async def run():
+        sent = 0
+        for uid, lang in ids:
+            try:
+                await old_bot.send_message(uid, moved_text(lang), reply_markup=moved_kb(lang))
+                sent += 1
+            except TelegramAPIError:
+                pass
+            await asyncio.sleep(0.05)
+        try:
+            await bot.send_message(c.from_user.id, f"📣 Ko'chish xabari {sent}/{len(ids)} mijozga yetkazildi.")
+        except TelegramAPIError:
+            pass
+    asyncio.create_task(run())
+
+
 @dp.message(F.chat.type == "private")
 async def refuse_user(m: Message):
     """Mijozlar botga yoza olmaydi — savollar uchun admin nikini ko'rsatamiz."""
@@ -1040,7 +1116,12 @@ def get_user(request: web.Request) -> dict:
     if DEV and not init_data:
         return {"id": int(os.getenv("DEV_USER_ID") or next(iter(ADMIN_IDS), 1)), "first_name": "Test",
                 "username": "test"}
-    return check_init_data(init_data, BOT_TOKEN)
+    try:
+        return check_init_data(init_data, BOT_TOKEN)
+    except AuthError:
+        if not OLD_BOT_TOKEN:
+            raise
+        return check_init_data(init_data, OLD_BOT_TOKEN)  # eski botdan ochilgan ilova
 
 
 async def api_web_session(request):
@@ -1931,6 +2012,14 @@ async def main():
     except TelegramAPIError as e:
         log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
     await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛋 Do'kon", web_app=WebAppInfo(url=APP_URL)))
+    if old_bot:
+        try:
+            await old_bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
+                text="🛋 iSofa", web_app=WebAppInfo(url=APP_URL)))
+        except TelegramAPIError:
+            pass
+        app_tasks.append(asyncio.create_task(old_dp.start_polling(old_bot, handle_signals=False)))
+        log.info("Eski bot yo'naltiruvchi rejimda ishlayapti")
     await dp.start_polling(bot)
 
 
