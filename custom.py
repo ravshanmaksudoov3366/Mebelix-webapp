@@ -66,6 +66,8 @@ PRICE_UNITS = {
 }
 # O'lchov va konsultatsiya narxi (admin o'zgartiradi; shartnoma tuzilsa narxdan chegiriladi)
 MEASURE_FEE_DEFAULT = 1_000_000
+# «Qo'ng'iroq qilish» tugmasidagi admin raqami (admin paneldan o'zgartiriladi)
+CALL_PHONE_DEFAULT = "+998 99 333 33 66"
 # Saralash savollari: mijoz qanchalik tayyor (usta avval 🔥 issiq arizalarga boradi)
 NEED_WHEN = {"month": ("Shu oy ichida", "В этом месяце"), "quarter": ("1–3 oy ichida", "В ближайшие 1–3 месяца"),
              "price": ("Hozircha narx bilmoqchiman", "Пока хочу узнать цену")}
@@ -220,6 +222,17 @@ class CustomStore:
         self.shop.set_setting("custom_measure_fee", str(int(v) if v else 0))
         return self.measure_fee()
 
+    def call_phone(self) -> str:
+        v = self.shop.settings().get("custom_call_phone")
+        return CALL_PHONE_DEFAULT if v is None else str(v)
+
+    def save_call_phone(self, raw) -> str:
+        v = re.sub(r"[^\d+ ()-]", "", str(raw or "")).strip()[:25]
+        if v and len(re.sub(r"\D", "", v)) < 9:
+            raise ShopError("Telefon raqamni to'g'ri kiriting")
+        self.shop.set_setting("custom_call_phone", v)
+        return self.call_phone()
+
     def estimate(self, kind: str, dims: dict, style: str) -> tuple:
         """Taxminiy narx oralig'i (min, max): narx × miqdor ±10%. Narx yoki o'lcham bo'lmasa (0, 0)."""
         unit = (KINDS.get(kind) or {}).get("price")
@@ -295,6 +308,7 @@ class CustomStore:
             "stages": [{"id": s, "name": stage_name(s, lang)} for s in STAGE_ORDER],
             "max_photos": MAX_PHOTOS,
             "measure_fee": self.measure_fee(),
+            "call_phone": self.call_phone(),
             "need_when": [{"id": k, "name": v[1 if ru else 0]} for k, v in NEED_WHEN.items()],
             "repair": [{"id": k, "name": v[1 if ru else 0]} for k, v in REPAIR.items()],
             "visit_days": [{"id": k, "name": v[1 if ru else 0]} for k, v in VISIT_DAYS.items()],

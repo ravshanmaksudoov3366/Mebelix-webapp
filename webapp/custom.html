@@ -369,7 +369,7 @@ function pricesMini(s) {
   return `<div class="prices">${S.cfg.units.map(u => `<div class="pr"><small>${esc(u.name.split(" — ")[0])} · ${esc(u.short)}</small><b>${s.rates[u.id] ? fromTxt(s.rates[u.id]) : t("agreed")}</b></div>`).join("")}</div>`;
 }
 
-const phoneOf = () => (S.cfg.shop && S.cfg.shop.phone) || "";
+const phoneOf = () => S.cfg.call_phone || (S.cfg.shop && S.cfg.shop.phone) || "";
 const telHref = p => "tel:" + String(p).replace(/[^\d+]/g, "");
 const visitNote = () => S.cfg.measure_fee ? t("visit_note_fee", { f: money(S.cfg.measure_fee) }) : t("visit_note");
 function callHTML() {
@@ -576,7 +576,7 @@ function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.
 /* ---------------- admin ---------------- */
 const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
 async function loadAdmin() {
-  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee }); }
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone }); }
   catch (e) { S.adm.list = []; toast(e.message); }
   refresh();
 }
@@ -599,11 +599,13 @@ function ratesHTML() {
     ${S.cfg.styles.map(s => `<div class="section"><b>${esc(s.name)}</b>${S.cfg.units.map(u => `<label class="f">${esc(u.name)}</label><input class="in" inputmode="numeric" id="r_${s.id}_${u.id}" value="${(S.adm.rates[s.id] || {})[u.id] || ""}" placeholder="kiritilmagan">`).join("")}</div>`).join("")}
     <div class="section"><b>O'lchov va konsultatsiya narxi</b><label class="f">Mijozga «shartnoma tuzilsa narxdan chegiriladi» deb ko'rsatiladi. 0 — bepul.</label>
       <input class="in" inputmode="numeric" id="r_fee" value="${S.adm.fee ?? ""}"></div>
+    <div class="section"><b>«Qo'ng'iroq qilish» tugmasidagi raqam</b><label class="f">Mijoz shu raqamga qo'ng'iroq qiladi. Bo'sh qoldirilsa — tugma chiqmaydi.</label>
+      <input class="in" type="tel" inputmode="tel" id="r_phone" value="${esc(S.adm.phone ?? "")}" placeholder="+998 99 333 33 66"></div>
     <div style="padding:0 12px 12px"><button class="btn" style="width:100%" onclick="saveRates()">Saqlash</button></div>`;
 }
 async function saveRates() {
-  const body = { measure_fee: $("#r_fee").value }; S.cfg.styles.forEach(s => { body[s.id] = {}; S.cfg.units.forEach(u => body[s.id][u.id] = $(`#r_${s.id}_${u.id}`).value); });
-  try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.styles.forEach(s => s.rates = d.rates[s.id]); S.adm.fee = S.cfg.measure_fee = d.measure_fee; toast("Saqlandi ✓"); refresh(); }
+  const body = { measure_fee: $("#r_fee").value, call_phone: $("#r_phone").value }; S.cfg.styles.forEach(s => { body[s.id] = {}; S.cfg.units.forEach(u => body[s.id][u.id] = $(`#r_${s.id}_${u.id}`).value); });
+  try { const d = await api("/api/admin/custom/rates", { json: body }); S.adm.rates = d.rates; S.cfg.styles.forEach(s => s.rates = d.rates[s.id]); S.adm.fee = S.cfg.measure_fee = d.measure_fee; S.adm.phone = S.cfg.call_phone = d.call_phone; toast("Saqlandi ✓"); refresh(); }
   catch (e) { alertBox(e.message); }
 }
 function galleryAdminHTML() {

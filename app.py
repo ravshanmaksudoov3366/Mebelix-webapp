@@ -920,7 +920,7 @@ async def api_admin_custom(request):
     get_admin(request)
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
                               "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin(),
-                              "measure_fee": cs.measure_fee()})
+                              "measure_fee": cs.measure_fee(), "call_phone": cs.call_phone()})
 
 
 def gallery_admin() -> list:
@@ -981,7 +981,8 @@ async def api_admin_custom_rates(request):
     get_admin(request)
     data = await request.json()
     fee = cs.save_measure_fee(data.pop("measure_fee")) if "measure_fee" in data else cs.measure_fee()
-    return web.json_response({"rates": cs.save_rates(data), "measure_fee": fee})
+    phone = cs.save_call_phone(data.pop("call_phone")) if "call_phone" in data else cs.call_phone()
+    return web.json_response({"rates": cs.save_rates(data), "measure_fee": fee, "call_phone": phone})
 
 
 async def api_admin_custom_photo(request):
