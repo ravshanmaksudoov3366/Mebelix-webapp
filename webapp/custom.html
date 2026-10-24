@@ -25,6 +25,12 @@ html, body { margin: 0; background: var(--bg2); color: var(--text); font: 15px/1
 body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 body.web { max-width: 640px; margin: 0 auto; min-height: 100vh; box-shadow: 0 0 0 1px var(--line); }
 html:has(body.web) { background: #ebe4da; }
+/* to'liq ekran (Telegram 8.0+): tepadagi tizim paneli ostida joy qoldiramiz */
+body.fs { --top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); padding-top: var(--top); }
+body.fs::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: var(--top); background: var(--bg); z-index: 7; }
+body.fs header { top: var(--top); }
+body.fs .toast { top: calc(16px + var(--top)); }
+body.fs .lb-top { padding-top: calc(12px + var(--top)); }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
 input, textarea, select { font: inherit; color: var(--text); }
 .hidden { display: none !important; }
@@ -244,7 +250,16 @@ details.more-f[open] summary::after { content: "－"; }
 "use strict";
 const tg = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(tg && tg.initData);
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+/* To'liq ekran: tayyor mebellar do'konidagi kabi — telefonlarda butun ekranni egallaydi (Telegram 8.0+) */
+function syncFullscreen() { document.body.classList.toggle("fs", !!(tg && tg.isFullscreen)); }
+if (IN_TG && ["ios", "android"].includes(tg.platform) && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
+  try {
+    tg.onEvent("fullscreenChanged", syncFullscreen);
+    tg.onEvent("fullscreenFailed", syncFullscreen);
+    if (!tg.isFullscreen) tg.requestFullscreen(); else syncFullscreen();
+  } catch (e) { /* qo'llab-quvvatlanmasa — oddiy kengaytirilgan rejimda qoladi */ }
+}
 document.body.classList.add(IN_TG ? "tg" : "web");
 const $ = (s, el = document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
