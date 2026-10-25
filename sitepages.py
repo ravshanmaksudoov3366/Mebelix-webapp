@@ -378,6 +378,7 @@ def layout(ctx: dict, title: str, desc: str, body: str, canonical: str, og_image
 /* avval ruscha tanlagan bo'lsa (saytda yoki ilovada) — ruscha sahifani ochamiz */
 try{{if(!/[?&]lang=/.test(s)&&document.documentElement.lang==="uz"&&JSON.parse(localStorage.getItem("lang"))==="ru"){{location.replace(location.pathname+(s?s+"&":"?")+"lang=ru"+h);}}}}catch(e){{}}}})();</script>
 {ld}
+{pixel_head(ctx)}
 </head>
 <body>
 {header(ctx)}
@@ -632,6 +633,10 @@ def page_product(ctx: dict, p: dict) -> str:
     crumbs_ld = {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
         {"@type": "ListItem", "position": 1, "name": shop["name"], "item": ctx["base"] + home},
         {"@type": "ListItem", "position": 2, "name": p["name"], "item": ctx["base"] + url}]}
+    if (shop or {}).get("pixel"):
+        body += ("<script>window.fbq&&fbq('track','ViewContent',"
+                 + json.dumps({"content_ids": [str(p["id"])], "content_type": "product", "value": int(p.get("price") or 0),
+                               "currency": "UZS", "content_name": p["name"]}, ensure_ascii=False) + ")</script>")
     return layout(ctx, title, desc, body, url, first_image(p) or "/s/og.png", [ld, crumbs_ld], og_type="product")
 
 
@@ -648,6 +653,38 @@ def page_404(ctx: dict) -> str:
     body = (f'<section class="sec"><div class="wrap nf"><div class="nf-art">{SOFA_ART}</div><h1>{e(tr(lang, "not_found"))}</h1>'
             f'<p>{e(tr(lang, "not_found_t"))}</p><a class="btn" href="{home}#katalog">{e(tr(lang, "back_catalog"))}</a></div></section>')
     return layout(ctx, tr(lang, "not_found"), tr(lang, "not_found_t"), body, "/", noindex=True)
+
+
+def meta_feed_csv(base: str, products: list, categories: list, brand: str) -> str:
+    """Meta katalogi: id, title, description, availability, condition, price, sale_price, link, image_link, brand..."""
+    import csv
+    import io
+    cats = {c["id"]: c["name"] for c in categories}
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "title", "description", "availability", "condition", "price", "sale_price", "link", "image_link",
+                "additional_image_link", "brand", "product_type"])
+    for p in products:
+        imgs = [img_url(x) for x in (p.get("images") or []) if x]
+        if not imgs or not p.get("price"):
+            continue  # Meta rasmsiz yoki narxsiz mahsulotni qabul qilmaydi
+        price, old = int(p["price"]), int(p.get("old_price") or 0)
+        desc = re.sub(r"\s+", " ", p.get("description") or "").strip() or p["name"]
+        w.writerow([p["id"], p["name"][:150], desc[:5000], "in stock" if p.get("in_stock") else "out of stock", "new",
+                    f"{old if old > price else price} UZS", f"{price} UZS" if old > price else "",
+                    base + product_url({**p, "name_uz": p["name"]}), base + imgs[0],
+                    ",".join(base + x for x in imgs[1:10]), brand, cats.get(p.get("cat_id"), "")])
+    return buf.getvalue()
+
+
+def pixel_head(ctx: dict) -> str:
+    pid = (ctx.get("shop") or {}).get("pixel") or ""
+    if not pid:
+        return ""
+    return ("<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments)"
+            ":n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);"
+            "t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script',"
+            f"'https://connect.facebook.net/en_US/fbevents.js');fbq('init','{pid}');fbq('track','PageView');</script>")
 
 
 def sitemap_xml(base: str, products: list) -> str:

@@ -37,6 +37,7 @@
     if (!P[id] || !P[id].stock) return;
     if (!cart[id]) cart[id] = 1; else if (open) { /* «Hozir buyurtma» — miqdorni oshirmaymiz */ } else cart[id] = Math.min(99, cart[id] + 1);
     save();
+    try { if (window.fbq) fbq("track", "AddToCart", { content_ids: [String(id)], content_type: "product", value: P[id].price || 0, currency: "UZS" }); } catch (e) {}
     if (open) return checkout();
     toast("🛒 " + T.added);
   }

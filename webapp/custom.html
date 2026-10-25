@@ -586,6 +586,7 @@ async function submit() {
       color: F.color, note: F.note, sample_id: F.sample || 0, name: F.name, phone: F.phone, city: F.city, model_id: S.cfg.model ? S.cfg.model.id : 0, source: SRC }));
     F.photos.forEach((p, i) => fd.append("photo", p.blob, `rasm${i + 1}.jpg`));
     const { request } = await api("/api/custom/request", { form: fd });
+    px(F.need === "price" ? "Contact" : "Lead", { content_name: request.kind_name || "", content_category: F.need || "" });
     notifyH("success");
     const keep = { name: F.name, phone: F.phone, city: F.city };
     Object.assign(F, { style: "", kinds: [], need: "", repair: "", fee: false, day: "", time: "", color: "", note: "", sample: 0, photos: [] }, keep);
@@ -804,11 +805,23 @@ if (tg && tg.BackButton) tg.BackButton.onClick(() => {
 });
 $("#langsw").onclick = async e => { const b = e.target.closest("[data-l]"); if (!b) return; LANG = b.dataset.l; store.set("lang", LANG); await loadCfg(); refresh(); };
 
+/* Meta Pixel: faqat META_PIXEL_ID kiritilganda yuklanadi; bo'lmasa px() hech narsa qilmaydi */
+function initPixel(id) {
+  if (!id || window.fbq || !/^\d{5,20}$/.test(String(id))) return;
+  try {
+    !function (f, b, e, v, n, t, s) { if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments) };
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
+      s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s) }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    fbq("init", String(id)); fbq("track", "PageView");
+  } catch (e) {}
+}
+function px(ev, data) { try { if (window.fbq) fbq("track", ev, data || {}); } catch (e) {} }
 async function loadCfg() {
   const model = qs.get("model") || "";
   const d = await api(`/api/custom/config?lang=${LANG}${model ? "&model=" + encodeURIComponent(model) : ""}`);
   const keepModel = S.cfg && S.cfg.model === null;  // ariza yuborilgach model tozalangan bo'lsa — qaytarmaymiz
   S.cfg = d; if (keepModel) S.cfg.model = null;
+  initPixel(d.shop && d.shop.pixel);
   if (d.model && !F.kinds.length && !keepModel) {  // modelning bo'limidan mebel turini taxmin qilamiz
     const nm = (d.model_cat + " " + d.model.name).toLowerCase();
     const gk = /burchak|углов/.test(nm) ? "corner" : /divan|диван/.test(nm) ? "sofa" : /shkaf|шкаф/.test(nm) ? "wardrobe" : /oshxona|кухн/.test(nm) ? "kitchen" : /komod|комод/.test(nm) ? "komod" : "";

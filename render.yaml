@@ -27,3 +27,6 @@ services:
         sync: false
       - key: FB_PAGE_ID
         sync: false
+      # Meta Pixel (reklama natijalarini o'lchash uchun, ixtiyoriy)
+      - key: META_PIXEL_ID
+        sync: false

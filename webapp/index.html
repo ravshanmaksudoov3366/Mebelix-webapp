@@ -547,6 +547,7 @@ const cartTotal = () => cartItems().reduce((s, i) => s + i.p.price * i.qty, 0);
 
 function setQty(id, qty) {
   qty = Math.max(0, Math.min(99, qty));
+  if (qty > (S.cart[id] || 0)) { const p = prod(id); if (p) px("AddToCart", { content_ids: [String(id)], content_type: "product", value: p.price * (qty - (S.cart[id] || 0)), currency: "UZS" }); }
   if (qty) S.cart[id] = qty; else delete S.cart[id];
   store.set("cart", S.cart); haptic(); refresh();
 }
@@ -735,6 +736,7 @@ function mainBusy(on) { if (IN_TG) on ? tg.MainButton.showProgress(false) : tg.M
 /* ------------------------------------------------ mahsulot oynasi */
 function openProduct(id) {
   const p = prod(id); if (!p) return;
+  px("ViewContent", { content_ids: [String(p.id)], content_type: "product", value: p.price, currency: "UZS", content_name: p.name });
   const cat = S.cats.find(c => c.id === p.cat_id);
   const imgs = p.images.length || !(p.video && p.video.src) && !p.youtube ? (p.images.length ? p.images : [null]) : p.images;
   // slaydlar: rasmlar, keyin video (bo'lsa) va YouTube (bo'lsa)
@@ -890,6 +892,7 @@ const CITIES = ["Toshkent shahri", "Toshkent viloyati", "Andijon", "Buxoro", "Fa
 let F = {};
 const prepayOf = total => Math.ceil(total * ((S.prepay && S.prepay.pct) || 10) / 100 / 1000) * 1000;
 function openCheckout() {
+  px("InitiateCheckout", { content_ids: cartItems().map(x => String(x.p.id)), content_type: "product", value: cartTotal(), currency: "UZS", num_items: cartCount() });
   cleanCart();
   if (!cartCount()) { render(); return alertBox(t("sold_out_cart")); }
   const pr = S.me.profile || {};
@@ -1217,6 +1220,7 @@ async function submitOrder() {
     fd.append("receipt", F.receipt, "chek.jpg");
     const { order } = await api("/api/order", { form: fd });
     notifyH("success");
+    px("Purchase", { content_ids: (order.items || []).map(i => String(i.id)), content_type: "product", value: order.total, currency: "UZS" });
     S.cart = {}; store.set("cart", {});
     closeAll(); loadMe().then(render);
     go("orders");
@@ -1421,6 +1425,17 @@ function changeBoxHTML(p) {
     ${phone ? `<div class="small muted" style="margin-top:8px;text-align:center">${esc(phone)}</div>` : ""}</div>`;
 }
 function openTg(u) { if (IN_TG && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u, "_blank"); }
+/* Meta Pixel: faqat META_PIXEL_ID kiritilganda yuklanadi; bo'lmasa px() hech narsa qilmaydi */
+function initPixel(id) {
+  if (!id || window.fbq || !/^\d{5,20}$/.test(String(id))) return;
+  try {
+    !function (f, b, e, v, n, t, s) { if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments) };
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
+      s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s) }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+    fbq("init", String(id)); fbq("track", "PageView");
+  } catch (e) {}
+}
+function px(ev, data) { try { if (window.fbq) fbq("track", ev, data || {}); } catch (e) {} }
 function openUrl(u) { if (IN_TG && tg.openLink) tg.openLink(u); else window.open(u, "_blank"); }
 async function setStatus(id, status) {
   const ask = { cancelled: "Buyurtmani bekor qilasizmi? Mijozga xabar boradi.",
@@ -1758,6 +1773,7 @@ if (IN_TG) {
 /* ------------------------------------------------ yuklash */
 async function loadCatalog() {
   const d = await api("/api/catalog?lang=" + LANG);
+  initPixel(d.shop && d.shop.pixel);
   S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
   S.asmPct = d.assembly_pct || 0; S.offer = d.offer || ""; S.offerVer = d.offer_ver || "";
   S.paymentsRu = d.payments_ru || {};

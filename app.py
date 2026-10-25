@@ -101,6 +101,8 @@ SHOP = {
     "ymaps_key": os.getenv("YANDEX_MAPS_KEY", ""),
     # Yandex HTTP Geokoder kaliti (ixtiyoriy) — xaritadagi nuqtaning aniq manzil nomi uchun
     "ygeo_key": os.getenv("YANDEX_GEOCODER_KEY", ""),
+    # Meta Pixel (reklama uchun, ixtiyoriy): Events Manager'dagi Pixel ID raqami
+    "pixel": re.sub(r"\D", "", os.getenv("META_PIXEL_ID", "")),
 }
 PORT = int(os.getenv("PORT", "8080"))
 DB_PATH = os.getenv("DB_PATH", str(BASE / "data" / "shop.db"))
@@ -1519,6 +1521,12 @@ async def page_not_found(request):
     return html_page(sitepages.page_404(site_ctx(request)), 404)
 
 
+async def page_meta_feed(request):
+    """Meta (Facebook/Instagram) katalogi uchun mahsulotlar fayli — Commerce Manager'da «Data feed» sifatida ulanadi."""
+    return web.Response(text=sitepages.meta_feed_csv(site_base(request), shop.products(), shop.categories("uz"), SHOP["name"]),
+                        content_type="text/csv", charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
+
+
 async def page_sitemap(request):
     return web.Response(text=sitepages.sitemap_xml(site_base(request), site_ctx(request)["products"]),
                         content_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
@@ -1993,6 +2001,7 @@ def make_app() -> web.Application:
     app.router.add_get("/p/{slug}", page_product)
     app.router.add_get("/oferta", page_offer)
     app.router.add_get("/sitemap.xml", page_sitemap)
+    app.router.add_get("/feed/meta.csv", page_meta_feed)
     app.router.add_get("/robots.txt", page_robots)
     app.router.add_get("/manifest.webmanifest", page_manifest)
     app.router.add_get("/sw.js", page_sw)
