@@ -420,7 +420,7 @@ const I18N = {
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
-    asm_title: "Yig'ib berish (ixtiyoriy)", asm_q: "Kerak bo'lsa, belgilang — usta yig'ib, o'rnatib beradi:", asm_yes: "Ha, yig'ib bering (+{sum})",
+    asm_title: "Yig'ib berish", asm_q: "Har bir mebel uchun tanlang — yig'ib, o'rnatib beraylikmi?", asm_yes: "Ha, yig'ib bering (+{sum})",
     asm_one: "🔧 Yig'ib bering (+{sum})", asm_self: "O'zim yig'aman", asm_tag: "🔧 yig'ib beriladi",
     asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati — mahsulot narxining {p}% i.",
     asm_line: "Yig'ib berish ({p}%)", e_asm: "Har bir mahsulot uchun yig'ib berish kerakmi — tanlang",
@@ -485,7 +485,7 @@ const I18N = {
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
-    asm_title: "Сборка (по желанию)", asm_q: "Если нужно, отметьте — мастер соберёт и установит:", asm_yes: "Да, соберите (+{sum})",
+    asm_title: "Сборка", asm_q: "Выберите для каждого товара — собрать и установить?", asm_yes: "Да, соберите (+{sum})",
     asm_one: "🔧 Соберите (+{sum})", asm_self: "Соберу сам", asm_tag: "🔧 соберём",
     asm_no: "Нет, соберу сам", asm_info: "Сборка — {p}% от цены товара.",
     asm_line: "Сборка ({p}%)", e_asm: "Выберите для каждого товара, нужна ли сборка",
@@ -945,7 +945,7 @@ const asmAsk = () => F.delivery === "delivery" && S.asmPct > 0 && asmItems().len
 const feeOf = list => Math.ceil(list.reduce((a, x) => a + x.p.price * x.qty, 0) * S.asmPct / 100 / 1000) * 1000;
 const asmChosen = () => asmItems().filter(x => F.asm[x.p.id] === true);
 const asmFee = () => feeOf(asmChosen());
-const asmAnswered = () => true;  // yig'ib berish ixtiyoriy: belgilanmasa — o'zi yig'adi
+const asmAnswered = () => asmItems().every(x => typeof F.asm[x.p.id] === "boolean");  // har biriga javob majburiy
 const coTotal = () => cartTotal() + (asmAsk() ? asmFee() : 0);
 function setAsm(id, v) { F.asm[id] = v; F.err = ""; refresh(); }
 function openOffer() {
@@ -991,8 +991,8 @@ function checkoutHTML() {
       <div class="small muted" style="margin-bottom:8px">${t("asm_info", { p: S.asmPct, items: asmItems().map(x => esc(x.p.name)).join(", ") })}</div>
       <div style="font-weight:600;margin-bottom:8px">${t("asm_q")}</div>
       ${asmItems().map(x => `<div style="margin-bottom:10px"><div class="small" style="margin-bottom:6px"><b>${esc(x.p.name)}</b>${x.qty > 1 ? ` × ${x.qty}` : ""}</div>
-        <label class="asm-chk"><input type="checkbox" ${F.asm[x.p.id] ? "checked" : ""} onchange="setAsm(${x.p.id}, this.checked)">
-          <span>${t("asm_one", { sum: money(feeOf([x])) })}</span></label></div>`).join("")}
+        <div class="opts"><button class="${F.asm[x.p.id] === true ? "on" : ""}" onclick="setAsm(${x.p.id}, true)">${t("asm_one", { sum: money(feeOf([x])) })}</button>
+        <button class="${F.asm[x.p.id] === false ? "on" : ""}" onclick="setAsm(${x.p.id}, false)">${t("asm_self")}</button></div></div>`).join("")}
     </div>` : ""}
     <div class="section">
       <label class="f" style="margin-top:0">${t("note")}</label>

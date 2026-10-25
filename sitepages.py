@@ -49,7 +49,7 @@ T = {
         "a_when": "Har bir mahsulot sahifasida yetkazish muddati ko'rsatilgan. Aniq kun va vaqtni siz bilan telefonda "
                   "kelishamiz. Yetkazib berish bepul.",
         "q_asm": "Yig'ib berasizmi?",
-        "a_asm": "Ha. Buyurtma berishda kerakli mebel yonidagi «Yig'ib bering» belgisini qo'yasiz. Xizmat narxi — "
+        "a_asm": "Ha. Buyurtma berishda har bir yig'iladigan mebel uchun «Yig'ib bering» yoki «O'zim yig'aman»ni tanlaysiz. Xizmat narxi — "
                  "shu mahsulotlar narxining {asm}%.",
         "q_check": "Mebel shikastlangan bo'lsa-chi?",
         "a_check": "Mebelni kuryer yoki usta huzurida ko'zdan kechirasiz. Hammasi joyida bo'lsa «Qabul qildim» deysiz, "
@@ -116,7 +116,7 @@ T = {
         "a_when": "Срок доставки указан на странице каждого товара. Точные день и время согласуем по телефону. "
                   "Доставка бесплатная.",
         "q_asm": "Собираете мебель?",
-        "a_asm": "Да. При заказе отметьте «Соберите» рядом с нужной мебелью. "
+        "a_asm": "Да. При заказе для каждого товара, требующего сборки, выбираете «Соберите» или «Соберу сам». "
                  "Стоимость услуги — {asm}% от цены этих товаров.",
         "q_check": "А если мебель повреждена?",
         "a_check": "Вы осматриваете мебель при курьере или мастере. Если всё в порядке — подтверждаете приёмку, "
