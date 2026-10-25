@@ -30,7 +30,7 @@ STYLE_INFO = {
                          ("🌿", "Klassika chiroyi + zamonaviy qulaylik", "Красота классики + современный комфорт"),
                          ("🏠", "Yorug' va keng xonadonlar uchun", "Для светлых и просторных квартир")]},
     "classic": {"tag": ("Hashamatli va an'anaviy", "Роскошно и традиционно"),
-                "f": [("🌳", "Tabiiy yog'och yoki shpon", "Натуральное дерево или шпон"),
+                "f": [("🪵", "MDF fasadlar: bo'yoqli, shponli yoki emal qoplamali", "Фасады МДФ: крашеные, шпонированные или в эмали"),
                       ("🏛", "O'yma naqshlar, karniz, balyasinalar", "Резьба, карнизы, балясины"),
                       ("✨", "Patina, oltin bezaklar", "Патина, золотой декор"),
                       ("🎨", "Ranglar: yong'oq, olcha, fil suyagi", "Цвета: орех, вишня, слоновая кость"),
@@ -49,8 +49,8 @@ STYLES = {
                    "d_ru": "Изящество классики и современный комфорт: лёгкий декор, светлые тона, золотые или "
                            "бронзовые детали."},
     "classic": {"uz": "Klassika", "ru": "Классика",
-                "d_uz": "Boy naqshlar, o'yma bezaklar, tabiiy yog'och va hashamatli matolar — an'anaviy chiroy.",
-                "d_ru": "Богатый декор, резьба, натуральное дерево и роскошные ткани — традиционная красота."},
+                "d_uz": "Boy naqshlar, frezerli MDF fasadlar, shpon va bo'yoqli qoplamalar, hashamatli matolar — an'anaviy chiroy.",
+                "d_ru": "Богатый декор, фрезерованные фасады МДФ, шпон и покраска, роскошные ткани — традиционная красота."},
 }
 
 # ------------------------------------------------------------------ mebel turlari
