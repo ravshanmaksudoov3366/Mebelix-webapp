@@ -288,6 +288,16 @@ body.fs::before { background: var(--char); }
 .intro h2, .done h2 { font-family: var(--serif); font-size: 28px; font-weight: 600; line-height: 1.05; }
 .sdoor .ov b { font-family: var(--serif); font-size: 30px; color: var(--gold); }
 .sdoor .go { background: var(--bg2); color: var(--char); }
+/* uslublar: chapdan o'ngga 3 ta ustun, hammasi bir qarashda ko'rinadi */
+.sdoors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 6px 12px 14px; }
+.sdoor { aspect-ratio: 3 / 4.6; border-radius: 18px; }
+.sdoor .art { padding-bottom: 70px; }
+.sdoor .art svg { width: 70%; }
+.sdoor .ov { flex-direction: column; align-items: flex-start; gap: 8px; padding: 46px 10px 10px; background: linear-gradient(transparent, rgba(0,0,0,.62)); }
+.sdoor .ov b { font-size: 19px; line-height: 1.05; }
+.sdoor .ov small { font-size: 11px; line-height: 1.25; display: block; margin-top: 3px; }
+.sdoor .go { font-size: 11.5px; padding: 6px 9px; border-radius: 14px; }
+@media (min-width: 560px) { .sdoor .ov b { font-size: 24px; } .sdoor .ov small { font-size: 12.5px; } }
 .btn { border-radius: 14px; }
 .btn:not(.soft) { background: var(--char); color: var(--gold); }
 .kchip.on, .seg button.on, .kind.on, .tier.on { border-color: var(--char); background: var(--soft); }
@@ -489,7 +499,7 @@ function revHTML() {
 }
 function callHTML() {
   const p = phoneOf();
-  return p ? `<div class="section small" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="muted">${t("call_q")}</span><a class="btn small" href="${telHref(p)}">📞 ${esc(p)}</a></div>` : "";
+  return p ? `<div class="section small" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="muted">${t("call_q")}</span><a class="btn small" href="${telHref(p)}" style="text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4.5-2 1.5a12 12 0 0 0 6 6l1.5-2L20 15.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>${esc(p)}</a></div>` : "";
 }
 /* taxminiy narx kalkulyatori */
 const calcKinds = () => S.cfg.kinds.filter(k => k.price);
