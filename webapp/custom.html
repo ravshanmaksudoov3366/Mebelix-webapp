@@ -654,7 +654,7 @@ function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.
 /* ---------------- admin ---------------- */
 const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
 async function loadAdmin() {
-  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone, kinds: d.kinds_admin, masters: d.masters || [], schedule: d.schedule || {} }); }
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone, kinds: d.kinds_admin, masters: d.masters || [], workshops: d.workshops || [], schedule: d.schedule || {} }); }
   catch (e) { S.adm.list = []; toast(e.message); }
   refresh();
 }
@@ -695,10 +695,13 @@ function planHTML() {
   const today = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
   const row = (r, tm, late) => `<div class="req plan-row ${late ? "late" : ""}" onclick="openFromPlan(${r.id})"><div class="tm">${tm}</div>
     <div style="flex:1"><b>№ ${r.id} · ${esc(r.kind_name)}</b><div class="small muted">${esc(r.name)} · ${esc(r.phone)}${r.city ? " · " + esc(r.city) : ""}</div>
-    <div class="small">${r.master ? "👷 " + esc(r.master) : `<span class="late-t">👷 usta tanlanmagan</span>`} · ${esc(r.status_text)}</div></div></div>`;
+    <div class="small">${r.master ? "👷 " + esc(r.master) : `<span class="late-t">👷 usta tanlanmagan</span>`}${r.workshop ? " · 🏭 " + esc(r.workshop) : ""} · ${esc(r.status_text)}</div></div></div>`;
   let h = `<div class="section" style="margin-top:12px"><b>👷 Ustalar</b>
     <div class="mchips">${M.map((m, i) => `<span>${esc(m)}<button onclick="delMaster(${i})">✕</button></span>`).join("") || `<span class="small muted" style="padding:6px 0">Hali usta qo'shilmagan</span>`}</div>
-    <div style="display:flex;gap:8px;margin-top:10px"><input class="in" id="newMaster" placeholder="Usta ismi" maxlength="60"><button class="btn small" onclick="addMaster()">＋</button></div></div>`;
+    <div style="display:flex;gap:8px;margin-top:10px"><input class="in" id="newMaster" placeholder="Usta ismi" maxlength="60"><button class="btn small" onclick="addMaster()">＋</button></div></div>
+    <div class="section"><b>🏭 Hamkor ustaxonalar</b> <span class="small muted">— mijozga ko'rinmaydi</span>
+    <div class="mchips">${(S.adm.workshops || []).map((m, i) => `<span>${esc(m)}<button onclick="delWs(${i})">✕</button></span>`).join("") || `<span class="small muted" style="padding:6px 0">Hali ustaxona qo'shilmagan</span>`}</div>
+    <div style="display:flex;gap:8px;margin-top:10px"><input class="in" id="newWs" placeholder="Ustaxona nomi yoki usta ismi" maxlength="80"><button class="btn small" onclick="addWs()">＋</button></div></div>`;
   const meas = sc.measure || [];
   h += `<div class="intro" style="padding-top:6px"><h2 style="font-size:19px">📏 O'lchovlar</h2></div>`;
   if (!meas.length) h += `<div class="small muted" style="padding:0 16px 10px">Belgilangan o'lchov yo'q. Ariza ichida «O'lchov kuni va vaqti»ni kiriting.</div>`;
@@ -715,6 +718,14 @@ function planHTML() {
     : `<div class="small muted" style="padding:0 16px 14px">Ishlab chiqarishda buyurtma yo'q.</div>`;
   return h;
 }
+const num = v => parseInt(String(v || "").replace(/\D/g, "")) || 0;
+function profitText(price, cost) {
+  price = num(price); cost = num(cost);
+  if (!price || !cost) return "Narx va ustaxona narxi kiritilsa, foyda shu yerda chiqadi.";
+  const p = price - cost;
+  return `📈 Foyda: <b style="color:${p < 0 ? "var(--danger)" : "inherit"}">${money(p)}</b> (${Math.round(p * 100 / price)}%)`;
+}
+function updProfit() { const b = $("#profitBox"); if (b) b.innerHTML = profitText($("#aPrice").value, $("#aWsCost").value); }
 function openFromPlan(id) {
   const sc = S.adm.schedule || {}, all = [...(sc.measure || []), ...(sc.unplanned || []), ...(sc.production || [])];
   const r = all.find(x => x.id === id);
@@ -725,6 +736,12 @@ async function saveMasters(list) {
   try { const d = await api("/api/admin/custom/masters", { json: { masters: list } }); S.adm.masters = d.masters; refresh(); }
   catch (e) { alertBox(e.message); }
 }
+async function saveWs(list) {
+  try { const d = await api("/api/admin/custom/masters", { json: { workshops: list } }); S.adm.workshops = d.workshops; refresh(); }
+  catch (e) { alertBox(e.message); }
+}
+function addWs() { const v = ($("#newWs").value || "").trim(); if (v) saveWs([...(S.adm.workshops || []), v]); }
+async function delWs(i) { if (await confirmBox(`«${S.adm.workshops[i]}» ro'yxatdan olib tashlansinmi?`)) saveWs(S.adm.workshops.filter((_, j) => j !== i)); }
 function addMaster() { const v = ($("#newMaster").value || "").trim(); if (v) saveMasters([...(S.adm.masters || []), v]); }
 async function delMaster(i) { if (await confirmBox(`«${S.adm.masters[i]}» ro'yxatdan olib tashlansinmi?`)) saveMasters(S.adm.masters.filter((_, j) => j !== i)); }
 function kindsAdminHTML() {
@@ -805,8 +822,14 @@ function adminDetail(r) {
       ${!(S.adm.masters || []).length ? `<div class="unit-hint">Ustalar ro'yxatini «🗓 Jadval» bo'limida qo'shing.</div>` : ""}
       <label class="f">O'lchov kuni va vaqti</label><input class="in" type="datetime-local" id="aMeasure" value="${esc(r.measure_local || "")}">
       <div class="unit-hint">Saqlaganingizda mijozga «usta shu kuni, shu soatda keladi» degan xabar boradi.</div></div>
+    <div class="section"><b>🏭 Ustaxona (hamkor)</b> <span class="small muted">— faqat siz ko'rasiz, mijozga ko'rinmaydi</span>
+      <label class="f">Kim yasaydi</label><select class="in" id="aWs"><option value="">— tanlanmagan —</option>
+        ${[...new Set([...(S.adm.workshops || []), r.workshop].filter(Boolean))].map(m => `<option ${m === r.workshop ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+      ${!(S.adm.workshops || []).length ? `<div class="unit-hint">Ustaxonalar ro'yxatini «🗓 Jadval» bo'limida qo'shing.</div>` : ""}
+      <label class="f">Ustaxonaga to'lanadigan narx</label><input class="in" inputmode="numeric" id="aWsCost" value="${r.workshop_cost || ""}" oninput="updProfit()">
+      <div class="unit-hint" id="profitBox">${profitText(r.price, r.workshop_cost)}</div></div>
     <div class="section"><b>Narx va muddat</b>
-      <div class="grid2"><div><label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}"></div>
+      <div class="grid2"><div><label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}" oninput="updProfit()"></div>
       <div><label class="f">Oldindan to'lov</label><input class="in" inputmode="numeric" id="aPrepay" value="${r.prepay || ""}"></div></div>
       <label class="f">Tayyor bo'lish sanasi</label><input class="in" type="date" id="aReady" value="${esc(r.ready_date || "")}">
       ${r.due && !r.ready_date ? `<div class="unit-hint">Oldin yozilgan: ${esc(r.due)}</div>` : ""}
@@ -832,7 +855,8 @@ async function setStage(id, s) {
 }
 async function saveReq(id) {
   try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, prepay: $("#aPrepay").value, admin_note: $("#aNote").value,
-        master: $("#aMaster").value, measure_at: $("#aMeasure").value, ready_date: $("#aReady").value } });
+        master: $("#aMaster").value, measure_at: $("#aMeasure").value, ready_date: $("#aReady").value,
+        workshop: $("#aWs").value, workshop_cost: $("#aWsCost").value } });
         replaceReq(request); toast("Saqlandi ✓"); loadAdminQuiet(); }
   catch (e) { alertBox(e.message); }
 }

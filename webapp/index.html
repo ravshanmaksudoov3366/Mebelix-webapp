@@ -1464,6 +1464,12 @@ function statsHTML() {
       ${funnel.map(([n, v]) => `<div class="srow"><span>${n}</span><b>${v}</b></div>${bar(v, C.requests)}`).join("")}
       <div class="small muted" style="margin-top:8px">Arizadan shartnomagacha: <b>${C.conv}%</b>${C.cancelled ? ` · bekor: ${C.cancelled}` : ""}</div>
       <div class="srow" style="margin-top:10px"><span>🔥 Issiq · 🌤 Iliq · ❄️ Sovuq</span><b>${C.leads.hot} · ${C.leads.warm} · ${C.leads.cold}</b></div></div>
+    ${C.contract ? `<div class="section"><h3>🏭 Ustaxonalar va foyda <span class="small muted">(faqat siz ko'rasiz)</span></h3>
+      <div class="srow"><span>Shartnomalar summasi</span><b>${money(C.contract_sum)}</b></div>
+      <div class="srow"><span>Ustaxonalarga to'lov</span><b>${money(C.cost_sum)}</b></div>
+      <div class="srow"><span>📈 Sof foyda${C.profit_n < C.contract ? ` <span class="small muted">(${C.profit_n}/${C.contract} ta bo'yicha)</span>` : ""}</span><b>${money(C.profit)}</b></div>
+      <div class="small muted" style="margin:12px 0 4px">Ustaxonalar bo'yicha</div>
+      ${C.workshops.map(w => `<div class="srow"><span>${esc(w.name)} · ${w.n} ta${w.late ? ` · <span style="color:var(--danger)">${w.late} ta kechikkan</span>` : ""}</span><b>${w.cost ? short(w.price - w.cost) + " foyda" : short(w.price)}</b></div>`).join("")}</div>` : ""}
     <div class="section"><h3>📍 Mijozlar qayerdan keldi</h3>
       ${C.sources.length ? C.sources.map(s => `<div class="srow"><span>${esc(s.name)}</span><b>${s.n}</b></div>${bar(s.n, C.requests, "alt")}`).join("") : `<div class="small muted">Shu oyda ariza yo'q</div>`}</div>
     <div class="section"><h3>🛋 Tayyor mebel</h3>

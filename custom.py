@@ -185,7 +185,11 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    "kinds": "TEXT DEFAULT '[]'", "source": "TEXT DEFAULT ''",
                    "nudged": "INTEGER DEFAULT 0", "nudged_at": "INTEGER DEFAULT 0",  # javobsiz ariza eslatmalari
                    # jadval: usta, o'lchov vaqti (unix), tayyor bo'lish sanasi (YYYY-MM-DD)
-                   "master": "TEXT DEFAULT ''", "measure_at": "INTEGER DEFAULT 0", "ready_date": "TEXT DEFAULT ''"}
+                   "master": "TEXT DEFAULT ''", "measure_at": "INTEGER DEFAULT 0", "ready_date": "TEXT DEFAULT ''",
+                   # hamkor ustaxona va unga to'lanadigan narx — FAQAT admin uchun, mijozga hech qachon yuborilmaydi
+                   "workshop": "TEXT DEFAULT ''", "workshop_cost": "INTEGER DEFAULT 0"}
+PRIVATE_FIELDS = ("admin_msgs", "admin_note", "photos", "user_id", "username", "workshop", "workshop_cost",
+                  "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair")
 TZ = 5 * 3600  # Toshkent
 
 
@@ -597,6 +601,8 @@ class CustomStore:
             raw = re.sub(r"\D", "", str(data.get(k, r[k]) or ""))
             return int(raw) if raw else 0
         price, prepay = money_field("price"), money_field("prepay")
+        wcost = money_field("workshop_cost")
+        workshop = re.sub(r"\s+", " ", str(data.get("workshop", r.get("workshop")) or "")).strip()[:80]
         if prepay and price and prepay > price:
             raise ShopError("Oldindan to'lov narxdan katta bo'lishi mumkin emas")
         due = str(data.get("due", r["due"]) or "").strip()[:60]
@@ -608,27 +614,40 @@ class CustomStore:
         if ready:
             due = fmt_date(ready)  # mijozga ko'rinadigan muddat ham shu sana bo'ladi
         self.db.execute("UPDATE custom_requests SET price=?, prepay=?, due=?, admin_note=?, master=?, measure_at=?, "
-                        "ready_date=?, updated=? WHERE id=?",
-                        (price, prepay, due, note, master, measure_at, ready, int(time.time()), rid))
+                        "ready_date=?, workshop=?, workshop_cost=?, updated=? WHERE id=?",
+                        (price, prepay, due, note, master, measure_at, ready, workshop, wcost, int(time.time()), rid))
         self.db.commit()
         return self.get(rid)
 
     # ------------------------------------------------ ustalar va jadval
-    def masters(self) -> list:
+    def _names(self, key: str) -> list:
         try:
-            v = json.loads(self.shop.settings().get("custom_masters") or "[]")
+            v = json.loads(self.shop.settings().get(key) or "[]")
         except ValueError:
             v = []
         return [str(x) for x in v if str(x).strip()][:30]
 
-    def save_masters(self, names: list) -> list:
+    def _save_names(self, key: str, names: list) -> list:
         out = []
         for n in names or []:
-            n = re.sub(r"\s+", " ", str(n or "")).strip()[:60]
+            n = re.sub(r"\s+", " ", str(n or "")).strip()[:80]
             if n and n not in out:
                 out.append(n)
-        self.shop.set_setting("custom_masters", json.dumps(out[:30], ensure_ascii=False))
-        return self.masters()
+        self.shop.set_setting(key, json.dumps(out[:30], ensure_ascii=False))
+        return self._names(key)
+
+    def masters(self) -> list:
+        return self._names("custom_masters")
+
+    def save_masters(self, names: list) -> list:
+        return self._save_names("custom_masters", names)
+
+    def workshops(self) -> list:
+        """Hamkor ustaxonalar (o'lchamga buyurtmani yasaydiganlar) — faqat admin ko'radi."""
+        return self._names("custom_workshops")
+
+    def save_workshops(self, names: list) -> list:
+        return self._save_names("custom_workshops", names)
 
     def schedule(self, now: int = 0) -> dict:
         """O'lchovlar (bugundan boshlab, vaqt bo'yicha) va ishlab chiqarish muddatlari."""
@@ -702,7 +721,7 @@ def lead_name(r: dict, lang: str = "uz") -> str:
 
 def public(r: dict, lang: str = "uz") -> dict:
     """Mijozga: ichki izoh, guruh xabarlari va rasmlar yo'li yuborilmaydi."""
-    out = {k: v for k, v in r.items() if k not in ("admin_msgs", "admin_note", "photos", "user_id", "username")}
+    out = {k: v for k, v in r.items() if k not in PRIVATE_FIELDS}
     out["photos"] = len(r.get("photos") or [])
     out["kind_name"] = kinds_name(r, lang)
     out["status_text"] = stage_name(r["status"], lang)
@@ -766,6 +785,10 @@ def admin_text(r: dict) -> str:
         lines.append(f"👷 Usta: {e(r['master'])}")
     if r.get("ready_date"):
         lines.append(f"🏁 Tayyor bo'lish sanasi: {fmt_date(r['ready_date'])}")
+    if r.get("workshop"):
+        lines.append(f"🏭 Ustaxona: {e(r['workshop'])}" + (f" — {fmt_price(r['workshop_cost'])}" if r.get("workshop_cost") else ""))
+    if r.get("price") and r.get("workshop_cost"):
+        lines.append(f"📈 Foyda: <b>{fmt_price(r['price'] - r['workshop_cost'])}</b>")
     if r.get("price"):
         lines.append(f"💰 <b>Kelishilgan narx: {fmt_price(r['price'])}</b>"
                      + (f"\n💵 Oldindan to'lov: {fmt_price(r['prepay'])}" if r.get("prepay") else ""))

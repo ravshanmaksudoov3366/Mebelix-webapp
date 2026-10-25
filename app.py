@@ -1178,6 +1178,7 @@ async def daily_digest(now: int):
     if due:
         lines.append("\n🏁 <b>Tayyor bo'lishi kerak:</b>")
         lines += [("🔴 " if r["ready_date"] < today else "• ") + f"#{r['id']} {esc(r['kind_name'])} — {cust.fmt_date(r['ready_date'])}"
+                  + (f" — 🏭 {esc(r['workshop'])}" if r.get("workshop") else "")
                   + (" (muddati o'tgan!)" if r["ready_date"] < today else "") for r in due]
     if sc["unplanned"]:
         lines.append(f"\n⚠️ O'lchov vaqti belgilanmagan arizalar: {len(sc['unplanned'])} ta — "
@@ -1621,7 +1622,7 @@ async def api_admin_custom(request):
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
                               "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin(),
                               "measure_fee": cs.measure_fee(), "call_phone": cs.call_phone(),
-                              "kinds_admin": cs.kinds_admin(), "masters": cs.masters(),
+                              "kinds_admin": cs.kinds_admin(), "masters": cs.masters(), "workshops": cs.workshops(),
                               "schedule": {k: [custom_admin(r) for r in v] for k, v in cs.schedule().items()}})
 
 
@@ -1707,7 +1708,12 @@ async def notify_measure_time(r: dict):
 async def api_admin_custom_masters(request):
     get_admin(request)
     data = await request.json()
-    return web.json_response({"masters": cs.save_masters(data.get("masters") or [])})
+    out = {}
+    if "masters" in data:
+        out["masters"] = cs.save_masters(data.get("masters") or [])
+    if "workshops" in data:
+        out["workshops"] = cs.save_workshops(data.get("workshops") or [])
+    return web.json_response(out)
 
 
 async def api_admin_custom_kinds(request):
@@ -2055,11 +2061,26 @@ def business_stats(ym: str) -> dict:
         src = cust.source_text(r) or "Telegram / to'g'ridan-to'g'ri"
         sources[src] = sources.get(src, 0) + 1
     contracts = [r for r in reqs if reach(r, "contract") and r["status"] != "cancelled"]
+    ws = {}
+    today = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))
+    for r in contracts:
+        w = ws.setdefault(r.get("workshop") or "— tanlanmagan", {"n": 0, "price": 0, "cost": 0, "late": 0})
+        w["n"] += 1
+        w["price"] += int(r.get("price") or 0)
+        w["cost"] += int(r.get("workshop_cost") or 0)
+        if r.get("ready_date") and r["ready_date"] < today and r["status"] in ("contract", "production"):
+            w["late"] += 1
+    cost_sum = sum(int(r.get("workshop_cost") or 0) for r in contracts)
+    priced = [r for r in contracts if r.get("workshop_cost")]
     custom_ = {"requests": len(reqs), "leads": leads,
                "measure": sum(1 for r in reqs if reach(r, "measure") and r["status"] != "cancelled"),
                "contract": len(contracts), "done": sum(1 for r in reqs if r["status"] == "done"),
                "cancelled": sum(1 for r in reqs if r["status"] == "cancelled"),
                "contract_sum": sum(int(r.get("price") or 0) for r in contracts),
+               "cost_sum": cost_sum,
+               "profit": sum(int(r.get("price") or 0) - int(r["workshop_cost"]) for r in priced),
+               "profit_n": len(priced),
+               "workshops": [{"name": k, **v} for k, v in sorted(ws.items(), key=lambda x: -x[1]["n"])],
                "sources": [{"name": k, "n": v} for k, v in sorted(sources.items(), key=lambda x: -x[1])]}
     custom_["conv"] = round(custom_["contract"] * 100 / custom_["requests"]) if custom_["requests"] else 0
     # oxirgi 6 oy — sotuv dinamikasi (tayyor + shartnomalar)
