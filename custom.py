@@ -154,6 +154,10 @@ STAGE_MSG = {
               "✅ Заявка №{id}: ваша мебель готова! Свяжемся, чтобы согласовать доставку."),
     "delivered": ("🚚 Ariza №{id}: mebel yetkazildi. Xaridingiz uchun rahmat!",
                   "🚚 Заявка №{id}: мебель доставлена. Спасибо за покупку!"),
+    "done": ("🤝 Ariza №{id} yakunlandi. Xaridingiz uchun rahmat! 🙏\n\n🛡 Kafolat: {wy} yil — {until} gacha. "
+             "Nuqson chiqsa, shu botga yozing yoki qo'ng'iroq qiling.",
+             "🤝 Заявка №{id} завершена. Спасибо за покупку! 🙏\n\n🛡 Гарантия: {wy} года — до {until}. "
+             "Если появится дефект, напишите в этот бот или позвоните."),
     "cancelled": ("❌ Ariza №{id} bekor qilindi. Savollar bo'lsa, adminga yozing.",
                   "❌ Заявка №{id} отменена. Если есть вопросы, напишите администратору."),
 }
@@ -178,7 +182,30 @@ CREATE TABLE IF NOT EXISTS custom_gallery (
 REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_image": "TEXT DEFAULT ''",
                    "visit_day": "TEXT DEFAULT ''", "visit_time": "TEXT DEFAULT ''",
                    "need_when": "TEXT DEFAULT ''", "repair": "TEXT DEFAULT ''", "fee_ok": "INTEGER DEFAULT 0",
-                   "kinds": "TEXT DEFAULT '[]'", "source": "TEXT DEFAULT ''"}
+                   "kinds": "TEXT DEFAULT '[]'", "source": "TEXT DEFAULT ''",
+                   "nudged": "INTEGER DEFAULT 0", "nudged_at": "INTEGER DEFAULT 0",  # javobsiz ariza eslatmalari
+                   # jadval: usta, o'lchov vaqti (unix), tayyor bo'lish sanasi (YYYY-MM-DD)
+                   "master": "TEXT DEFAULT ''", "measure_at": "INTEGER DEFAULT 0", "ready_date": "TEXT DEFAULT ''"}
+TZ = 5 * 3600  # Toshkent
+
+
+def fmt_dt(ts: int) -> str:
+    return time.strftime("%d.%m %H:%M", time.gmtime(ts + TZ)) if ts else ""
+
+
+def fmt_date(iso: str) -> str:
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", iso or "")
+    return f"{m.group(3)}.{m.group(2)}.{m.group(1)}" if m else ""
+
+
+def parse_local_dt(s: str) -> int:
+    """«2026-10-26T10:30» (Toshkent vaqti) → unix vaqt. Bo'sh — 0."""
+    m = re.fullmatch(r"\s*(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})\s*", s or "")
+    if not m:
+        return 0
+    import calendar
+    y, mo, d, h, mi = map(int, m.groups())
+    return calendar.timegm((y, mo, d, h, mi, 0)) - TZ
 # Mijoz qayerdan kelgani (havoladagi ?src=...)
 SOURCES = {"ig": "📸 Instagram", "fb": "📘 Facebook", "tg": "✈️ Telegram", "site": "🌐 Sayt", "ads": "📣 Reklama"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
 
@@ -574,10 +601,49 @@ class CustomStore:
             raise ShopError("Oldindan to'lov narxdan katta bo'lishi mumkin emas")
         due = str(data.get("due", r["due"]) or "").strip()[:60]
         note = str(data.get("admin_note", r["admin_note"]) or "").strip()[:1000]
-        self.db.execute("UPDATE custom_requests SET price=?, prepay=?, due=?, admin_note=?, updated=? WHERE id=?",
-                        (price, prepay, due, note, int(time.time()), rid))
+        master = re.sub(r"\s+", " ", str(data.get("master", r.get("master")) or "")).strip()[:60]
+        measure_at = parse_local_dt(data["measure_at"]) if "measure_at" in data else int(r.get("measure_at") or 0)
+        ready = str(data.get("ready_date", r.get("ready_date")) or "").strip()
+        ready = ready if re.fullmatch(r"\d{4}-\d{2}-\d{2}", ready) else ""
+        if ready:
+            due = fmt_date(ready)  # mijozga ko'rinadigan muddat ham shu sana bo'ladi
+        self.db.execute("UPDATE custom_requests SET price=?, prepay=?, due=?, admin_note=?, master=?, measure_at=?, "
+                        "ready_date=?, updated=? WHERE id=?",
+                        (price, prepay, due, note, master, measure_at, ready, int(time.time()), rid))
         self.db.commit()
         return self.get(rid)
+
+    # ------------------------------------------------ ustalar va jadval
+    def masters(self) -> list:
+        try:
+            v = json.loads(self.shop.settings().get("custom_masters") or "[]")
+        except ValueError:
+            v = []
+        return [str(x) for x in v if str(x).strip()][:30]
+
+    def save_masters(self, names: list) -> list:
+        out = []
+        for n in names or []:
+            n = re.sub(r"\s+", " ", str(n or "")).strip()[:60]
+            if n and n not in out:
+                out.append(n)
+        self.shop.set_setting("custom_masters", json.dumps(out[:30], ensure_ascii=False))
+        return self.masters()
+
+    def schedule(self, now: int = 0) -> dict:
+        """O'lchovlar (bugundan boshlab, vaqt bo'yicha) va ishlab chiqarish muddatlari."""
+        now = now or int(time.time())
+        day0 = (now + TZ) // 86400 * 86400 - TZ
+        act = ",".join("?" * len(ACTIVE))
+        meas = [self._row(x) for x in self.db.execute(
+            f"SELECT * FROM custom_requests WHERE measure_at>=? AND status IN ({act}) ORDER BY measure_at", (day0, *ACTIVE))]
+        prod = [self._row(x) for x in self.db.execute(
+            "SELECT * FROM custom_requests WHERE status IN ('contract','production','ready') "
+            "ORDER BY CASE WHEN ready_date='' THEN 1 ELSE 0 END, ready_date, id")]
+        unplanned = [self._row(x) for x in self.db.execute(
+            "SELECT * FROM custom_requests WHERE status IN ('new','measure') AND (measure_at IS NULL OR measure_at=0) "
+            "AND need_when!='price' ORDER BY id")]
+        return {"measure": meas, "production": prod, "unplanned": unplanned}
 
     def set_admin_msgs(self, rid: int, msgs: list):
         self.db.execute("UPDATE custom_requests SET admin_msgs=? WHERE id=?", (json.dumps(msgs), rid))
@@ -643,6 +709,8 @@ def public(r: dict, lang: str = "uz") -> dict:
     out["style_name"] = style_name(r.get("style") or "", lang)
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     out["visit_text"] = visit_text(r, lang)
+    out["measure_text"] = fmt_dt(r.get("measure_at") or 0)
+    out["ready_text"] = fmt_date(r.get("ready_date") or "")
     return out
 
 
@@ -692,6 +760,12 @@ def admin_text(r: dict) -> str:
         lines.append(f"📷 Mijoz rasmlari: {len(r['photos'])} ta")
     if r.get("estimate_min"):
         lines.append(f"\n💡 Ko'rsatilgan taxminiy narx: {fmt_price(r['estimate_min'])} – {fmt_price(r['estimate_max'])}")
+    if r.get("measure_at"):
+        lines.append(f"🗓 <b>O'lchov: {fmt_dt(r['measure_at'])}</b>" + (f" — usta {e(r['master'])}" if r.get("master") else ""))
+    elif r.get("master"):
+        lines.append(f"👷 Usta: {e(r['master'])}")
+    if r.get("ready_date"):
+        lines.append(f"🏁 Tayyor bo'lish sanasi: {fmt_date(r['ready_date'])}")
     if r.get("price"):
         lines.append(f"💰 <b>Kelishilgan narx: {fmt_price(r['price'])}</b>"
                      + (f"\n💵 Oldindan to'lov: {fmt_price(r['prepay'])}" if r.get("prepay") else ""))

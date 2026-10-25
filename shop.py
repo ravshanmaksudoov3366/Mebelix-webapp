@@ -89,6 +89,7 @@ PAYMENTS_RU = {"Karta orqali (qabul qilganda)": "Картой (при получ
                "Naqd (qabul qilganda)": "Наличными (при получении)"}
 DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1",
                     "assembly_pct": "5",
+                    "warranty_years": "3",  # do'kon bo'yicha kafolat (mahsulotda «Kafolat» xususiyati bo'lsa — o'shasi)
                     # mijozlar savol uchun yozadigan admin Telegram niki (@siz)
                     "admin_contact": "MRS3366",
                     # sotuvchi rekvizitlari (oferta va dalolatnoma uchun; YaTT/MChJ ochilgach to'ldiriladi)
@@ -205,7 +206,8 @@ ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "r
                  "accepted_ts": "INTEGER",                                     # mijoz «tekshirib qabul qildim» degan vaqt
                  "events": "TEXT DEFAULT '[]'",                                # [[holat, vaqt, kim], ...]
                  "proofs": "TEXT DEFAULT '[]'",
-                 "assembler": "TEXT DEFAULT ''"}                               # {"id","name","ts"} — «Men yig'aman» degan yig'uvchi                                # guruhlardan kelgan suratlar (file_id)
+                 "assembler": "TEXT DEFAULT ''",
+                 "nudged": "INTEGER DEFAULT 0", "nudged_at": "INTEGER DEFAULT 0"}  # javobsiz buyurtma eslatmalari                               # {"id","name","ts"} — «Men yig'aman» degan yig'uvchi                                # guruhlardan kelgan suratlar (file_id)
 
 SEED_CATEGORIES = [("Divanlar", "🛋"), ("Yotoqxona", "🛏"), ("Oshxona", "🍳"),
                    ("Stol-stullar", "🪑"), ("Shkaflar", "🚪"), ("Bolalar", "🧸")]
@@ -364,8 +366,11 @@ class Shop:
             apct = 5
         if not 0 <= apct <= 50:
             raise ShopError("Yig'ish ustamasi 0 dan 50 foizgacha bo'lishi kerak")
+        wy = re.sub(r"\D", "", str(data.get("warranty_years", cur["warranty_years"]) or "")) or "0"
+        if not 0 <= int(wy) <= 10:
+            raise ShopError("Kafolat muddati 0 dan 10 yilgacha bo'lishi kerak")
         values = {"pay_card": card, "pay_owner": owner, "prepay_pct": str(pct), "notify_new_users": notify,
-                  "assembly_pct": str(apct)}
+                  "assembly_pct": str(apct), "warranty_years": str(int(wy))}
         for k in SELLER_FIELDS:
             values[k] = str(data.get(k, cur[k]) or "").strip()[:200]
         nick = str(data.get("admin_contact", cur["admin_contact"]) or "").strip()
@@ -401,7 +406,14 @@ class Shop:
         return {"categories": self.categories(lang), "products": [self.localize_product(p, lang) for p in self.products()],
                 "payments": PAYMENTS, "payments_ru": PAYMENTS_RU, "prepay": self.prepay_info(), "lang": lang,
                 "assembly_pct": int(self.settings()["assembly_pct"] or 0), "offer_ver": OFFER_VERSION,
-                "offer": render_offer(self.seller(), int(self.settings()["assembly_pct"] or 0), lang)}
+                "warranty_years": self.warranty_years(),
+                "offer": render_offer(self.seller(), int(self.settings()["assembly_pct"] or 0), lang, self.warranty_years())}
+
+    def warranty_years(self) -> int:
+        try:
+            return max(0, min(10, int(self.settings().get("warranty_years") or 3)))
+        except ValueError:
+            return 3
 
     # ------------------------------------------------ tarjima (uz -> ru)
     @staticmethod
@@ -1138,7 +1150,8 @@ STATUS_MESSAGES_RU = {
     "delivering": "🚚 Ваш заказ #{id} в пути.",
     "delivered": "📦 Ваш заказ #{id} доставлен.",
     "assembled": "🔧 Сборка заказа #{id} завершена.",
-    "done": "🤝 Заказ #{id} завершён. Спасибо за покупку! 🙏",
+    "done": "🤝 Заказ #{id} завершён. Спасибо за покупку! 🙏\n\n🛡 Гарантия: {wy} года — до {until}. "
+            "Если появится дефект, напишите в этот бот или позвоните.",
     "cancelled": "❌ Ваш заказ #{id} отменён. Если есть вопросы, свяжитесь с нами.",
 }
 
@@ -1150,7 +1163,8 @@ STATUS_MESSAGES = {
     "delivering": "🚚 Buyurtmangiz #{id} yo'lga chiqdi.",
     "delivered": "📦 Buyurtmangiz #{id} yetkazib berildi.",
     "assembled": "🔧 Buyurtmangiz #{id} yig'ib bo'lindi.",
-    "done": "🤝 Buyurtma #{id} yakunlandi. Xaridingiz uchun rahmat! 🙏",
+    "done": "🤝 Buyurtma #{id} yakunlandi. Xaridingiz uchun rahmat! 🙏\n\n🛡 Kafolat: {wy} yil — {until} gacha. "
+            "Nuqson chiqsa, shu botga yozing yoki qo'ng'iroq qiling.",
     "cancelled": "❌ Buyurtmangiz #{id} bekor qilindi. Savollar bo'lsa, biz bilan bog'laning.",
 }
 

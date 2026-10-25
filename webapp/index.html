@@ -57,6 +57,13 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .doors .on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .custom-cta { display: flex; gap: 12px; align-items: center; background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; text-decoration: none; color: var(--text); }
 .custom-cta .ic { font-size: 30px; }
+.revs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 12px 14px; scrollbar-width: none; }
+.revs::-webkit-scrollbar { display: none; }
+.rev { flex: none; width: 240px; background: var(--card); border-radius: var(--r); overflow: hidden; }
+.rev img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.rev .b { padding: 10px 12px; font-size: 13.5px; }
+.rev .s { color: #e0a526; letter-spacing: 1px; }
+.rev q { display: block; margin: 6px 0; quotes: none; }
 .change-box { background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; }
 .change-box b { display: block; font-size: 15.5px; margin-bottom: 4px; }
 .change-box .acts { display: flex; gap: 8px; margin-top: 12px; }
@@ -227,6 +234,12 @@ textarea.in { resize: vertical; min-height: 72px; }
 .imgs .add input { position: absolute; inset: 0; opacity: 0; }
 
 /* admin */
+.srow { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0 4px; font-size: 14.5px; }
+.sbar { height: 8px; border-radius: 6px; background: var(--bg2); overflow: hidden; display: flex; margin-bottom: 4px; }
+.sbar i { display: block; height: 100%; background: var(--accent); border-radius: 6px; }
+.sbar i.alt, .dot.alt { background: #4f8a6e; }
+.sbar.two i { border-radius: 0; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px; }
 .stat { background: var(--card); border-radius: 14px; padding: 10px; }
 .stat b { display: block; font-size: 18px; }
@@ -396,6 +409,7 @@ const I18N = {
     door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     ch_t: "✏️ O'lchami, rangi yoki matosi to'g'ri kelmadimi?", ch_p: "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning.",
+    warranty: "Kafolat", wy_n: "{n} yil", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
@@ -460,6 +474,7 @@ const I18N = {
     door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     ch_t: "✏️ Не подошёл размер, цвет или ткань?", ch_p: "Изменим эту модель под ваши пожелания. Свяжитесь с администратором.",
+    warranty: "Гарантия", wy_n: "{n} года", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
@@ -614,8 +629,16 @@ function viewCatalog() {
         <div><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<br><span class="old" style="margin:0">${money(p.old_price)}</span>` : ""}</div>
         ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}
         ${buyBtn(p)}</div>
-    </div>`).join("") + `</div>`;
+    </div>`).join("") + `</div>` + (!q && !S.cat ? reviewsHTML() : "");
 }
+function reviewsHTML() {
+  const R = S.reviews || [];
+  if (!R.length) return "";
+  return `<div class="toolbar" style="margin-top:6px"><b>${t("rev_t")}</b>${(S.reviewsSum || {}).count ? `<span class="muted small">${t("rev_avg", { a: S.reviewsSum.avg, n: S.reviewsSum.count })}</span>` : ""}</div><div class="revs">${R.map(r => `<div class="rev">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}
+    <div class="b"><div class="s">${"★".repeat(r.rating)}<span class="muted">${"★".repeat(5 - r.rating)}</span></div>
+    ${r.text ? `<q>${esc(r.text)}</q>` : ""}<div class="small muted">${esc(r.name)} · ${esc(r.date)}</div></div></div>`).join("")}</div>`;
+}
+
 
 function viewCart() {
   const items = cartItems();
@@ -760,6 +783,7 @@ function openProduct(id) {
         ${p.delivery_days ? `<div class="ddbox">${t("delivery_time")} <b>${esc(p.delivery_days)}</b></div>` : ""}
         <div class="ddbox free-box">${t("free_deliv")}</div>
         ${p.assembly && S.asmPct ? `<div class="ddbox">${t("asm_avail", { p: S.asmPct })}</div>` : ""}
+        ${warrantyOf(p) ? `<div class="ddbox">🛡 ${t("warranty")}: <b>${esc(warrantyOf(p))}</b></div>` : ""}
         ${!p.in_stock ? `<div class="err">${t("oos")}</div>` : ""}
       </div>
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
@@ -1244,7 +1268,7 @@ function viewAdmin() {
   const d = S.adm.data;
   if (!d) return `<div class="section"><div class="skeleton"></div></div>`;
   const st = d.stats;
-  const tabs = [["orders", "📦 Buyurtmalar"], ["customers", "👥 Mijozlar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["sups", "🏭 Ta'minotchilar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
+  const tabs = [["stats", "📊 Statistika"], ["orders", "📦 Buyurtmalar"], ["customers", "👥 Mijozlar"], ["products", "🛋 Mahsulotlar"], ["cats", "🗂 Kategoriyalar"], ["sups", "🏭 Ta'minotchilar"], ["msg", "📣 Xabar"], ["settings", "⚙️ Sozlamalar"]];
   let h = `<div class="stats">
     <div class="stat"><b>${st.new}</b><span>Chek kutmoqda</span></div>
     <div class="stat"><b>${short(st.today_sum)}</b><span>Bugun · ${st.today_orders} ta</span></div>
@@ -1254,7 +1278,9 @@ function viewAdmin() {
     <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="admTab('${k}')">${t}</button>`).join("")}</div>
     ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
       <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;
-  if (S.adm.tab === "orders") {
+  if (S.adm.tab === "stats") {
+    h += statsHTML();
+  } else if (S.adm.tab === "orders") {
     const f = [["active", "Faol"], ["new", "🧾 Chek kutmoqda"], ["confirmed", "Qabul qilingan"], ["delivering", "Yo'lda"], ["delivered", "Yetkazilgan"], ["assembled", "Yig'ilgan"], ["done", "Yakunlangan"], ["rejected", "Chek rad etilgan"], ["cancelled", "Bekor"], ["", "Barchasi"]];
     h += `<div class="chips" style="margin:0;padding:8px 12px 0">${f.map(([k, t]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; loadAdmin()">${t}</button>`).join("")}</div>`;
     h += d.orders.length ? d.orders.map(o => orderCard(o, true)).join("") : `<div class="empty"><div class="big">📭</div>Buyurtmalar yo'q</div>`;
@@ -1329,6 +1355,8 @@ function viewAdmin() {
       <h3 style="margin-top:18px">🔧 Yig'ib berish</h3>
       <label class="f">Yig'ib berish ustamasi (%) — yig'iladigan mahsulotlar narxidan</label>
       <input class="in" id="setAsm" inputmode="numeric" value="${esc(st2.assembly_pct ?? "5")}" style="width:100px">
+      <label class="f">🛡 Kafolat muddati, yil <span class="small muted">(saytda, ofertada va dalolatnomada ko'rsatiladi; 0 — ko'rsatilmaydi)</span></label>
+      <input class="in" id="setWy" inputmode="numeric" value="${esc(st2.warranty_years ?? "3")}" style="width:100px">
       <h3 style="margin-top:18px">🧾 Sotuvchi rekvizitlari <span class="muted small">(oferta va dalolatnoma uchun)</span></h3>
       <div class="small muted">YaTT yoki MChJ ochilgach to'ldiring. Bo'sh joylar hujjatlarda «______» bo'lib chiqadi.</div>
       <label class="f">Nomi (masalan: «iSofa» MChJ yoki YaTT Maksudov R.)</label><input class="in" id="setSName" value="${esc(st2.seller_name || "")}">
@@ -1401,6 +1429,46 @@ async function loadReceipt(id) {
 function admTab(k) {
   S.adm.tab = k; render();
   if (k === "customers") loadCustomers(true);
+  if (k === "stats") loadStats();
+}
+/* ---------- statistika: oy bo'yicha sotuv, arizalar voronkasi, manbalar ---------- */
+async function loadStats(m) {
+  if (m) S.adm.sm = m;
+  S.adm.st = null; render();
+  try { S.adm.st = await api("/api/admin/stats?m=" + (S.adm.sm || "")); } catch (e) { S.adm.st = { error: e.message }; }
+  if (S.adm.tab === "stats") render();
+}
+function statsHTML() {
+  const d = S.adm.st;
+  if (!d) return `<div class="section"><div class="skeleton" style="height:160px"></div></div>`;
+  if (d.error) return `<div class="section err">${esc(d.error)}</div>`;
+  const R = d.ready, C = d.custom, cur = d.month;
+  const MN = ["", "Yan", "Fev", "Mar", "Apr", "May", "Iyun", "Iyul", "Avg", "Sen", "Okt", "Noy", "Dek"];
+  const mName = k => MN[+k.slice(5)] + " " + k.slice(0, 4);
+  const mx = Math.max(1, ...d.months.map(x => x.ready + x.custom));
+  const bar = (n, of, cls = "") => `<div class="sbar"><i class="${cls}" style="width:${of ? Math.max(2, Math.round(n * 100 / of)) : 0}%"></i></div>`;
+  const funnel = [["Arizalar", C.requests], ["O'lchovga borildi", C.measure], ["Shartnoma tuzildi", C.contract], ["Yakunlandi", C.done]];
+  return `<div class="chips" style="padding:10px 12px 0">${[...d.months].reverse().map(x => `<button class="chip ${x.m === cur ? "on" : ""}" onclick="loadStats('${x.m}')">${mName(x.m)}</button>`).join("")}</div>
+    <div class="stats">
+      <div class="stat"><b>${short(d.total)}</b><span>Jami sotuv · ${mName(cur)}</span></div>
+      <div class="stat"><b>${short(R.sum)}</b><span>🛋 Tayyor · ${R.orders} ta</span></div>
+      <div class="stat"><b>${short(C.contract_sum)}</b><span>📐 Shartnoma · ${C.contract} ta</span></div></div>
+    <div class="section"><h3>📐 O'lchamga buyurtma — voronka</h3>
+      ${funnel.map(([n, v]) => `<div class="srow"><span>${n}</span><b>${v}</b></div>${bar(v, C.requests)}`).join("")}
+      <div class="small muted" style="margin-top:8px">Arizadan shartnomagacha: <b>${C.conv}%</b>${C.cancelled ? ` · bekor: ${C.cancelled}` : ""}</div>
+      <div class="srow" style="margin-top:10px"><span>🔥 Issiq · 🌤 Iliq · ❄️ Sovuq</span><b>${C.leads.hot} · ${C.leads.warm} · ${C.leads.cold}</b></div></div>
+    <div class="section"><h3>📍 Mijozlar qayerdan keldi</h3>
+      ${C.sources.length ? C.sources.map(s => `<div class="srow"><span>${esc(s.name)}</span><b>${s.n}</b></div>${bar(s.n, C.requests, "alt")}`).join("") : `<div class="small muted">Shu oyda ariza yo'q</div>`}</div>
+    <div class="section"><h3>🛋 Tayyor mebel</h3>
+      <div class="srow"><span>Buyurtmalar</span><b>${R.orders}</b></div>
+      <div class="srow"><span>O'rtacha chek</span><b>${money(R.avg)}</b></div>
+      <div class="srow"><span>Yakunlangan · bekor/rad</span><b>${R.done} · ${R.cancelled}</b></div>
+      ${R.top.length ? `<div class="small muted" style="margin:12px 0 4px">Eng ko'p sotilganlar</div>` + R.top.map(p => `<div class="srow"><span>${esc(p.name)} × ${p.qty}</span><b>${short(p.sum)}</b></div>`).join("") : ""}</div>
+    <div class="section"><h3>📈 Oxirgi 6 oy</h3>
+      ${d.months.map(x => `<div class="srow"><span>${mName(x.m)}</span><b>${short(x.ready + x.custom)}</b></div>
+        <div class="sbar two"><i style="width:${Math.round(x.ready * 100 / mx)}%"></i><i class="alt" style="width:${Math.round(x.custom * 100 / mx)}%"></i></div>`).join("")}
+      <div class="small muted" style="margin-top:6px"><span class="dot"></span> tayyor mebel &nbsp; <span class="dot alt"></span> o'lchamga (shartnoma)</div></div>
+    <div class="section"><h3>💬 Mijozlar fikri</h3><div class="srow"><span>Shu oyda baho berganlar</span><b>${d.reviews.count}${d.reviews.count ? " · " + d.reviews.avg + "⭐" : ""}</b></div></div>`;
 }
 async function loadCustomers(reset) {
   const cur = reset || !S.adm.cust ? [] : S.adm.cust.items;
@@ -1415,6 +1483,11 @@ async function loadCustomers(reset) {
   }
 }
 /* tayyor mebelni o'zgartirmoqchi bo'lsa — admin bilan bog'lanish (qo'ng'iroq yoki Telegram) */
+/* kafolat: mahsulotda «Kafolat» xususiyati bo'lsa — o'sha, aks holda do'kon bo'yicha (S.wy yil) */
+function warrantyOf(p) {
+  const s = (p.specs || []).find(([k]) => /kafolat|гарант/i.test(k || ""));
+  return s ? s[1] : S.wy ? t("wy_n", { n: S.wy }) : "";
+}
 function changeBoxHTML(p) {
   const phone = (S.shop && S.shop.phone) || "", nick = (S.shop && S.shop.admin) || "";
   if (!phone && !nick) return "";
@@ -1459,7 +1532,7 @@ async function unlinkGroup(role) {
 async function saveSettings() {
   try {
     const r = await api("/api/admin/settings", { json: { pay_card: $("#setCard").value, pay_owner: $("#setOwner").value, prepay_pct: $("#setPct").value, notify_new_users: $("#setNotify").checked ? 1 : 0,
-      assembly_pct: $("#setAsm").value, seller_name: $("#setSName").value, seller_tin: $("#setSTin").value,
+      assembly_pct: $("#setAsm").value, warranty_years: $("#setWy").value, seller_name: $("#setSName").value, seller_tin: $("#setSTin").value,
       seller_address: $("#setSAddr").value, seller_phone: $("#setSPhone").value, admin_contact: $("#setContact").value } });
     S.adm.data.settings = r.settings; await loadCatalog(); notifyH("success"); toast("Saqlandi ✓"); render();
   } catch (e) { alertBox(e.message); }
@@ -1774,6 +1847,7 @@ if (IN_TG) {
 async function loadCatalog() {
   const d = await api("/api/catalog?lang=" + LANG);
   initPixel(d.shop && d.shop.pixel);
+  S.wy = d.warranty_years || 0; S.reviews = d.reviews || []; S.reviewsSum = d.reviews_sum || {};
   S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
   S.asmPct = d.assembly_pct || 0; S.offer = d.offer || ""; S.offerVer = d.offer_ver || "";
   S.paymentsRu = d.payments_ru || {};

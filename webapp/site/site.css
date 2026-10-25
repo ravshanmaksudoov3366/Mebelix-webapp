@@ -243,6 +243,16 @@ p { margin: 0; }
 /* ---------- savol-javob ---------- */
 .info { display: grid; grid-template-columns: 1fr 1.6fr; gap: 48px; align-items: start; }
 .faq { display: flex; flex-direction: column; gap: 10px; }
+.rev-avg { margin: 8px 0 0; color: var(--ink-2); } .rev-avg b { font-size: 22px; color: var(--ink); }
+.revs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+.rev { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
+.rev img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.rev-b { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.rev-s { color: #e0a526; letter-spacing: 2px; } .rev-s span { color: var(--line); }
+.rev blockquote { margin: 0; font-size: 15px; line-height: 1.5; white-space: pre-line; }
+.rev figcaption { margin-top: auto; color: var(--ink-2); font-size: 13.5px; }
+@media (max-width: 900px) { .revs { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .revs { grid-template-columns: 1fr; } }
 .faq details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 0 22px; transition: box-shadow .2s; }
 .faq details[open] { box-shadow: var(--shadow); }
 .faq summary { list-style: none; cursor: pointer; padding: 20px 0; font-weight: 600; font-size: 16.5px; display: flex;

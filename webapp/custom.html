@@ -191,8 +191,9 @@ body.web .bar { left: max(0px, calc(50% - 320px)); right: max(0px, calc(50% - 32
 .pick img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex: none; background: var(--bg2); }
 .pick .x { margin-left: auto; color: var(--hint); font-size: 20px; padding: 6px; }
 .unit-hint { font-size: 12.5px; color: var(--hint); margin-top: 6px; }
-.adm-tabs { display: flex; gap: 4px; padding: 12px 12px 0; }
-.adm-tabs button { flex: 1; padding: 9px 2px; border-radius: 10px; background: var(--card); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.adm-tabs { display: flex; gap: 4px; padding: 12px 12px 0; overflow-x: auto; scrollbar-width: none; }
+.adm-tabs::-webkit-scrollbar { display: none; }
+.adm-tabs button { flex: 1 0 auto; padding: 9px 10px; border-radius: 10px; background: var(--card); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
 .adm-tabs button.on { background: var(--accent); color: var(--accent-text); }
 .ag { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
 .ag div { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--bg2); }
@@ -228,6 +229,20 @@ select.in { appearance: none; -webkit-appearance: none; }
 .ked-row .vis { display: flex; gap: 6px; align-items: center; font-size: 13.5px; }
 .ked-row .vis input { width: 18px; height: 18px; accent-color: var(--accent); }
 .section.off { opacity: .55; }
+.revs { display: flex; gap: 10px; overflow-x: auto; padding: 4px 12px 14px; scrollbar-width: none; }
+.revs::-webkit-scrollbar { display: none; }
+.rev { flex: none; width: 240px; background: var(--card); border-radius: var(--r); overflow: hidden; }
+.rev img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.rev .b { padding: 10px 12px; font-size: 13.5px; }
+.rev .s { color: #e0a526; letter-spacing: 1px; }
+.rev q { display: block; margin: 6px 0; quotes: none; }
+.plan-day { margin: 14px 16px 6px; font-weight: 700; font-size: 14px; color: var(--hint); }
+.plan-row { display: flex; gap: 10px; align-items: flex-start; }
+.plan-row .tm { flex: none; min-width: 52px; font-weight: 700; font-size: 16px; }
+.plan-row.late .tm, .late-t { color: var(--danger); }
+.mchips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.mchips span { background: var(--bg2); border-radius: 20px; padding: 6px 6px 6px 12px; font-size: 14px; display: inline-flex; gap: 6px; align-items: center; }
+.mchips button { width: 22px; height: 22px; border-radius: 50%; background: var(--card); font-size: 12px; }
 .calc-res { margin-top: 12px; background: var(--soft); border-radius: 12px; padding: 12px 14px; }
 .calc-res b { display: block; font-size: 19px; margin: 2px 0; }
 .fee { background: var(--soft); border-radius: var(--r); margin: 0 12px 12px; padding: 14px; }
@@ -286,7 +301,7 @@ let LANG = normLang(qs.get("lang") || store.get("lang", "") || (tg && tg.initDat
 const I18N = {
   uz: { ready: "Tayyor mebellar", custom: "O'lchamga", title: "O'lchamga buyurtma", mine: "Arizalarim",
     intro_t: "Qaysi uslub sizga yoqadi?", intro_p: "Uslubni tanlang — namuna ishlar va taxminiy narxlarni ko'rasiz.",
-    open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari",
+    rev_t: "⭐ Mijozlarimiz fikri", open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari", wy: "🛡 {n} yil kafolat · 📝 rasmiy shartnoma asosida",
     how1: "Uslubni tanlaysiz", how2: "Usta uyingizga kelib o'lchaydi", how3: "Narx va shartnoma joyida",
     visit_note: "O'lchamni bilishingiz shart emas — usta uyingizga kelib o'zi o'lchaydi.",
     visit_note_fee: "O'lchamni bilishingiz shart emas — usta kelib o'lchaydi. O'lchov va maslahat {f}, shartnoma tuzsangiz narxdan to'liq chegiriladi.",
@@ -320,7 +335,7 @@ const I18N = {
     net_err: "Internet bilan aloqa yo'q", gen_err: "Xatolik yuz berdi", visit_s: "usta o'lchaydi" },
   ru: { ready: "Готовая мебель", custom: "На заказ", title: "Мебель на заказ", mine: "Мои заявки",
     intro_t: "Какой стиль вам нравится?", intro_p: "Выберите стиль — увидите примеры работ и примерные цены.",
-    open_s: "Смотреть ›", feats_t: "Особенности стиля",
+    rev_t: "⭐ Отзывы клиентов", open_s: "Смотреть ›", feats_t: "Особенности стиля", wy: "🛡 Гарантия {n} года · 📝 по официальному договору",
     how1: "Выбираете стиль", how2: "Мастер приезжает на замер", how3: "Цена и договор на месте",
     visit_note: "Размеры знать не нужно — мастер приедет и сам всё измерит.",
     visit_note_fee: "Размеры знать не нужно — мастер приедет и измерит. Замер и консультация — {f}, при заключении договора сумма полностью вычитается из цены.",
@@ -417,6 +432,13 @@ function pricesMini(s) {
 const phoneOf = () => S.cfg.call_phone || (S.cfg.shop && S.cfg.shop.phone) || "";
 const telHref = p => "tel:" + String(p).replace(/[^\d+]/g, "");
 const visitNote = () => S.cfg.measure_fee ? t("visit_note_fee", { f: money(S.cfg.measure_fee) }) : t("visit_note");
+function revHTML() {
+  const R = S.cfg.reviews || [];
+  if (!R.length) return "";
+  return `<div class="intro" style="padding-top:4px"><h2 style="font-size:19px">${t("rev_t")}</h2></div><div class="revs">${R.map(r => `<div class="rev">${r.photo ? `<img src="${esc(r.photo)}" alt="" loading="lazy">` : ""}
+    <div class="b"><div class="s">${"★".repeat(r.rating)}<span class="muted">${"★".repeat(5 - r.rating)}</span></div>
+    ${r.text ? `<q>${esc(r.text)}</q>` : ""}<div class="small muted">${esc(r.name)} · ${esc(r.date)}</div></div></div>`).join("")}</div>`;
+}
 function callHTML() {
   const p = phoneOf();
   return p ? `<div class="section small" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span class="muted">${t("call_q")}</span><a class="btn small" href="${telHref(p)}">📞 ${esc(p)}</a></div>` : "";
@@ -450,12 +472,13 @@ function setCalc(id) {
 /* ---------------- 1. uslublar ---------------- */
 function stylesHTML() {
   const m = S.cfg.model;
-  return `<div class="how"><div><span>🎨</span>${t("how1")}</div><div><span>📏</span>${t("how2")}</div><div><span>📝</span>${t("how3")}</div></div>
+  return `${S.cfg.warranty_years ? `<div class="small muted" style="text-align:center;padding:10px 12px 0">${t("wy", { n: S.cfg.warranty_years })}</div>` : ""}<div class="how"><div><span>🎨</span>${t("how1")}</div><div><span>📏</span>${t("how2")}</div><div><span>📝</span>${t("how3")}</div></div>
     <div class="intro"><h2>${t("intro_t")}</h2><p>${t("intro_p")}</p></div>
     ${m ? `<div class="section pick" style="margin-top:10px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     <div class="sdoors">${S.cfg.styles.map(s => `<button class="sdoor" onclick="openStyle('${s.id}')">
       ${s.cover ? `<img src="${esc(s.cover)}" alt="" loading="lazy">` : artHTML(s.id)}
       <div class="ov"><div><b>${esc(s.name)}</b><small>${esc(s.tag)}</small></div><span class="go">${t("open_s")}</span></div></button>`).join("")}</div>
+    ${revHTML()}
     ${callHTML()}`;
 }
 function openStyle(id) { S.style = id; S.gk = ""; const pk = F.kinds.find(k => kindOf(k) && kindOf(k).price); if (pk) S.calc.kind = pk; haptic(); go("style"); }
@@ -477,7 +500,8 @@ function styleHTML() {
       ${S.cfg.units.map(u => `<div class="row"><span>${esc(u.name)}<small>${esc(u.hint)}</small></span><b>${rate(u.id)}</b></div>`).join("")}
       <div class="small muted" style="margin-top:8px">${t("prices_note")}</div></div>
     ${calcHTML()}
-    <div class="visit-note"><span>📏</span><div>${visitNote()}</div></div>`;
+    <div class="visit-note"><span>📏</span><div>${visitNote()}</div></div>
+    ${S.cfg.warranty_years ? `<div class="visit-note"><span>🛡</span><div>${t("wy", { n: S.cfg.warranty_years })}</div></div>` : ""}`;
 }
 function openLb(id) {
   const s = styleOf(S.style); const list = s.gallery.filter(g => !S.gk || g.kind === S.gk);
@@ -608,7 +632,8 @@ function reqCard(r, admin) {
     <div class="small muted">${when}${r.style_name ? " · " + esc(r.style_name) : ""}${r.model_name ? " · " + esc(r.model_name) : ""}${admin ? " · " + esc(r.name) + " · " + esc(r.phone) : ""}</div>
     ${r.price ? `<div style="margin-top:6px">${t("price")}: <b>${money(r.price)}</b>${r.prepay ? ` · ${t("prepay")}: ${money(r.prepay)}` : ""}</div>`
       : r.estimate_min ? `<div class="small" style="margin-top:6px">${t("est")}: ${money(r.estimate_min)} – ${money(r.estimate_max)}</div>` : ""}
-    ${r.visit_text && ["new", "measure"].includes(r.status) ? `<div class="small" style="margin-top:6px">📏 ${t("visit")}: ${esc(r.visit_text)}</div>` : ""}
+    ${r.measure_text && ["new", "measure"].includes(r.status) ? `<div class="small" style="margin-top:6px">📏 ${t("visit")}: <b>${esc(r.measure_text)}</b>${admin && r.master ? " · 👷 " + esc(r.master) : ""}</div>`
+      : r.visit_text && ["new", "measure"].includes(r.status) ? `<div class="small" style="margin-top:6px">📏 ${t("visit")}: ${esc(r.visit_text)}${admin ? ` <span class="late-t">· vaqt belgilanmagan</span>` : ""}</div>` : ""}
     ${r.due ? `<div class="small">${t("due")}: ${esc(r.due)}</div>` : ""}</div>`;
 }
 async function loadMine() {
@@ -624,17 +649,18 @@ function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.
 /* ---------------- admin ---------------- */
 const ADM_F = [["active", "Faol"], ["new", "🆕 Yangi"], ["measure", "📏 O'lchov"], ["design", "✏️ Eskiz"], ["contract", "📝 Shartnoma"], ["production", "🔨 Ishlab chiqarish"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakun"], ["cancelled", "❌ Bekor"], ["", "Barchasi"]];
 async function loadAdmin() {
-  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone, kinds: d.kinds_admin }); }
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { list: d.requests, rates: d.rates, counts: d.counts, gallery: d.gallery, fee: d.measure_fee, phone: d.call_phone, kinds: d.kinds_admin, masters: d.masters || [], schedule: d.schedule || {} }); }
   catch (e) { S.adm.list = []; toast(e.message); }
   refresh();
 }
 function adminHTML() {
-  const tabs = [["list", "📋 Arizalar"], ["prices", "💰 Narxlar"], ["kinds", "🪑 Turlar"], ["gallery", "🖼 Namunalar"]];
+  const tabs = [["list", "📋 Arizalar"], ["plan", "🗓 Jadval"], ["prices", "💰 Narxlar"], ["kinds", "🪑 Turlar"], ["gallery", "🖼 Namunalar"]];
   let h = `<div class="adm-tabs">${tabs.map(([k, n]) => `<button class="${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; S.adm.open=0; refresh()">${n}</button>`).join("")}</div>`;
   if (!S.adm.list) return h + `<div class="skeleton"></div>`;
   if (S.adm.tab === "prices") return h + ratesHTML();
   if (S.adm.tab === "gallery") return h + galleryAdminHTML();
   if (S.adm.tab === "kinds") return h + kindsAdminHTML();
+  if (S.adm.tab === "plan") return h + planHTML();
   if (S.adm.open) return h + adminDetail(S.adm.list.find(r => r.id === S.adm.open));
   const c = S.adm.counts || {};
   h += `<div class="chips">${ADM_F.map(([k, n]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; S.adm.list=null; refresh(); loadAdmin()">${n}${k && c[k] ? " · " + c[k] : ""}</button>`).join("")}</div>`;
@@ -658,6 +684,44 @@ async function saveRates() {
   catch (e) { alertBox(e.message); }
 }
 /* mebel turlari: nom, belgi, narx turi, ko'rinishi, tartibi */
+/* jadval: ustalar, o'lchovlar (kun bo'yicha) va ishlab chiqarish muddatlari */
+function planHTML() {
+  const sc = S.adm.schedule || {}, M = S.adm.masters || [];
+  const today = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+  const row = (r, tm, late) => `<div class="req plan-row ${late ? "late" : ""}" onclick="openFromPlan(${r.id})"><div class="tm">${tm}</div>
+    <div style="flex:1"><b>№ ${r.id} · ${esc(r.kind_name)}</b><div class="small muted">${esc(r.name)} · ${esc(r.phone)}${r.city ? " · " + esc(r.city) : ""}</div>
+    <div class="small">${r.master ? "👷 " + esc(r.master) : `<span class="late-t">👷 usta tanlanmagan</span>`} · ${esc(r.status_text)}</div></div></div>`;
+  let h = `<div class="section" style="margin-top:12px"><b>👷 Ustalar</b>
+    <div class="mchips">${M.map((m, i) => `<span>${esc(m)}<button onclick="delMaster(${i})">✕</button></span>`).join("") || `<span class="small muted" style="padding:6px 0">Hali usta qo'shilmagan</span>`}</div>
+    <div style="display:flex;gap:8px;margin-top:10px"><input class="in" id="newMaster" placeholder="Usta ismi" maxlength="60"><button class="btn small" onclick="addMaster()">＋</button></div></div>`;
+  const meas = sc.measure || [];
+  h += `<div class="intro" style="padding-top:6px"><h2 style="font-size:19px">📏 O'lchovlar</h2></div>`;
+  if (!meas.length) h += `<div class="small muted" style="padding:0 16px 10px">Belgilangan o'lchov yo'q. Ariza ichida «O'lchov kuni va vaqti»ni kiriting.</div>`;
+  let day = "";
+  for (const r of meas) {
+    const [d, tm] = r.measure_text.split(" ");
+    if (d !== day) { day = d; h += `<div class="plan-day">${d === today.slice(8, 10) + "." + today.slice(5, 7) ? "Bugun · " : ""}${d}</div>`; }
+    h += row(r, tm, false);
+  }
+  if ((sc.unplanned || []).length) h += `<div class="plan-day late-t">⚠️ Vaqti belgilanmagan (${sc.unplanned.length})</div>` + sc.unplanned.map(r => row(r, "—", true)).join("");
+  const prod = sc.production || [];
+  h += `<div class="intro" style="padding-top:10px"><h2 style="font-size:19px">🔨 Ishlab chiqarish</h2></div>`;
+  h += prod.length ? prod.map(r => row(r, r.ready_text ? r.ready_text.slice(0, 5) : "—", r.ready_date && r.ready_date < today)).join("")
+    : `<div class="small muted" style="padding:0 16px 14px">Ishlab chiqarishda buyurtma yo'q.</div>`;
+  return h;
+}
+function openFromPlan(id) {
+  const sc = S.adm.schedule || {}, all = [...(sc.measure || []), ...(sc.unplanned || []), ...(sc.production || [])];
+  const r = all.find(x => x.id === id);
+  if (r && !S.adm.list.some(x => x.id === id)) S.adm.list.push(r);
+  S.adm.tab = "list"; openReq(id);
+}
+async function saveMasters(list) {
+  try { const d = await api("/api/admin/custom/masters", { json: { masters: list } }); S.adm.masters = d.masters; refresh(); }
+  catch (e) { alertBox(e.message); }
+}
+function addMaster() { const v = ($("#newMaster").value || "").trim(); if (v) saveMasters([...(S.adm.masters || []), v]); }
+async function delMaster(i) { if (await confirmBox(`«${S.adm.masters[i]}» ro'yxatdan olib tashlansinmi?`)) saveMasters(S.adm.masters.filter((_, j) => j !== i)); }
 function kindsAdminHTML() {
   const K = S.adm.kinds || [];
   const opt = (v, n, cur) => `<option value="${v}" ${cur === v ? "selected" : ""}>${n}</option>`;
@@ -730,10 +794,17 @@ function adminDetail(r) {
       ${r.sample_image ? `<div class="small muted" style="margin-top:10px">Tanlangan namuna:</div><div class="ph-grid"><img src="${esc(r.sample_image)}" alt="" onclick="window.open(this.src,'_blank')"></div>` : ""}
       ${r.photos ? `<div class="small muted" style="margin-top:10px">Mijoz rasmlari:</div><div class="ph-grid" id="phs">${Array.from({ length: r.photos }, () => `<img alt="">`).join("")}</div>` : ""}
       <div class="admin-acts">${nextBtns}</div></div>
+    <div class="section"><b>👷 Usta va o'lchov</b>
+      <label class="f">Usta</label><select class="in" id="aMaster"><option value="">— tanlanmagan —</option>
+        ${[...new Set([...(S.adm.masters || []), r.master].filter(Boolean))].map(m => `<option ${m === r.master ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
+      ${!(S.adm.masters || []).length ? `<div class="unit-hint">Ustalar ro'yxatini «🗓 Jadval» bo'limida qo'shing.</div>` : ""}
+      <label class="f">O'lchov kuni va vaqti</label><input class="in" type="datetime-local" id="aMeasure" value="${esc(r.measure_local || "")}">
+      <div class="unit-hint">Saqlaganingizda mijozga «usta shu kuni, shu soatda keladi» degan xabar boradi.</div></div>
     <div class="section"><b>Narx va muddat</b>
       <div class="grid2"><div><label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}"></div>
       <div><label class="f">Oldindan to'lov</label><input class="in" inputmode="numeric" id="aPrepay" value="${r.prepay || ""}"></div></div>
-      <label class="f">Tayyor bo'lish muddati</label><input class="in" id="aDue" value="${esc(r.due)}" placeholder="Masalan: 15-noyabr yoki 12 kun">
+      <label class="f">Tayyor bo'lish sanasi</label><input class="in" type="date" id="aReady" value="${esc(r.ready_date || "")}">
+      ${r.due && !r.ready_date ? `<div class="unit-hint">Oldin yozilgan: ${esc(r.due)}</div>` : ""}
       <label class="f">Ichki izoh (mijoz ko'rmaydi)</label><textarea class="in" id="aNote">${esc(r.admin_note)}</textarea>
       <button class="btn" style="width:100%;margin-top:12px" onclick="saveReq(${r.id})">Saqlash</button></div>`;
 }
@@ -755,9 +826,13 @@ async function setStage(id, s) {
   catch (e) { alertBox(e.message); }
 }
 async function saveReq(id) {
-  try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, prepay: $("#aPrepay").value, due: $("#aDue").value, admin_note: $("#aNote").value } });
-        replaceReq(request); toast("Saqlandi ✓"); }
+  try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, prepay: $("#aPrepay").value, admin_note: $("#aNote").value,
+        master: $("#aMaster").value, measure_at: $("#aMeasure").value, ready_date: $("#aReady").value } });
+        replaceReq(request); toast("Saqlandi ✓"); loadAdminQuiet(); }
   catch (e) { alertBox(e.message); }
+}
+async function loadAdminQuiet() {  // jadval va hisoblagichlarni yangilash (ochiq oynani yopmasdan)
+  try { const d = await api("/api/admin/custom?status=" + encodeURIComponent(S.adm.status)); Object.assign(S.adm, { counts: d.counts, schedule: d.schedule || {}, masters: d.masters || [] }); } catch (e) {}
 }
 function replaceReq(r) { const i = S.adm.list.findIndex(x => x.id === r.id); if (i >= 0) S.adm.list[i] = r; refresh(); openReq(r.id); }
 

@@ -6,7 +6,7 @@ Matn o'zgarsa OFFER_VERSION ni yangilang: har buyurtmada mijoz qaysi versiyaga r
 """
 import html
 
-OFFER_VERSION = "2026-10-23.2"
+OFFER_VERSION = "2026-10-25.1"
 
 _BLANK = "____________"
 
@@ -49,6 +49,10 @@ yozilishi lozim.</p>
 qonunchilikda belgilangan tartibda uni almashtirish yoki pulini qaytarishni talab qilishga haqli.</p>
 <p>6.2. Sifati lozim darajadagi mebel to'plamlari qonunchilikka muvofiq qaytarilmaydi va almashtirilmaydi.</p>
 <p>6.3. Ushbu oferta Xaridorning qonunchilikda belgilangan huquqlarini cheklamaydi.</p>
+<p>6.4. Kafolat: Sotuvchi mebelga mijoz qabul qilgan kundan boshlab {wy} yil kafolat beradi (mahsulot tavsifida
+boshqa muddat ko'rsatilgan bo'lsa — o'sha muddat). Kafolat davrida ishlab chiqarish nuqsonlari bepul tuzatiladi.
+Kafolat noto'g'ri foydalanish, mexanik shikast, namlik yoki Xaridor tomonidan o'zgartirish natijasidagi
+nuqsonlarga tatbiq etilmaydi.</p>
 
 <h3>7. Shaxsiy ma'lumotlar</h3>
 <p>7.1. Xaridor buyurtmani bajarish uchun o'z ismi, telefon raqami va manzilini Sotuvchiga, kuryer va yig'uvchiga
@@ -95,6 +99,10 @@ OFFER_RU = """<h2>Публичная оферта</h2>
 Покупатель вправе потребовать замену или возврат денег в порядке, установленном законодательством.</p>
 <p>6.2. Мебельные гарнитуры надлежащего качества в соответствии с законодательством возврату и обмену не подлежат.</p>
 <p>6.3. Настоящая оферта не ограничивает права Покупателя, установленные законодательством.</p>
+<p>6.4. Гарантия: Продавец предоставляет на мебель гарантию {wy} года со дня приёмки Покупателем (если в описании
+товара указан другой срок — этот срок). В гарантийный период производственные дефекты устраняются бесплатно.
+Гарантия не распространяется на дефекты, возникшие из-за неправильной эксплуатации, механических повреждений,
+влаги или изменений, внесённых Покупателем.</p>
 
 <h3>7. Персональные данные</h3>
 <p>7.1. Покупатель соглашается на передачу своего имени, телефона и адреса Продавцу, курьеру и сборщику для
@@ -105,7 +113,7 @@ OFFER_RU = """<h2>Публичная оферта</h2>
 """
 
 
-def render_offer(seller: dict, assembly_pct: int, lang: str = "uz") -> str:
+def render_offer(seller: dict, assembly_pct: int, lang: str = "uz", warranty_years: int = 3) -> str:
     f = {k: html.escape((seller.get(k) or "").strip()) or _BLANK for k in ("name", "tin", "address", "phone")}
     tpl = OFFER_RU if lang == "ru" else OFFER_UZ
-    return tpl.format(ver=OFFER_VERSION, pct=assembly_pct, **f)
+    return tpl.format(ver=OFFER_VERSION, pct=assembly_pct, wy=warranty_years, **f)

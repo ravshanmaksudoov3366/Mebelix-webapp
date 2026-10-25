@@ -32,7 +32,7 @@ T = {
         "buy_now": "Hozir buyurtma berish", "tg_order": "Telegram orqali buyurtma",
         "delivery_days": "Yetkazish muddati", "asm_ok": "Yig'ib berish xizmati mavjud",
         "specs": "Xususiyatlari", "about": "Tavsif", "related": "Shu bo'limdan yana",
-        "how_title": "Buyurtma berish oson",
+        "how_title": "Buyurtma berish oson", "rev_title": "Mijozlarimiz fikri", "rev_avg": "o'rtacha baho, {n} ta fikr",
         "how_1": "Tanlang", "how_1t": "Katalogdan mebelni tanlab, savatchaga qo'shing.",
         "how_2": "Rasmiylashtiring", "how_2t": "Ism, telefon va manzilni yozing — xaritada belgilang.",
         "how_3": "Oldindan to'lang", "how_3t": "Summaning {pct}% ini kartaga o'tkazib, chek rasmini yuklang.",
@@ -76,6 +76,7 @@ T = {
         "ch_t": "O'lchami, rangi yoki matosi to'g'ri kelmadimi?",
         "ch_p": "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning va modelni ayting:",
         "ch_call": "Qo'ng'iroq qilish", "ch_write": "Telegramda yozish",
+        "warranty": "Kafolat", "wy_n": "{n} yil",
     },
     "ru": {
         "tagline": "Онлайн-магазин мебели",
@@ -99,7 +100,7 @@ T = {
         "buy_now": "Заказать сейчас", "tg_order": "Заказать через Telegram",
         "delivery_days": "Срок доставки", "asm_ok": "Доступна услуга сборки",
         "specs": "Характеристики", "about": "Описание", "related": "Ещё из этого раздела",
-        "how_title": "Заказать просто",
+        "how_title": "Заказать просто", "rev_title": "Отзывы наших клиентов", "rev_avg": "средняя оценка, отзывов: {n}",
         "how_1": "Выберите", "how_1t": "Найдите мебель в каталоге и добавьте в корзину.",
         "how_2": "Оформите", "how_2t": "Укажите имя, телефон и адрес — отметьте его на карте.",
         "how_3": "Внесите предоплату", "how_3t": "Переведите {pct}% суммы на карту и загрузите фото чека.",
@@ -142,6 +143,7 @@ T = {
         "ch_t": "Не подошёл размер, цвет или ткань?",
         "ch_p": "Изменим эту модель под ваши пожелания. Свяжитесь с администратором и назовите модель:",
         "ch_call": "Позвонить", "ch_write": "Написать в Telegram",
+        "warranty": "Гарантия", "wy_n": "{n} года",
     },
 }
 
@@ -411,6 +413,22 @@ def store_jsonld(ctx: dict) -> dict:
 
 
 # ------------------------------------------------------------------ sahifalar
+def reviews_html(ctx: dict) -> str:
+    items = ctx.get("reviews") or []
+    if not items:
+        return ""
+    lang, s = ctx["lang"], ctx.get("reviews_sum") or {}
+    cards = "".join(
+        '<figure class="rev">' + (f'<img src="{e(r["photo"])}" alt="" loading="lazy">' if r.get("photo") else "")
+        + f'<div class="rev-b"><div class="rev-s">{"★" * r["rating"]}<span>{"★" * (5 - r["rating"])}</span></div>'
+        + (f'<blockquote>{e(r["text"])}</blockquote>' if r.get("text") else "")
+        + f'<figcaption>{e(r["name"])} · {e(r["date"])}</figcaption></div></figure>' for r in items)
+    head = (f'<p class="rev-avg"><b>{s.get("avg", 0)}</b> ★ — {e(tr(lang, "rev_avg").format(n=s.get("count", 0)))}</p>'
+            if s.get("count") else "")
+    return (f'<section class="sec" id="fikrlar"><div class="wrap"><h2 class="sec-t">{e(tr(lang, "rev_title"))}</h2>'
+            f'{head}<div class="revs">{cards}</div></div></section>')
+
+
 def page_home(ctx: dict) -> str:
     lang, shop, st = ctx["lang"], ctx["shop"], ctx["settings"]
     pct = int(ctx.get("prepay_pct") or 10)
@@ -510,6 +528,8 @@ def page_home(ctx: dict) -> str:
 
 <section class="sec how" id="qanday"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'how_title'))}</h2><ol class="steps">{steps}</ol></div></section>
 
+{reviews_html(ctx)}
+
 {tg_band}
 
 <section class="sec" id="tolov"><div class="wrap info"><h2 class="sec-t">{e(tr(lang, 'info_title'))}</h2><div class="faq">{faq_html}</div></div></section>
@@ -567,6 +587,10 @@ def page_product(ctx: dict, p: dict) -> str:
         meta.append(f'<span class="pill">{ICONS["truck"]}{e(tr(lang, "delivery_days"))}: {e(p["delivery_days"])}</span>')
     if p.get("assembly"):
         meta.append(f'<span class="pill">{ICONS["tool"]}{e(tr(lang, "asm_ok"))}</span>')
+    wspec = next((v for k, v in (p.get("specs") or []) if re.search(r"kafolat|гарант", k or "", re.I)), "")
+    wtxt = wspec or (tr(lang, "wy_n").format(n=ctx["warranty_years"]) if ctx.get("warranty_years") else "")
+    if wtxt:
+        meta.append(f'<span class="pill">🛡 {e(tr(lang, "warranty"))}: {e(wtxt)}</span>')
     bot = ctx.get("bot") or ""
     buttons = ""
     if p.get("in_stock"):

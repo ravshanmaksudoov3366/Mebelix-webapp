@@ -35,6 +35,7 @@ import aiohttp
 
 import custom as cust
 import social as soc
+import reviews as rv
 import sitepages
 from offer import render_offer
 from shop import (
@@ -115,6 +116,7 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 shop = Shop(DB_PATH, UPLOAD_DIR)
 cs = cust.CustomStore(shop)   # o'lchamga (individual) buyurtmalar
 ss = soc.SocialStore(shop)    # Instagram / Facebook navbati
+rs = rv.ReviewStore(shop)     # mijozlar fikri
 meta = soc.Meta()
 CUSTOM_URL = WEBAPP_URL + "custom"
 # Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
@@ -442,6 +444,12 @@ async def notify_new_order(o: dict):
         log.warning("mijozga yuborilmadi: %s", e)
 
 
+def warranty_until(ts: int, years: int) -> str:
+    t = time.gmtime(ts + 5 * 3600)
+    day = min(t.tm_mday, 28) if t.tm_mon == 2 else t.tm_mday
+    return f"{day:02d}.{t.tm_mon:02d}.{t.tm_year + years}"
+
+
 async def notify_status(o: dict):
     if not bot:
         return
@@ -453,11 +461,14 @@ async def notify_status(o: dict):
     text = (STATUS_MESSAGES_RU if lang == "ru" else STATUS_MESSAGES).get(o["status"])
     if text:
         try:
-            await bot.send_message(o["user_id"], text.format(id=o["id"]))
+            wy = shop.warranty_years()
+            await bot.send_message(o["user_id"], text.format(id=o["id"], wy=wy, until=warranty_until(int(time.time()), wy)))
         except TelegramAPIError:
             pass
     if awaiting_acceptance(o):
         await ask_acceptance(o)
+    if o["status"] == "done":
+        await ask_review("o", o["id"], o["user_id"], lang)
 
 
 async def refresh_order_messages(o: dict):
@@ -1059,6 +1070,106 @@ async def cmd_tags(m: Message):
     await m.answer("✅ Heshteglar saqlandi:\n" + (esc(v) or "— (heshtegsiz)"))
 
 
+# ------------------------------------------------------------------ javobsiz arizalar eslatmasi
+NUDGE_AFTER = (15 * 60, 2 * 3600)   # 1-eslatma 15 daqiqadan, 2-si 2 soatdan keyin
+WORK_HOURS = (8, 22)                # kechasi eslatmaymiz (Toshkent vaqti) — ertalab 8 da chiqadi
+
+
+def _work_time(now: int) -> bool:
+    h = time.gmtime(now + 5 * 3600).tm_hour
+    return WORK_HOURS[0] <= h < WORK_HOURS[1]
+
+
+def _due_nudge(row: dict, now: int) -> int:
+    """Nechanchi eslatma kerak (0 — kerak emas)."""
+    n = int(row.get("nudged") or 0)
+    if n >= len(NUDGE_AFTER) or now - row["created"] < NUDGE_AFTER[n]:
+        return 0
+    if n and now - int(row.get("nudged_at") or 0) < 45 * 60:  # ertalab ikkalasi birdan chiqmasin
+        return 0
+    return n + 1
+
+
+async def _nudge(msgs: list, text: str, kb=None):
+    """Eslatma — guruhdagi asl xabarga javob (reply) sifatida, shunda tugmalari yonida bo'ladi."""
+    by_chat = {e[0]: e[1] for e in msgs or [] if len(e) > 1}
+    for chat in NOTIFY_CHATS:
+        try:
+            await bot.send_message(chat, text, reply_markup=kb, reply_to_message_id=by_chat.get(chat),
+                                   allow_sending_without_reply=True)
+        except TelegramAPIError as e:
+            log.warning("eslatma yuborilmadi %s: %s", chat, e)
+
+
+async def daily_digest(now: int):
+    """Har kuni ertalab 8:00 da: bugungi o'lchovlar, bugun/ertaga tayyor bo'lishi kerak va muddati o'tganlar."""
+    today = time.strftime("%Y-%m-%d", time.gmtime(now + 5 * 3600))
+    if time.gmtime(now + 5 * 3600).tm_hour != 8 or shop.settings().get("digest_day") == today:
+        return
+    shop.set_setting("digest_day", today)
+    sc = cs.schedule(now)
+    day_end = (now + 5 * 3600) // 86400 * 86400 - 5 * 3600 + 86400
+    meas = [r for r in sc["measure"] if r["measure_at"] < day_end]
+    tomorrow = time.strftime("%Y-%m-%d", time.gmtime(now + 5 * 3600 + 86400))
+    due = [r for r in sc["production"] if r.get("ready_date") and r["ready_date"] <= tomorrow]
+    if not meas and not due and not sc["unplanned"]:
+        return
+    lines = [f"🗓 <b>Bugungi reja — {cust.fmt_date(today)}</b>"]
+    if meas:
+        lines.append("\n📏 <b>O'lchovlar:</b>")
+        lines += [f"• {cust.fmt_dt(r['measure_at'])[-5:]} — #{r['id']} {esc(r['name'])}, {esc(r['phone'])}"
+                  + (f", {esc(r['city'])}" if r.get("city") else "") + (f" — 👷 {esc(r['master'])}" if r.get("master") else " — ⚠️ usta tanlanmagan")
+                  for r in meas]
+    if due:
+        lines.append("\n🏁 <b>Tayyor bo'lishi kerak:</b>")
+        lines += [("🔴 " if r["ready_date"] < today else "• ") + f"#{r['id']} {esc(r['kind_name'])} — {cust.fmt_date(r['ready_date'])}"
+                  + (" (muddati o'tgan!)" if r["ready_date"] < today else "") for r in due]
+    if sc["unplanned"]:
+        lines.append(f"\n⚠️ O'lchov vaqti belgilanmagan arizalar: {len(sc['unplanned'])} ta — "
+                     + ", ".join(f"#{r['id']}" for r in sc["unplanned"][:10]))
+    await alert_admins("\n".join(lines))
+
+
+async def followup_loop():
+    while True:
+        await asyncio.sleep(60)
+        now = int(time.time())
+        if not _work_time(now):
+            continue
+        try:
+            await daily_digest(now)
+        except Exception:  # noqa: BLE001
+            log.exception("daily_digest")
+        try:
+            for r in cs.list("new"):
+                n = _due_nudge(r, now)
+                if not n:
+                    continue
+                mins = (now - r["created"]) // 60
+                ago = f"{mins} daqiqa" if mins < 120 else f"{mins // 60} soat"
+                ln = cust.lead_name(r)
+                text = (f"⏰ <b>Ariza #{r['id']} {ago}dan beri javobsiz!</b>" + (f" — {ln}" if ln else "")
+                        + f"\n👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n"
+                        + ("Mijozga qo'ng'iroq qilib, o'lchov vaqtini kelishing va «➡️ O'lchov» ni bosing."
+                           if r.get("need_when") != "price" else "Mijoz narx so'ramoqda — qo'ng'iroq qilib maslahat bering."))
+                cs.db.execute("UPDATE custom_requests SET nudged=?, nudged_at=? WHERE id=?", (n, now, r["id"]))
+                cs.db.commit()
+                await _nudge(r.get("admin_msgs"), text, custom_kb(r))
+            for o in shop.orders("new"):
+                n = _due_nudge(o, now)
+                if not n:
+                    continue
+                mins = (now - o["created"]) // 60
+                ago = f"{mins} daqiqa" if mins < 120 else f"{mins // 60} soat"
+                shop.db.execute("UPDATE orders SET nudged=?, nudged_at=? WHERE id=?", (n, now, o["id"]))
+                shop.db.commit()
+                await _nudge(o.get("admin_msgs"), f"⏰ <b>Buyurtma #{o['id']} {ago}dan beri tasdiqlanmagan!</b>\n"
+                             f"👤 {esc(o['name'])} · 📞 {esc(o['phone'])} · {fmt_price(o['total'])}\n"
+                             "Chekni tekshirib, buyurtmani qabul qiling — mijoz kutyapti.")
+        except Exception:  # noqa: BLE001 — sikl to'xtamasin
+            log.exception("followup_loop")
+
+
 async def social_loop():
     """Navbatdagi postlarni vaqti kelganda joylaydi va natijani adminlarga yozadi."""
     while True:
@@ -1149,10 +1260,145 @@ async def cb_migrate(c: CallbackQuery):
     asyncio.create_task(run())
 
 
+# ------------------------------------------------------------------ mijozlar fikri
+_review_wait: dict = {}   # user_id -> (review id, vaqt) — baho bergach 30 daqiqa matn/rasm kutamiz
+REVIEW_TX = {
+    "uz": {"ask": "🙏 Xaridingiz uchun rahmat! <b>iSofa</b> ishini qanday baholaysiz?",
+           "thanks": "Bahoingiz uchun rahmat! {s}\n\nXohlasangiz, bir-ikki so'z fikr yozing yoki mebelingiz rasmini yuboring — "
+                     "boshqa mijozlarga yordam beradi. (ixtiyoriy)",
+           "got": "✅ Rahmat! Fikringiz qabul qilindi.", "sorry": "Kechirasiz, kamchilik bo'lgan bo'lsa. "
+           "Menejer tez orada siz bilan bog'lanib, muammoni hal qiladi."},
+    "ru": {"ask": "🙏 Спасибо за покупку! Как вы оцениваете работу <b>iSofa</b>?",
+           "thanks": "Спасибо за оценку! {s}\n\nЕсли хотите, напишите пару слов или пришлите фото вашей мебели — "
+                     "это поможет другим покупателям. (необязательно)",
+           "got": "✅ Спасибо! Ваш отзыв принят.", "sorry": "Извините, если что-то пошло не так. "
+           "Менеджер скоро свяжется с вами и решит вопрос."},
+}
+
+
+async def ask_review(kind: str, ref_id: int, user_id: int, lang: str, delay: int = 3):
+    if not bot or is_web(user_id) or rs.by_ref("order" if kind == "o" else "custom", ref_id):
+        return
+    await asyncio.sleep(delay)
+    L = REVIEW_TX["ru" if lang == "ru" else "uz"]
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=f"{n}⭐", callback_data=f"rv:{kind}:{ref_id}:{n}")
+                                                for n in range(1, 6)]])
+    try:
+        await bot.send_message(user_id, L["ask"], reply_markup=kb)
+    except TelegramAPIError as e:
+        log.warning("fikr so'rovi yuborilmadi: %s", e)
+
+
+def review_kb(r: dict) -> InlineKeyboardMarkup:
+    row = []
+    if r["status"] != "shown":
+        row.append(InlineKeyboardButton(text="✅ Saytda ko'rsatish", callback_data=f"rva:{r['id']}:shown"))
+    if r["status"] != "hidden":
+        row.append(InlineKeyboardButton(text="🙈 Yashirish", callback_data=f"rva:{r['id']}:hidden"))
+    return InlineKeyboardMarkup(inline_keyboard=[row])
+
+
+async def review_to_admins(r: dict):
+    path = os.path.join(UPLOAD_DIR, os.path.basename(r["photo"])) if r.get("photo") else ""
+    for chat in NOTIFY_CHATS:
+        try:
+            if path and os.path.isfile(path):
+                await bot.send_photo(chat, FSInputFile(path), caption=rv.admin_text(r)[:1024], reply_markup=review_kb(r))
+            else:
+                await bot.send_message(chat, rv.admin_text(r), reply_markup=review_kb(r))
+        except TelegramAPIError as e:
+            log.warning("fikr adminga yuborilmadi: %s", e)
+
+
+@dp.callback_query(F.data.startswith("rv:"))
+async def cb_review_rate(c: CallbackQuery):
+    _, kind, ref, n = c.data.split(":")
+    ref_id = int(ref)
+    try:
+        owner = shop.order(ref_id)["user_id"] if kind == "o" else cs.get(ref_id)["user_id"]
+    except ShopError:
+        return await c.answer()
+    if owner != c.from_user.id:
+        return await c.answer()
+    lang = lang_of(c.from_user.id)
+    L = REVIEW_TX["ru" if lang == "ru" else "uz"]
+    r = rs.rate("order" if kind == "o" else "custom", ref_id, c.from_user.id, c.from_user.full_name, int(n), lang)
+    _review_wait[c.from_user.id] = (r["id"], time.time())
+    text = L["thanks"].format(s=rv.stars(r["rating"])) + ("\n\n" + L["sorry"] if r["rating"] <= 3 else "")
+    try:
+        await c.message.edit_text(text)
+    except TelegramAPIError:
+        pass
+    await c.answer("⭐" * r["rating"])
+    await review_to_admins(r)
+
+
+async def take_review_reply(m: Message) -> bool:
+    """Baho bergan mijoz 30 daqiqa ichida matn yoki rasm yuborsa — fikrga qo'shiladi."""
+    w = _review_wait.get(m.from_user.id)
+    if not w or time.time() - w[1] > 1800:
+        _review_wait.pop(m.from_user.id, None)
+        return False
+    rid = w[0]
+    if m.photo or (m.document and (m.document.mime_type or "").startswith("image/")):
+        try:
+            data = (await bot.download(m.photo[-1].file_id if m.photo else m.document.file_id)).read()
+            rs.add_photo(rid, await asyncio.to_thread(shop.save_image, data))
+        except Exception as e:  # noqa: BLE001
+            log.warning("fikr rasmi saqlanmadi: %s", e)
+        if m.caption:
+            rs.add_text(rid, m.caption)
+    elif m.text and not m.text.startswith("/"):
+        rs.add_text(rid, m.text)
+    else:
+        return False
+    r = rs.get(rid)
+    L = REVIEW_TX["ru" if r.get("lang") == "ru" else "uz"]
+    await m.answer(L["got"])
+    await review_to_admins(r)
+    return True
+
+
+@dp.callback_query(F.data.startswith("rva:"))
+async def cb_review_admin(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    _, rid, st = c.data.split(":")
+    try:
+        r = rs.set_status(int(rid), st)
+    except (KeyError, ValueError):
+        return await c.answer("Topilmadi", show_alert=True)
+    try:
+        if c.message.photo:
+            await c.message.edit_caption(caption=rv.admin_text(r)[:1024], reply_markup=review_kb(r))
+        else:
+            await c.message.edit_text(rv.admin_text(r), reply_markup=review_kb(r))
+    except TelegramAPIError:
+        pass
+    await c.answer("✅ Saytda ko'rsatiladi" if st == "shown" else "🙈 Yashirildi")
+
+
+@dp.message(Command("fikrlar"))
+async def cmd_reviews(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    items = rs.shown(20)
+    s = rs.summary()
+    if not items:
+        return await m.answer("💬 Saytda hali fikr ko'rsatilmagan. Mijoz baho berganda, xabardagi «✅ Saytda ko'rsatish» "
+                              "tugmasini bosing.")
+    rows = [[InlineKeyboardButton(text=f"🙈 #{r['id']} {rv.short_name(r['name'])} {r['rating']}⭐",
+                                  callback_data=f"rva:{r['id']}:hidden")] for r in items]
+    await m.answer(f"💬 Saytdagi fikrlar: <b>{s['count']}</b> ta, o'rtacha <b>{s['avg']}</b>⭐\n"
+                   "Yashirish uchun bosing:", reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
 @dp.message(F.chat.type == "private")
 async def refuse_user(m: Message):
     """Mijozlar botga yoza olmaydi — savollar uchun admin nikini ko'rsatamiz."""
     if is_admin(m.from_user.id):
+        return
+    if await take_review_reply(m):
         return
     await register_user(m.from_user.model_dump())
     lang = lang_of(m.from_user.id)
@@ -1211,7 +1457,8 @@ async def page_index(request):
 
 async def api_catalog(request):
     info = {**SHOP, "admin": shop.settings().get("admin_contact", "")}
-    return web.json_response({"shop": info, **shop.catalog(norm_lang(request.query.get("lang")))})
+    return web.json_response({"shop": info, **shop.catalog(norm_lang(request.query.get("lang"))),
+                              "reviews": rs.public(12), "reviews_sum": rs.summary()})
 
 
 # ------------------------------------------------------------------ o'lchamga buyurtma (/custom)
@@ -1240,6 +1487,7 @@ async def api_custom_config(request):
     cats = {c["id"]: c["name"] for c in shop.categories()}
     return web.json_response({"shop": {**SHOP, "admin": shop.settings().get("admin_contact", "")},
                               "model": model, "model_cat": cats.get((model or {}).get("cat_id"), ""),
+                              "warranty_years": shop.warranty_years(), "reviews": rs.public(12),
                               **cs.config(lang)})
 
 
@@ -1297,6 +1545,10 @@ def custom_admin(r: dict) -> dict:
     out["sample_image"] = "/" + r["sample_image"] if r.get("sample_image") else ""
     out["dims_text"] = cust.dims_text(r)
     out["visit_text"] = cust.visit_text(r)
+    out["measure_text"] = cust.fmt_dt(r.get("measure_at") or 0)
+    out["ready_text"] = cust.fmt_date(r.get("ready_date") or "")
+    out["measure_local"] = (time.strftime("%Y-%m-%dT%H:%M", time.gmtime(r["measure_at"] + 5 * 3600))
+                            if r.get("measure_at") else "")
     out["lead"] = cust.lead(r)
     out["source_text"] = cust.source_text(r)
     out["lead_name"] = cust.lead_name(r)
@@ -1310,7 +1562,8 @@ async def api_admin_custom(request):
     return web.json_response({"requests": [custom_admin(r) for r in cs.list(request.query.get("status", "active"))],
                               "counts": cs.counts(), "rates": cs.rates(), "gallery": gallery_admin(),
                               "measure_fee": cs.measure_fee(), "call_phone": cs.call_phone(),
-                              "kinds_admin": cs.kinds_admin()})
+                              "kinds_admin": cs.kinds_admin(), "masters": cs.masters(),
+                              "schedule": {k: [custom_admin(r) for r in v] for k, v in cs.schedule().items()}})
 
 
 def gallery_admin() -> list:
@@ -1362,9 +1615,40 @@ async def api_admin_custom_status(request):
 
 async def api_admin_custom_update(request):
     get_admin(request)
-    r = cs.update_admin(int(request.match_info["id"]), await request.json())
+    rid = int(request.match_info["id"])
+    before = cs.get(rid)
+    r = cs.update_admin(rid, await request.json())
+    if r.get("measure_at") and r["measure_at"] != before.get("measure_at"):
+        if r["status"] == "new":  # o'lchov vaqti belgilandi — avtomatik «O'lchov» bosqichiga
+            r = cs.set_status(rid, "measure", who="admin: o'lchov vaqti")
+        asyncio.create_task(notify_measure_time(r))
     asyncio.create_task(refresh_custom_messages(r))
     return web.json_response({"request": custom_admin(r)})
+
+
+async def notify_measure_time(r: dict):
+    """Mijozga: usta qachon keladi."""
+    if not bot or is_web(r["user_id"]):
+        return
+    lang = r.get("lang") or lang_of(r["user_id"])
+    when = cust.fmt_dt(r["measure_at"])
+    d, h = when.split(" ") if " " in when else (when, "")
+    if lang == "ru":
+        text = (f"📏 Заявка №{r['id']}: мастер{(' ' + esc(r['master'])) if r.get('master') else ''} приедет на замер "
+                f"<b>{d}</b> в <b>{h}</b>.\nЕсли время не подходит — позвоните нам: {esc(cs.call_phone())}")
+    else:
+        text = (f"📏 Ariza №{r['id']}: usta{(' ' + esc(r['master'])) if r.get('master') else ''} o'lchovga "
+                f"<b>{d}</b> kuni soat <b>{h}</b> da keladi.\nVaqt to'g'ri kelmasa, qo'ng'iroq qiling: {esc(cs.call_phone())}")
+    try:
+        await bot.send_message(r["user_id"], text)
+    except TelegramAPIError as e:
+        log.warning("o'lchov vaqti mijozga yuborilmadi: %s", e)
+
+
+async def api_admin_custom_masters(request):
+    get_admin(request)
+    data = await request.json()
+    return web.json_response({"masters": cs.save_masters(data.get("masters") or [])})
 
 
 async def api_admin_custom_kinds(request):
@@ -1444,7 +1728,10 @@ async def notify_custom_status(r: dict):
     if not msg or is_web(r["user_id"]):
         return
     lang = r.get("lang") or lang_of(r["user_id"])
-    text = msg[1 if lang == "ru" else 0].format(id=r["id"])
+    wy = shop.warranty_years()
+    text = msg[1 if lang == "ru" else 0].format(id=r["id"], wy=wy, until=warranty_until(int(time.time()), wy))
+    if r["status"] == "done":
+        asyncio.create_task(ask_review("c", r["id"], r["user_id"], lang, delay=5))
     if r["status"] == "contract" and r.get("price"):
         text += (f"\n\n💰 {'Цена' if lang == 'ru' else 'Narx'}: <b>{fmt_price(r['price'], lang)}</b>"
                  + (f"\n💵 {'Предоплата' if lang == 'ru' else 'Oldindan to‘lov'}: {fmt_price(r['prepay'], lang)}"
@@ -1490,6 +1777,7 @@ def site_ctx(request) -> dict:
     return {"lang": lang, "shop": SHOP, "settings": {"admin_contact": st.get("admin_contact", "")},
             "categories": shop.categories(lang), "products": products, "bot": SHOP.get("bot", ""),
             "prepay_pct": shop.prepay_info()["pct"], "assembly_pct": int(st.get("assembly_pct") or 0),
+            "warranty_years": shop.warranty_years(), "reviews": rs.public(9), "reviews_sum": rs.summary(),
             "base": site_base(request), "v": ASSET_V, "path": request.path, "year": time.gmtime().tm_year}
 
 
@@ -1514,7 +1802,8 @@ async def page_product(request):
 
 async def page_offer(request):
     ctx = site_ctx(request)
-    return html_page(sitepages.page_offer(ctx, render_offer(shop.seller(), ctx["assembly_pct"], ctx["lang"])))
+    return html_page(sitepages.page_offer(ctx, render_offer(shop.seller(), ctx["assembly_pct"], ctx["lang"],
+                                                            shop.warranty_years())))
 
 
 async def page_not_found(request):
@@ -1635,6 +1924,78 @@ async def api_admin_data(request):
                               "suppliers": shop.suppliers(),
                               "statuses": STATUSES, "actions": ACTIONS, "flow": FLOW, "settings": shop.settings(),
                               "custom": cs.counts()})
+
+
+def _month_range(ym: str) -> tuple:
+    """«2026-10» → (boshlanish, tugash) unix vaqt (Toshkent bo'yicha)."""
+    import calendar
+    y, m = map(int, ym.split("-"))
+    start = calendar.timegm((y, m, 1, 0, 0, 0)) - 5 * 3600
+    y2, m2 = (y + 1, 1) if m == 12 else (y, m + 1)
+    return start, calendar.timegm((y2, m2, 1, 0, 0, 0)) - 5 * 3600
+
+
+def business_stats(ym: str) -> dict:
+    """Oy bo'yicha: tayyor mebel sotuvi, o'lchamga arizalar voronkasi, manbalar va fikrlar."""
+    a, b = _month_range(ym)
+    q = lambda sql, *args: shop.db.execute(sql, args).fetchone()
+    ok = "status NOT IN ('cancelled','rejected')"
+    n, s = q(f"SELECT COUNT(*), COALESCE(SUM(total),0) FROM orders WHERE created>=? AND created<? AND {ok}", a, b)
+    done = q("SELECT COUNT(*) FROM orders WHERE created>=? AND created<? AND status='done'", a, b)[0]
+    canc = q("SELECT COUNT(*) FROM orders WHERE created>=? AND created<? AND status IN ('cancelled','rejected')", a, b)[0]
+    top = {}
+    for (items,) in shop.db.execute(f"SELECT items FROM orders WHERE created>=? AND created<? AND {ok}", (a, b)):
+        for i in json.loads(items or "[]"):
+            t = top.setdefault(i["name"], [0, 0])
+            t[0] += i["qty"]
+            t[1] += i["price"] * i["qty"]
+    ready = {"orders": n, "sum": s, "avg": s // n if n else 0, "done": done, "cancelled": canc,
+             "top": [{"name": k, "qty": v[0], "sum": v[1]} for k, v in sorted(top.items(), key=lambda x: -x[1][1])[:5]]}
+    # o'lchamga: shu oyda kelgan arizalar qaysi bosqichgacha yetgani
+    order = cust.STAGE_ORDER
+    reach = lambda r, st: any(e[0] in order and order.index(e[0]) >= order.index(st) for e in r["events"]) or \
+        (r["status"] in order and order.index(r["status"]) >= order.index(st))
+    reqs = [cs._row(x) for x in cs.db.execute("SELECT * FROM custom_requests WHERE created>=? AND created<?", (a, b))]
+    leads = {"hot": 0, "warm": 0, "cold": 0}
+    sources = {}
+    for r in reqs:
+        k = cust.lead(r)
+        if k:
+            leads[k] += 1
+        src = cust.source_text(r) or "Telegram / to'g'ridan-to'g'ri"
+        sources[src] = sources.get(src, 0) + 1
+    contracts = [r for r in reqs if reach(r, "contract") and r["status"] != "cancelled"]
+    custom_ = {"requests": len(reqs), "leads": leads,
+               "measure": sum(1 for r in reqs if reach(r, "measure") and r["status"] != "cancelled"),
+               "contract": len(contracts), "done": sum(1 for r in reqs if r["status"] == "done"),
+               "cancelled": sum(1 for r in reqs if r["status"] == "cancelled"),
+               "contract_sum": sum(int(r.get("price") or 0) for r in contracts),
+               "sources": [{"name": k, "n": v} for k, v in sorted(sources.items(), key=lambda x: -x[1])]}
+    custom_["conv"] = round(custom_["contract"] * 100 / custom_["requests"]) if custom_["requests"] else 0
+    # oxirgi 6 oy — sotuv dinamikasi (tayyor + shartnomalar)
+    import calendar
+    y, m = map(int, ym.split("-"))
+    months = []
+    for k in range(5, -1, -1):
+        yy, mm = y, m - k
+        while mm <= 0:
+            yy, mm = yy - 1, mm + 12
+        key = f"{yy}-{mm:02d}"
+        a2, b2 = _month_range(key)
+        r_sum = q(f"SELECT COALESCE(SUM(total),0) FROM orders WHERE created>=? AND created<? AND {ok}", a2, b2)[0]
+        c_sum = q("SELECT COALESCE(SUM(price),0) FROM custom_requests WHERE created>=? AND created<? "
+                  "AND status IN ('contract','production','ready','delivered','done')", a2, b2)[0]
+        months.append({"m": key, "label": f"{calendar.month_abbr[mm]}", "ready": r_sum, "custom": c_sum})
+    return {"month": ym, "ready": ready, "custom": custom_, "reviews": rs.stats(a, b), "months": months,
+            "total": s + custom_["contract_sum"]}
+
+
+async def api_admin_stats(request):
+    get_admin(request)
+    ym = request.query.get("m") or time.strftime("%Y-%m", time.gmtime(time.time() + 5 * 3600))
+    if not re.fullmatch(r"\d{4}-\d{2}", ym):
+        raise ShopError("Oy noto'g'ri")
+    return web.json_response(business_stats(ym))
 
 
 async def api_admin_receipt(request):
@@ -1809,6 +2170,9 @@ def _act_html(o: dict) -> str:
     addr = "Do'kondan olib ketish" if o["delivery"] != "delivery" else ", ".join(x for x in (o.get("city"), o.get("address")) if x)
     checks = ["Mahsulotlar to'liq komplektda topshirildi", "Tashqi ko'rinishida shikast, tirnalish va dog' yo'q",
               "Rang va o'lchamlar buyurtmaga mos"] + (["Mebel yig'ib, o'rnatib berildi"] if o.get("assembly") else [])
+    wy = shop.warranty_years()
+    checks.append(f"Kafolat: {wy} yil — {warranty_until(o.get('accepted_ts') or int(time.time()), wy)} gacha "
+                  "(ishlab chiqarish nuqsonlari bepul tuzatiladi)")
     return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Dalolatnoma #{o['id']}</title>
 <style>
@@ -2014,6 +2378,7 @@ def make_app() -> web.Application:
     app.router.add_get("/api/admin/custom", api_admin_custom)
     app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
     app.router.add_post("/api/admin/custom/kinds", api_admin_custom_kinds)
+    app.router.add_post("/api/admin/custom/masters", api_admin_custom_masters)
     app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
     app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)
     app.router.add_post("/api/admin/custom/gallery/{gid}", api_admin_gallery_update)
@@ -2027,6 +2392,7 @@ def make_app() -> web.Application:
     app.router.add_post("/api/order/{id}/cancel", api_order_cancel)
     app.router.add_post("/api/order/{id}/accept", api_order_accept)
     app.router.add_get("/api/admin/data", api_admin_data)
+    app.router.add_get("/api/admin/stats", api_admin_stats)
     app.router.add_post("/api/admin/product", api_admin_product)
     app.router.add_post("/api/admin/product/{id}/delete", api_admin_product_delete)
     app.router.add_post("/api/admin/category", api_admin_category)
@@ -2057,6 +2423,7 @@ async def main():
     app_tasks.append(asyncio.create_task(translation_loop()))
     if bot:
         app_tasks.append(asyncio.create_task(social_loop()))
+        app_tasks.append(asyncio.create_task(followup_loop()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
