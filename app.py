@@ -153,6 +153,35 @@ def web_token(uid: int) -> str:
     return f"{uid}.{hmac.new(_WEB_KEY, str(uid).encode(), hashlib.sha256).hexdigest()[:32]}"
 
 
+# ------------------------------------------------------------------ kompyuterdan admin panel (Telegram'siz)
+# Admin botga /panel yozadi → 10 daqiqalik bir martalik havola → brauzerda 30 kunlik xavfsiz sessiya (cookie).
+# /chiqish — barcha kompyuterlardagi sessiyalarni bekor qiladi.
+ADMIN_COOKIE = "isofa_admin"
+ADMIN_SESSION_DAYS = 30
+_login_codes: dict = {}   # kod -> (admin id, tugash vaqti)
+
+
+def _adm_sig(uid: int, exp: int) -> str:
+    ver = shop.settings().get("admin_session_ver") or "1"
+    return hmac.new(_WEB_KEY, f"adm:{uid}:{exp}:{ver}".encode(), hashlib.sha256).hexdigest()[:40]
+
+
+def admin_session_token(uid: int) -> str:
+    exp = int(time.time()) + ADMIN_SESSION_DAYS * 86400
+    return f"{uid}.{exp}.{_adm_sig(uid, exp)}"
+
+
+def check_admin_session(token: str) -> int:
+    try:
+        uid_s, exp_s, sig = (token or "").split(".")
+        uid, exp = int(uid_s), int(exp_s)
+    except ValueError:
+        return 0
+    if exp < time.time() or not is_admin(uid) or not hmac.compare_digest(_adm_sig(uid, exp), sig):
+        return 0
+    return uid
+
+
 def check_web_token(token: str) -> int:
     try:
         uid_s, sig = token.rsplit(".", 1)
@@ -644,6 +673,32 @@ async def cmd_admin(m: Message):
                        reply_markup=shop_button("🗂 Admin panelni ochish", "?admin=1"))
     else:
         await m.answer(f"Sizning ID: <code>{m.from_user.id}</code>\nAdmin emassiz.")
+
+
+@dp.message(Command("panel"))
+async def cmd_web_panel(m: Message):
+    """Kompyuterdagi brauzerda admin panelni ochish uchun bir martalik havola."""
+    if not is_admin(m.from_user.id):
+        return
+    code = uuid.uuid4().hex + uuid.uuid4().hex[:8]
+    now = time.time()
+    for k in [k for k, v in _login_codes.items() if v[1] < now]:
+        _login_codes.pop(k, None)
+    _login_codes[code] = (m.from_user.id, now + 600)
+    await m.answer("💻 <b>Kompyuterda admin panel</b>\n\nShu havolani kompyuter brauzerida oching (10 daqiqa ichida, "
+                   f"faqat bir marta ishlaydi):\n{WEBAPP_URL}kirish?c={code}\n\n"
+                   f"Kirgach, {ADMIN_SESSION_DAYS} kun davomida qayta kirish shart emas. "
+                   "Havolani hech kimga yubormang. Barcha kompyuterlardan chiqarish: /chiqish")
+
+
+@dp.message(Command("chiqish"))
+async def cmd_web_logout_all(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    ver = int(shop.settings().get("admin_session_ver") or "1") + 1
+    shop.set_setting("admin_session_ver", str(ver))
+    _login_codes.clear()
+    await m.answer("✅ Barcha kompyuter va brauzerlardagi admin sessiyalari bekor qilindi.")
 
 
 @dp.message(Command("id"))
@@ -1408,6 +1463,10 @@ async def refuse_user(m: Message):
 # ------------------------------------------------------------------ web API
 def get_user(request: web.Request) -> dict:
     init_data = request.headers.get("X-Init-Data", "")
+    if not init_data and request.cookies.get(ADMIN_COOKIE):
+        uid = check_admin_session(request.cookies[ADMIN_COOKIE])
+        if uid:
+            return {"id": uid, "first_name": "Admin", "username": "", "admin_web": True}
     if not init_data and request.headers.get("X-Web-Token"):
         uid = check_web_token(request.headers["X-Web-Token"])
         if not uid:
@@ -1863,9 +1922,40 @@ def public(o: dict, admin: bool = False) -> dict:
     return o
 
 
+def _login_page(title: str, text: str, ok: bool) -> str:
+    return (f"<!doctype html><html lang='uz'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>{esc(title)}</title><style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f3f1ee;"
+            "display:grid;place-items:center;min-height:100vh;margin:0}}.c{{background:#fff;border-radius:18px;padding:28px;max-width:420px;"
+            "text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.06)}}a{{display:inline-block;margin-top:14px;background:#b4692f;color:#fff;"
+            "padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:600;margin-inline:4px}}</style></head><body><div class='c'>"
+            f"<div style='font-size:48px'>{'✅' if ok else '⚠️'}</div><h2>{esc(title)}</h2><p>{text}</p></div></body></html>")
+
+
+async def page_login(request):
+    code = request.query.get("c", "")
+    item = _login_codes.pop(code, None)
+    if not item or item[1] < time.time() or not is_admin(item[0]):
+        return web.Response(text=_login_page("Havola eskirgan", "Botga <b>/panel</b> deb yozib, yangi havola oling.", False),
+                            content_type="text/html", status=403, headers={"Cache-Control": "no-store"})
+    resp = web.Response(text=_login_page("Kirdingiz", "<a href='/app?admin=1'>🛋 Tayyor mebellar — admin</a>"
+                                         "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>", True),
+                        content_type="text/html", headers={"Cache-Control": "no-store"})
+    resp.set_cookie(ADMIN_COOKIE, admin_session_token(item[0]), max_age=ADMIN_SESSION_DAYS * 86400,
+                    httponly=True, secure=True, samesite="Lax", path="/")
+    asyncio.create_task(alert_admins(f"💻 Admin panelga kompyuterdan kirildi (IP: {esc(client_ip(request))}). "
+                                     "Bu siz bo'lmasangiz — darhol /chiqish deb yozing."))
+    return resp
+
+
+async def page_logout(request):
+    resp = web.HTTPFound("/")
+    resp.del_cookie(ADMIN_COOKIE, path="/")
+    raise resp
+
+
 async def api_me(request):
     u = get_user(request)
-    if not u.get("web"):  # saytdagi xaridor buyurtma paytida ro'yxatga olinadi (ismi bilan)
+    if not u.get("web") and not u.get("admin_web"):  # saytdagi xaridor buyurtma paytida ro'yxatga olinadi (ismi bilan)
         await register_user(u)
     lang = shop.user_lang(u["id"])
     show = lang or norm_lang(request.headers.get("X-Lang") or u.get("language_code"))
@@ -2362,6 +2452,8 @@ def make_app() -> web.Application:
     app.on_response_prepare.append(upload_headers)
     app.router.add_get("/", page_site)
     app.router.add_get("/app", page_index)
+    app.router.add_get("/kirish", page_login)
+    app.router.add_get("/chiqish", page_logout)
     app.router.add_get("/p/{slug}", page_product)
     app.router.add_get("/oferta", page_offer)
     app.router.add_get("/sitemap.xml", page_sitemap)

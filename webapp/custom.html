@@ -25,6 +25,11 @@ html, body { margin: 0; background: var(--bg2); color: var(--text); font: 15px/1
 body { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 body.web { max-width: 640px; margin: 0 auto; min-height: 100vh; box-shadow: 0 0 0 1px var(--line); }
 html:has(body.web) { background: #ebe4da; }
+/* kompyuterda admin panel — keng ekran */
+body.web.wide { max-width: 1080px; }
+body.web.wide nav, body.web.wide .sheet, body.web.wide .fallback, body.web.wide .bar { left: max(0px, calc(50% - 540px)); right: max(0px, calc(50% - 540px)); }
+@media (min-width: 900px) { body.web.wide .stats { grid-template-columns: repeat(6, 1fr); } body.web.wide .list-card .row { padding: 12px 16px; } }
+.web-logout { display: block; text-align: center; margin: 8px 12px 16px; color: var(--hint); font-size: 13px; }
 /* to'liq ekran (Telegram 8.0+): tepadagi tizim paneli ostida joy qoldiramiz */
 body.fs { --top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); padding-top: var(--top); }
 body.fs::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: var(--top); background: var(--bg); z-index: 7; }
@@ -840,6 +845,7 @@ function replaceReq(r) { const i = S.adm.list.findIndex(x => x.id === r.id); if 
 function bar(html) { const b = $("#bar"); if (!html) { b.classList.add("hidden"); b.innerHTML = ""; } else { b.classList.remove("hidden"); b.innerHTML = html; } }
 function refresh() {
   document.documentElement.lang = LANG;
+  document.body.classList.toggle("wide", !IN_TG && S.view === "admin");
   document.querySelectorAll("[data-t]").forEach(el => el.textContent = t(el.dataset.t));
   document.querySelectorAll("#langsw button").forEach(b => b.classList.toggle("on", b.dataset.l === LANG));
   $("#toReady").href = "/app?lang=" + LANG;
