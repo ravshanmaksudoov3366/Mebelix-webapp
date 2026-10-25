@@ -143,6 +143,17 @@ p { margin: 0; }
 .size-link { flex-basis: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: 999px;
   background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 15px; transition: background .2s; }
 .size-link:hover { background: #ead6c0; }
+.change-box { flex-basis: 100%; background: var(--accent-soft); border-radius: 18px; padding: 16px 18px; }
+.change-box > b { display: block; font-size: 16px; }
+.change-box p { margin: 6px 0 0; font-size: 14.5px; opacity: .85; }
+.change-box p b { opacity: 1; }
+.ch-acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.ch-acts a { flex: 1; min-width: 140px; display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px;
+  border-radius: 999px; font-weight: 600; font-size: 14.5px; }
+.ch-acts a svg { width: 18px; height: 18px; }
+.ch-call { background: var(--accent-ink); color: #fff; }
+.ch-write { background: #fff; color: var(--accent-ink); }
+.ch-phone { margin-top: 8px; text-align: center; font-size: 13.5px; opacity: .7; }
 
 /* ---------- bo'limlar ---------- */
 .sec { padding: 56px 0; }

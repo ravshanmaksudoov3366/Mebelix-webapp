@@ -73,6 +73,9 @@ T = {
         "door_custom": "O'lchamga buyurtma", "door_custom_t": "Xonangizga moslab, o'zingiz xohlagan o'lcham, mato va rangda yasab beramiz.",
         "door_custom_btn": "Ariza qoldirish", "door_ready_btn": "Katalogni ko'rish",
         "my_size": "Shu modelni o'z o'lchamimda buyurtma qilish",
+        "ch_t": "O'lchami, rangi yoki matosi to'g'ri kelmadimi?",
+        "ch_p": "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning va modelni ayting:",
+        "ch_call": "Qo'ng'iroq qilish", "ch_write": "Telegramda yozish",
     },
     "ru": {
         "tagline": "Онлайн-магазин мебели",
@@ -136,6 +139,9 @@ T = {
         "door_custom": "Мебель на заказ", "door_custom_t": "Сделаем под вашу комнату — в нужном размере, ткани и цвете.",
         "door_custom_btn": "Оставить заявку", "door_ready_btn": "Смотреть каталог",
         "my_size": "Заказать эту модель в моём размере",
+        "ch_t": "Не подошёл размер, цвет или ткань?",
+        "ch_p": "Изменим эту модель под ваши пожелания. Свяжитесь с администратором и назовите модель:",
+        "ch_call": "Позвонить", "ch_write": "Написать в Telegram",
     },
 }
 
@@ -565,7 +571,19 @@ def page_product(ctx: dict, p: dict) -> str:
     if p.get("in_stock"):
         buttons = (f'<button class="btn big" data-add="{p["id"]}">{ICONS["cart"]}<span>{e(tr(lang, "add"))}</span></button>'
                    f'<button class="btn big ghost" data-buy="{p["id"]}">{e(tr(lang, "buy_now"))}</button>')
-    buttons += (f'<a class="size-link" href="/custom?model={p["id"]}&lang={lang}">📐 {e(tr(lang, "my_size"))}</a>')
+    nick = (ctx.get("settings") or {}).get("admin_contact") or ""
+    phone = (ctx.get("shop") or {}).get("phone") or ""
+    acts = ""
+    if phone:
+        acts += (f'<a class="ch-call" href="tel:{e(re.sub(r"[^0-9+]", "", phone))}">{ICONS["phone"]}'
+                 f'{e(tr(lang, "ch_call"))}</a>')
+    if nick:
+        acts += (f'<a class="ch-write" href="https://t.me/{e(nick)}" target="_blank" rel="noopener">{ICONS["tg"]}'
+                 f'{e(tr(lang, "ch_write"))}</a>')
+    if acts:
+        buttons += (f'<div class="change-box"><b>✏️ {e(tr(lang, "ch_t"))}</b><p>{e(tr(lang, "ch_p"))} '
+                    f'<b>{e(p["name"])} (№ {p["id"]})</b></p><div class="ch-acts">{acts}</div>'
+                    + (f'<div class="ch-phone">{e(phone)}</div>' if phone else "") + '</div>')
     if bot:
         buttons += (f'<a class="tg-link" href="https://t.me/{e(bot)}?start=p{p["id"]}" target="_blank" rel="noopener">'
                     f'{ICONS["tg"]}{e(tr(lang, "tg_order"))}</a>')

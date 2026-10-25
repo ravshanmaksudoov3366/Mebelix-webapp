@@ -57,6 +57,12 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .doors .on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .custom-cta { display: flex; gap: 12px; align-items: center; background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; text-decoration: none; color: var(--text); }
 .custom-cta .ic { font-size: 30px; }
+.change-box { background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; }
+.change-box b { display: block; font-size: 15.5px; margin-bottom: 4px; }
+.change-box .acts { display: flex; gap: 8px; margin-top: 12px; }
+.change-box .acts a { flex: 1; text-align: center; text-decoration: none; padding: 11px 8px; border-radius: 12px; font-weight: 600; font-size: 14.5px; }
+.change-box .acts .call { background: var(--accent); color: var(--accent-text); }
+.change-box .acts .write { background: var(--card); color: var(--link); }
 .custom-cta b { display: block; }
 /* catalog */
 .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 0; }
@@ -389,6 +395,8 @@ const I18N = {
     sent_wait_web: "🧾 To'lov chekingiz tekshirilmoqda. Tez orada siz bilan telefon orqali bog'lanamiz. Buyurtma holatini shu sahifadagi «Buyurtmalarim» bo'limida ko'rasiz.",
     door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
+    ch_t: "✏️ O'lchami, rangi yoki matosi to'g'ri kelmadimi?", ch_p: "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning.",
+    ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
     asm_title: "Yig'ib berish", asm_q: "Qaysilarini yig'ib, o'rnatib beraylik?", asm_yes: "Ha, yig'ib bering (+{sum})",
@@ -451,6 +459,8 @@ const I18N = {
     sent_wait_web: "🧾 Ваш чек проверяется. Скоро мы свяжемся с вами по телефону. Статус заказа — в разделе «Мои заказы» на этой странице.",
     door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
+    ch_t: "✏️ Не подошёл размер, цвет или ткань?", ch_p: "Изменим эту модель под ваши пожелания. Свяжитесь с администратором.",
+    ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
     asm_title: "Сборка", asm_q: "Что собрать и установить?", asm_yes: "Да, соберите (+{sum})",
@@ -753,7 +763,7 @@ function openProduct(id) {
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
         ${p.specs.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table></div>` : ""}
       ${p.description ? `<div class="section"><h3>${t("desc")}</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}
-      <a class="custom-cta" href="/custom?model=${p.id}&lang=${LANG}"><span class="ic">📐</span><div><b>${t("my_size")}</b><span class="small muted">${t("my_size_t")}</span></div></a>`,
+      ${changeBoxHTML(p)}`,
     main: () => !p.in_stock ? [null] : S.cart[p.id]
       ? [t("in_cart_go", { n: S.cart[p.id] }), () => { closeAll(); go("cart"); }]
       : [t("add_cart", { sum: money(p.price) }), () => { setQty(p.id, 1); notifyH("success"); }],
@@ -1400,6 +1410,17 @@ async function loadCustomers(reset) {
     if (hadFocus) { const i = $("#custQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
   }
 }
+/* tayyor mebelni o'zgartirmoqchi bo'lsa — admin bilan bog'lanish (qo'ng'iroq yoki Telegram) */
+function changeBoxHTML(p) {
+  const phone = (S.shop && S.shop.phone) || "", nick = (S.shop && S.shop.admin) || "";
+  if (!phone && !nick) return "";
+  return `<div class="change-box"><b>${t("ch_t")}</b><div class="small muted">${t("ch_p")}</div>
+    <div class="small" style="margin-top:8px">${t("ch_say")} <b style="display:inline">${esc(p.name)} (№ ${p.id})</b></div>
+    <div class="acts">${phone ? `<a class="call" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${t("ch_call")}</a>` : ""}
+      ${nick ? `<a class="write" href="https://t.me/${esc(nick)}" onclick="openTg(this.href); return false">${t("ch_write")}</a>` : ""}</div>
+    ${phone ? `<div class="small muted" style="margin-top:8px;text-align:center">${esc(phone)}</div>` : ""}</div>`;
+}
+function openTg(u) { if (IN_TG && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u, "_blank"); }
 function openUrl(u) { if (IN_TG && tg.openLink) tg.openLink(u); else window.open(u, "_blank"); }
 async function setStatus(id, status) {
   const ask = { cancelled: "Buyurtmani bekor qilasizmi? Mijozga xabar boradi.",
