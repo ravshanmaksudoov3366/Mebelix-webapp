@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>O'lchamga buyurtma</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: var(--tg-theme-bg-color, #ffffff);
@@ -260,14 +263,53 @@ details.more-f summary { list-style: none; cursor: pointer; display: flex; justi
 details.more-f summary::-webkit-details-marker { display: none; }
 details.more-f summary::after { content: "＋"; }
 details.more-f[open] summary::after { content: "－"; }
+
+/* ================= iSofa brend uslubi (logotip: grafit + oltin) ================= */
+:root {
+  --bg: #ffffff; --bg2: #f6f2ea; --card: #ffffff; --text: #1f1e1f; --hint: #6f695f;
+  --link: #8a6a24; --accent: #2f2e30; --accent-text: #e9cc85; --danger: #c0392b;
+  --line: #e6dfd2; --soft: #f3e8cd; --gold: #e9cc85; --char: #363435; --char2: #2a292a;
+  --serif: "Cormorant Garamond", Georgia, serif;
+}
+html, body { font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--char); border-bottom: 0; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+body.fs::before { background: var(--char); }
+.brandrow { display: flex; align-items: center; gap: 10px; }
+.brandrow .mark { width: 40px; height: 30px; object-fit: contain; flex: none; }
+.brandrow .wm { display: flex; flex-direction: column; flex-grow: 1; font-size: 22px; font-weight: 600; color: var(--gold); line-height: 1; text-decoration: none; }
+.brandrow .wm small { font-size: 8px; letter-spacing: 1.6px; white-space: nowrap; color: #cdb57a; margin-top: 3px; font-weight: 500; }
+.doors { background: var(--char2); border-radius: 14px; }
+.doors a, .doors button { color: #d8d1c5; padding: 11px 6px; }
+.doors .on { background: var(--bg2); color: var(--text); box-shadow: none; }
+.mine-btn { color: var(--gold); border: 1px solid #5a5758; border-radius: 12px; padding: 9px 11px; font-size: 13px; }
+.langsw { background: transparent; border: 1px solid #5a5758; border-radius: 12px; padding: 3px; }
+.langsw button { color: #bdb6ab; padding: 7px 9px; }
+.langsw button.on { background: var(--gold); color: var(--char); }
+.intro h2, .done h2 { font-family: var(--serif); font-size: 28px; font-weight: 600; line-height: 1.05; }
+.sdoor .ov b { font-family: var(--serif); font-size: 30px; color: var(--gold); }
+.sdoor .go { background: var(--bg2); color: var(--char); }
+.btn { border-radius: 14px; }
+.btn:not(.soft) { background: var(--char); color: var(--gold); }
+.kchip.on, .seg button.on, .kind.on, .tier.on { border-color: var(--char); background: var(--soft); }
+.chip.on { background: var(--char); color: var(--gold); }
+.lead.hot { background: #fde3d6; }
+.how div { border: 1px solid var(--line); }
+.visit-note { background: var(--soft); }
+.visit-note span, .how span { color: #a8862f; display: grid; place-items: center; }
+.how span svg { margin: 0 auto; }
+.fee { background: var(--char); color: #f6f2ea; } .fee b { color: var(--gold); } .fee .small { color: #d8d1c5; }
+.fee .check { background: #f6f2ea; color: var(--text); }
+.ptable .row b { white-space: nowrap; }
+.rev .s { color: #c9a24a; }
 </style>
 </head>
 <body>
 <header>
-  <div class="doors"><a id="toReady" href="/app">🛋 <span data-t="ready">Tayyor mebellar</span></a><button class="on" onclick="go('styles')">📐 <span data-t="custom">O'lchamga</span></button></div>
-  <div class="hrow"><h1 id="title" data-t="title">O'lchamga buyurtma</h1>
-    <div style="display:flex;gap:10px;align-items:center"><button class="mine-btn" onclick="go('mine')" data-t="mine">Arizalarim</button>
-      <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div></div>
+  <div class="brandrow"><img class="mark" src="/s/isofa-mark.png" alt=""><a class="wm" href="#" onclick="go('styles'); return false">iSofa<small>WORLD OF FURNITURE</small></a>
+    <button class="mine-btn" onclick="go('mine')" data-t="mine">Arizalarim</button>
+    <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div>
+  <div class="doors"><a id="toReady" href="/app"><span data-t="ready">Tayyor mebellar</span></a><button class="on" onclick="go('styles')"><span data-t="custom">O'lchamga</span></button></div>
+  <h1 id="title" data-t="title" class="hidden">O'lchamga buyurtma</h1>
 </header>
 <main id="view"><div class="skeleton"></div><div class="skeleton"></div></main>
 <div class="bar hidden" id="bar"></div>
@@ -279,7 +321,8 @@ details.more-f[open] summary::after { content: "－"; }
 "use strict";
 const tg = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(tg && tg.initData);
-if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+  try { tg.setHeaderColor && tg.setHeaderColor("#363435"); tg.setBackgroundColor && tg.setBackgroundColor("#f6f2ea"); } catch (e) {} }
 /* To'liq ekran: tayyor mebellar do'konidagi kabi — telefonlarda butun ekranni egallaydi (Telegram 8.0+) */
 function syncFullscreen() { document.body.classList.toggle("fs", !!(tg && tg.isFullscreen)); }
 if (IN_TG && ["ios", "android"].includes(tg.platform) && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
@@ -304,9 +347,9 @@ const normLang = l => String(l || "").toLowerCase().startsWith("ru") ? "ru" : "u
 let LANG = normLang(qs.get("lang") || store.get("lang", "") || (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code));
 
 const I18N = {
-  uz: { ready: "Tayyor mebellar", custom: "O'lchamga", title: "O'lchamga buyurtma", mine: "Arizalarim",
+  uz: { ready: "Tayyor mebellar", custom: "O'lchamga buyurtma", title: "O'lchamga buyurtma", mine: "Arizalarim",
     intro_t: "Qaysi uslub sizga yoqadi?", intro_p: "Uslubni tanlang — namuna ishlar va taxminiy narxlarni ko'rasiz.",
-    rev_t: "⭐ Mijozlarimiz fikri", open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari", wy: "🛡 {n} yil kafolat · 📝 rasmiy shartnoma asosida",
+    rev_t: "⭐ Mijozlarimiz fikri", open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari", wy: "{n} yil kafolat · rasmiy shartnoma asosida",
     how1: "Uslubni tanlaysiz", how2: "Usta uyingizga kelib o'lchaydi", how3: "Narx va shartnoma joyida",
     visit_note: "O'lchamni bilishingiz shart emas — usta uyingizga kelib o'zi o'lchaydi.",
     visit_note_fee: "O'lchamni bilishingiz shart emas — usta kelib o'lchaydi. O'lchov va maslahat {f}, shartnoma tuzsangiz narxdan to'liq chegiriladi.",
@@ -320,7 +363,7 @@ const I18N = {
     from: "dan", agreed: "kelishiladi", see: "Namunalar va narxlar", photos_cnt: "{n} ta namuna",
     prices_t: "Narxlar ({s} uslubi)", prices_note: "Bu boshlang'ich narxlar. Aniq narx o'lchov va material tanlangandan keyin kelishiladi.",
     samples: "Namuna ishlar", all: "Hammasi", no_samples: "Namuna rasmlar tez orada qo'shiladi.",
-    want_this: "Shunga o'xshashini xohlayman", order_style: "📏 Ustani o'lchovga chaqirish",
+    want_this: "Shunga o'xshashini xohlayman", order_style: "Ustani o'lchovga chaqirish",
     f_title: "Ustani o'lchovga chaqirish", f_sub: "Usta uyingizga kelib o'lchaydi, aniq narxni aytadi va shartnomani joyida tuzasiz.",
     f_when: "Usta qachon kelsin?", f_time: "Qaysi vaqtda?", f_more: "Qo'shimcha ma'lumot (ixtiyoriy)", visit: "Usta keladi", f_style: "Uslub", change: "o'zgartirish", f_sample: "Tanlangan namuna", f_model: "Asos qilib olingan model",
     f_kind: "Nima kerak?", f_kind_h: "Bir nechtasini tanlashingiz mumkin", f_size: "O'lchamni bilasizmi?", size_no: "Bilmayman", size_no_t: "usta kelib o'lchaydi",
@@ -338,9 +381,9 @@ const I18N = {
     new_req: "Yana ariza berish", to_mine: "Arizalarimni ko'rish", no_req: "Hali ariza yubormagansiz", start: "Ariza berish",
     price: "Narx", prepay: "Oldindan to'lov", due: "Muddat", ask: "Savollar bo'yicha adminga yozing: {a}",
     net_err: "Internet bilan aloqa yo'q", gen_err: "Xatolik yuz berdi", visit_s: "usta o'lchaydi" },
-  ru: { ready: "Готовая мебель", custom: "На заказ", title: "Мебель на заказ", mine: "Мои заявки",
+  ru: { ready: "Готовая мебель", custom: "Мебель на заказ", title: "Мебель на заказ", mine: "Мои заявки",
     intro_t: "Какой стиль вам нравится?", intro_p: "Выберите стиль — увидите примеры работ и примерные цены.",
-    rev_t: "⭐ Отзывы клиентов", open_s: "Смотреть ›", feats_t: "Особенности стиля", wy: "🛡 Гарантия {n} года · 📝 по официальному договору",
+    rev_t: "⭐ Отзывы клиентов", open_s: "Смотреть ›", feats_t: "Особенности стиля", wy: "Гарантия {n} года · по официальному договору",
     how1: "Выбираете стиль", how2: "Мастер приезжает на замер", how3: "Цена и договор на месте",
     visit_note: "Размеры знать не нужно — мастер приедет и сам всё измерит.",
     visit_note_fee: "Размеры знать не нужно — мастер приедет и измерит. Замер и консультация — {f}, при заключении договора сумма полностью вычитается из цены.",
@@ -354,7 +397,7 @@ const I18N = {
     from: "от", agreed: "договорная", see: "Примеры и цены", photos_cnt: "примеров: {n}",
     prices_t: "Цены (стиль {s})", prices_note: "Это начальные цены. Точная цена — после замера и выбора материалов.",
     samples: "Примеры работ", all: "Все", no_samples: "Примеры скоро будут добавлены.",
-    want_this: "Хочу похожее", order_style: "📏 Вызвать мастера на замер",
+    want_this: "Хочу похожее", order_style: "Вызвать мастера на замер",
     f_title: "Вызов мастера на замер", f_sub: "Мастер приедет, сделает замер, назовёт точную цену — договор можно заключить на месте.",
     f_when: "Когда удобно принять мастера?", f_time: "В какое время?", f_more: "Дополнительно (необязательно)", visit: "Замер", f_style: "Стиль", change: "изменить", f_sample: "Выбранный пример", f_model: "За основу взята модель",
     f_kind: "Что нужно?", f_kind_h: "Можно выбрать несколько", f_size: "Знаете размеры?", size_no: "Не знаю", size_no_t: "мастер приедет и измерит",
@@ -410,11 +453,11 @@ const sampleOf = id => { for (const s of S.cfg.styles) { const g = s.gallery.fin
 
 /* ---------------- uslub rasmlari (namuna yo'q bo'lsa) ---------------- */
 const ART = {
-  modern: { bg: "linear-gradient(135deg,#e9e6e1,#cfd3d6)", c: "#3d4650",
+  modern: { bg: "linear-gradient(135deg,#4b5057,#262a2f)", c: "rgba(233,204,133,.6)",
     svg: '<g fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"><rect x="20" y="40" width="160" height="40" rx="4"/><rect x="20" y="22" width="160" height="22" rx="3"/><path d="M34 80v14M166 80v14"/></g>' },
-  newclassic: { bg: "linear-gradient(135deg,#f3eadf,#e2d2bf)", c: "#8a6a45",
+  newclassic: { bg: "linear-gradient(135deg,#b9a184,#6f5a42)", c: "rgba(255,244,214,.65)",
     svg: '<g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M30 46c0-14 12-24 26-24h88c14 0 26 10 26 24"/><path d="M22 52c0-8 14-8 14 0v26h128V52c0-8 14-8 14 0v28H22z"/><path d="M40 80l-4 14M160 80l4 14"/><circle cx="100" cy="34" r="3" fill="currentColor"/></g>' },
-  classic: { bg: "linear-gradient(135deg,#efe1cf,#c9a77f)", c: "#6b3f22",
+  classic: { bg: "linear-gradient(135deg,#6b4a2f,#2f2217)", c: "rgba(233,204,133,.6)",
     svg: '<g fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"><path d="M28 50c0-26 30-34 72-34s72 8 72 34"/><path d="M18 56c0-12 20-12 20 0v20h124V56c0-12 20-12 20 0v26H18z"/><path d="M30 82c0 6-4 10-4 14M170 82c0 6 4 10 4 14"/><path d="M84 28c6-6 26-6 32 0M92 22l8-6 8 6"/></g>' },
 };
 function artHTML(id) { const a = ART[id] || ART.modern; return `<div class="art" style="background:${a.bg};color:${a.c}"><svg viewBox="0 0 200 110">${a.svg}</svg></div>`; }
@@ -464,7 +507,7 @@ function calcHTML() {
   const k = kindOf(S.calc.kind) || calcKinds()[0]; if (!k) return "";
   const inp = (f, label) => `<div><label class="f">${label}, ${t("m")}</label><input class="in" inputmode="decimal" value="${esc(S.calc[f])}" oninput="S.calc['${f}']=this.value; $('#calcRes').innerHTML=calcRes()"></div>`;
   return `<div class="section"><b>${t("calc_t")}</b>
-    <div class="chiprow" style="margin-top:10px">${calcKinds().map(x => `<button class="kchip ${S.calc.kind === x.id ? "on" : ""}" onclick="setCalc('${x.id}')">${x.icon} ${esc(x.name)}</button>`).join("")}</div>
+    <div class="chiprow" style="margin-top:10px">${calcKinds().map(x => `<button class="kchip ${S.calc.kind === x.id ? "on" : ""}" onclick="setCalc('${x.id}')">${esc(x.name)}</button>`).join("")}</div>
     ${k.price === "kitchen" ? `<div class="grid2">${inp("L", t("calc_len"))}</div>` : `<div class="grid2">${inp("W", t("calc_w"))}${inp("H", t("calc_h"))}</div>`}
     <div class="calc-res" id="calcRes">${calcRes()}</div></div>`;
 }
@@ -477,7 +520,7 @@ function setCalc(id) {
 /* ---------------- 1. uslublar ---------------- */
 function stylesHTML() {
   const m = S.cfg.model;
-  return `${S.cfg.warranty_years ? `<div class="small muted" style="text-align:center;padding:10px 12px 0">${t("wy", { n: S.cfg.warranty_years })}</div>` : ""}<div class="how"><div><span>🎨</span>${t("how1")}</div><div><span>📏</span>${t("how2")}</div><div><span>📝</span>${t("how3")}</div></div>
+  return `${S.cfg.warranty_years ? `<div class="small muted" style="text-align:center;padding:10px 12px 0">${t("wy", { n: S.cfg.warranty_years })}</div>` : ""}<div class="how"><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M14 6l4 4"/></svg></span>${t("how1")}</div><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/></svg></span>${t("how2")}</div><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg></span>${t("how3")}</div></div>
     <div class="intro"><h2>${t("intro_t")}</h2><p>${t("intro_p")}</p></div>
     ${m ? `<div class="section pick" style="margin-top:10px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     <div class="sdoors">${S.cfg.styles.map(s => `<button class="sdoor" onclick="openStyle('${s.id}')">
@@ -505,8 +548,8 @@ function styleHTML() {
       ${S.cfg.units.map(u => `<div class="row"><span>${esc(u.name)}<small>${esc(u.hint)}</small></span><b>${rate(u.id)}</b></div>`).join("")}
       <div class="small muted" style="margin-top:8px">${t("prices_note")}</div></div>
     ${calcHTML()}
-    <div class="visit-note"><span>📏</span><div>${visitNote()}</div></div>
-    ${S.cfg.warranty_years ? `<div class="visit-note"><span>🛡</span><div>${t("wy", { n: S.cfg.warranty_years })}</div></div>` : ""}`;
+    <div class="visit-note"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/></svg></span><div>${visitNote()}</div></div>
+    ${S.cfg.warranty_years ? `<div class="visit-note"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></span><div>${t("wy", { n: S.cfg.warranty_years })}</div></div>` : ""}`;
 }
 function openLb(id) {
   const s = styleOf(S.style); const list = s.gallery.filter(g => !S.gk || g.kind === S.gk);
@@ -542,7 +585,7 @@ function formHTML() {
       ${m ? `<div class="pick" style="margin-top:12px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     </div>` : ""}
     <div class="section"><label class="f">${t("f_kind")}</label><div class="unit-hint" style="margin:-2px 0 10px">${t("f_kind_h")}</div>
-      <div class="chiprow">${S.cfg.kinds.map(x => `<button class="kchip ${hasKind(x.id) ? "on" : ""}" onclick="toggleKind('${x.id}')">${hasKind(x.id) ? "✓ " : x.icon + " "}${esc(x.name)}</button>`).join("")}</div>
+      <div class="chiprow">${S.cfg.kinds.map(x => `<button class="kchip ${hasKind(x.id) ? "on" : ""}" onclick="toggleKind('${x.id}')">${hasKind(x.id) ? "✓ " : ""}${esc(x.name)}</button>`).join("")}</div>
       ${hasKind("other") ? noteF : ""}
     </div>
     <div class="section"><label class="f">${t("f_need")}</label>
@@ -550,7 +593,7 @@ function formHTML() {
       ${F.need && F.need !== "price" ? `<label class="f" style="margin-top:14px">${t("f_repair")}</label>
       <div class="chiprow">${S.cfg.repair.map(x => `<button class="kchip ${F.repair === x.id ? "on" : ""}" onclick="F.repair='${x.id}'; err=''; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>` : ""}
     </div>
-    ${F.need === "price" ? `<div class="visit-note"><span>☎️</span><div>${t("price_only")}</div></div>` : `<div class="section"><label class="f">${t("f_when")}</label>
+    ${F.need === "price" ? `<div class="visit-note"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4.5-2 1.5a12 12 0 0 0 6 6l1.5-2L20 15.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg></span><div>${t("price_only")}</div></div>` : `<div class="section"><label class="f">${t("f_when")}</label>
       <div class="chiprow">${S.cfg.visit_days.map(x => `<button class="kchip ${F.day === x.id ? "on" : ""}" onclick="F.day='${x.id}'; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>
       ${F.day && F.day !== "call" ? `<label class="f" style="margin-top:14px">${t("f_time")}</label>
         <div class="chiprow">${S.cfg.visit_times.map(x => `<button class="kchip ${F.time === x.id ? "on" : ""}" onclick="F.time='${x.id}'; saveDraft(); refresh()">${esc(x.name)}</button>`).join("")}</div>` : ""}
@@ -560,7 +603,7 @@ function formHTML() {
       <label class="f">${t("phone")}</label><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" placeholder="+998 90 123 45 67" autocomplete="tel" oninput="F.phone=this.value; saveDraft()">
       <label class="f">${t("city")}</label><input class="in" value="${esc(F.city)}" placeholder="${t("city_ph")}" oninput="F.city=this.value; saveDraft()">
     </div>
-    ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><b>💳 ${t("fee_t", { f: money(S.cfg.measure_fee) })}</b><div class="small">${t("fee_p")}</div>
+    ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><b>${t("fee_t", { f: money(S.cfg.measure_fee) })}</b><div class="small">${t("fee_p")}</div>
       <label class="check"><input type="checkbox" ${F.fee ? "checked" : ""} onchange="F.fee=this.checked; err=''; saveDraft()"><span>${t("fee_ok")}</span></label></div>` : ""}
     <div class="section"><details class="more-f"${F.photos.length || (!hasKind("other") && F.note) || F.color ? " open" : ""}><summary>${t("f_more")}</summary>
       ${!hasKind("other") ? noteF : ""}

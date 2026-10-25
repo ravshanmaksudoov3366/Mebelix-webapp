@@ -11,7 +11,7 @@ e = html.escape
 
 T = {
     "uz": {
-        "tagline": "Onlayn mebel do'koni",
+        "tagline": "WORLD OF FURNITURE",
         "nav_catalog": "Katalog", "nav_how": "Qanday buyurtma beriladi", "nav_info": "Yetkazish va to'lov",
         "nav_contact": "Aloqa", "nav_orders": "Buyurtmalarim", "cart": "Savatcha",
         "hero_eyebrow": "Tayyor mebel · yetkazib berish · yig'ib berish",
@@ -79,7 +79,7 @@ T = {
         "warranty": "Kafolat", "wy_n": "{n} yil",
     },
     "ru": {
-        "tagline": "Онлайн-магазин мебели",
+        "tagline": "WORLD OF FURNITURE",
         "nav_catalog": "Каталог", "nav_how": "Как заказать", "nav_info": "Доставка и оплата",
         "nav_contact": "Контакты", "nav_orders": "Мои заказы", "cart": "Корзина",
         "hero_eyebrow": "Готовая мебель · доставка · сборка",
@@ -188,9 +188,7 @@ def discount_pct(p: dict) -> int:
 
 
 # ------------------------------------------------------------------ qismlar
-LOGO = ('<svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="currentColor"/>'
-        '<path d="M10 27v-7.5a3.5 3.5 0 0 1 7 0V22h6v-2.5a3.5 3.5 0 0 1 7 0V27M10 27h20M12.5 27v3M27.5 27v3" '
-        'fill="none" stroke="#f6efe6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+LOGO = '<img class="logo-mark" src="/s/isofa-mark.png" alt="" width="44" height="33">'
 
 ICONS = {
     "cart": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.6a2 2 0 0 0 2-1.5L20.5 8H6.2" '
@@ -373,7 +371,7 @@ def layout(ctx: dict, title: str, desc: str, body: str, canonical: str, og_image
 <meta name="apple-mobile-web-app-title" content="{e(ctx['shop']['name'])}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/s/site.css?v={v}">
 <script>/* Telegram ichida ochilsa — ilovaga (Mini App) o'tamiz */
 (function(){{var h=location.hash||"",s=location.search||"";if(h.indexOf("tgWebApp")>=0||/[?&](admin|tgWebAppStartParam)=/.test(s)){{location.replace("/app"+s+h);return;}}

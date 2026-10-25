@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>iSofa</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg: var(--tg-theme-bg-color, #ffffff);
@@ -315,26 +318,90 @@ a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
 .langpick { text-align: center; padding: 26px 20px 10px; }
 .langpick .big { font-size: 46px; }
 .langpick .btn { width: 100%; padding: 16px; font-size: 18px; margin-top: 10px; }
+
+/* ================= iSofa brend uslubi (logotip: grafit + oltin) ================= */
+:root {
+  --bg: #ffffff; --bg2: #f6f2ea; --card: #ffffff; --text: #1f1e1f; --hint: #6f695f;
+  --link: #8a6a24; --accent: #2f2e30; --accent-text: #e9cc85; --danger: #c0392b;
+  --line: #e6dfd2; --soft: #f3e8cd; --gold: #e9cc85; --gold2: #c9a24a; --char: #363435; --char2: #2a292a;
+  --serif: "Cormorant Garamond", Georgia, serif;
+}
+html, body { font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--char); border-bottom: 0; color: #f6f2ea; padding: 12px 16px 12px; }
+body.fs::before { background: var(--char); }
+.doors { background: var(--char2); border-radius: 14px; }
+.doors a, .doors button { color: #d8d1c5; padding: 10px 6px; }
+.doors .on { background: var(--bg2); color: var(--text); box-shadow: none; }
+.brand { margin-bottom: 12px; gap: 10px; }
+.brand h1 { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 600; color: var(--gold); line-height: 1; }
+.brand h1 a { color: var(--gold) !important; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+.brand .mark { width: 40px; height: 30px; object-fit: contain; flex: none; }
+.brand .wm { display: flex; flex-direction: column; }
+.brand .wm small { font-size: 8px; letter-spacing: 1.8px; white-space: nowrap; color: #cdb57a; margin-top: 3px; font-weight: 500; }
+.brand a#shopPhone { width: 40px; height: 40px; border-radius: 12px; border: 1px solid #5a5758; display: grid; place-items: center; color: var(--gold); }
+.langsw { background: transparent; border: 1px solid #5a5758; border-radius: 12px; padding: 3px; }
+.langsw button { color: #bdb6ab; padding: 7px 9px; border-radius: 9px; }
+.langsw button.on { background: var(--gold); color: var(--char); }
+.search { background: var(--char2); border-radius: 14px; color: #a59e93; padding: 0 14px; }
+.search input { color: #f6f2ea; padding: 12px 0; }
+.search input::placeholder { color: #a59e93; }
+.chips { padding-top: 12px; }
+header .chip { background: transparent; border: 1px solid #5a5758; color: #d8d1c5; font-weight: 500; padding: 8px 15px; }
+header .chip.on { background: var(--gold); border-color: var(--gold); color: var(--char); font-weight: 600; }
+.trust { display: flex; justify-content: space-between; gap: 6px; padding: 11px 16px; background: #fbf8f2; border-bottom: 1px solid var(--line); }
+.trust span { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: #4a4642; white-space: nowrap; }
+.trust svg { color: #a8862f; flex: none; }
+.grid { gap: 12px; padding: 12px 14px 16px; }
+.card { border-radius: 18px; }
+.ph { background: linear-gradient(160deg, #ece3d4, #d9c8ad); }
+.badge { background: var(--char); color: var(--gold); border-radius: 8px; padding: 4px 8px; font-size: 11px; }
+.card .body { padding: 11px 12px 12px; gap: 4px; }
+.pname { font-family: var(--serif); font-size: 18px; font-weight: 600; line-height: 1.1; }
+.card .pfoot { margin-top: auto; padding-top: 6px; }
+.card .pfoot .price { font-size: 15px; white-space: nowrap; }
+.card .pfoot .old { display: block; margin: 0; }
+.card .plus { position: absolute; right: 8px; bottom: 8px; z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,.18); flex: none; width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--char); color: var(--gold);
+  font-size: 22px; font-weight: 600; line-height: 1; display: grid; place-items: center; padding: 0; }
+.card .plus:disabled { background: rgba(246,242,234,.92); color: var(--hint); font-size: 11px; width: auto; height: 28px; padding: 0 9px; }
+.card .stepper { margin-top: 6px; }
+.dd { font-size: 12px; color: var(--hint); }
+.title { font-family: var(--serif); font-size: 26px; font-weight: 600; }
+.sheet h2, .sheet .stitle { font-family: var(--serif); }
+.btn { border-radius: 14px; }
+.btn:not(.soft):not(.ghost):not(.danger) { background: var(--char); color: var(--gold); }
+.stepno { background: var(--char); color: var(--gold); }
+.chip.on { background: var(--char); color: var(--gold); }
+nav { background: #ffffff; border-top: 1px solid var(--line); }
+nav button { color: #7a746b; font-weight: 600; font-size: 11px; }
+nav button .ic { filter: none; opacity: 1; display: grid; place-items: center; height: 24px; }
+nav button.on { color: var(--char); } nav button.on .ic { color: #a8862f; }
+.free-box { background: #f3e8cd; color: #6a5321; }
+.free { color: #8a6a24; }
+.change-box { background: var(--char); color: #f6f2ea; }
+.change-box b { color: var(--gold); } .change-box .small, .change-box .muted { color: #d8d1c5 !important; }
+.change-box .acts .call { background: var(--gold); color: var(--char); }
+.change-box .acts .write { background: transparent; border: 1px solid #6a6667; color: #f6f2ea; }
+.rev .s { color: #c9a24a; }
 </style>
 </head>
 <body>
 
 <header id="hdr">
-  <div class="doors"><button class="on" onclick="go('catalog')">🛋 <span data-t="door_ready">Tayyor mebellar</span></button><a id="toCustom" href="/custom">📐 <span data-t="door_custom">O'lchamga buyurtma</span></a></div>
-  <div class="brand"><h1 id="shopName">🛋 Mebel</h1>
+  <div class="brand"><h1 id="shopName"><img class="mark" src="/s/isofa-mark.png" alt=""><span class="wm">iSofa<small>WORLD OF FURNITURE</small></span></h1>
     <div class="brand-r"><a id="shopPhone" class="hidden"></a>
       <div class="langsw" id="langsw"><button data-l="uz">UZ</button><button data-l="ru">RU</button></div></div></div>
-  <div class="search"><span>🔍</span><input id="q" type="search" data-tph="search_ph" placeholder="Divan, shkaf, stol..." autocomplete="off"></div>
+  <div class="doors"><button class="on" onclick="go('catalog')"><span data-t="door_ready">Tayyor mebellar</span></button><a id="toCustom" href="/custom"><span data-t="door_custom">O'lchamga buyurtma</span></a></div>
+  <div class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" data-tph="search_ph" placeholder="Divan, shkaf, stol..." autocomplete="off"></div>
   <div class="chips" id="cats"></div>
 </header>
 
 <main id="view"></main>
 
 <nav id="nav">
-  <button data-tab="catalog" class="on"><span class="ic">🛋</span><span data-t="nav_catalog">Katalog</span></button>
-  <button data-tab="cart"><span class="ic">🛒</span><span data-t="nav_cart">Savatcha</span><span class="cnt hidden" id="cartCnt"></span></button>
-  <button data-tab="orders"><span class="ic">📦</span><span data-t="nav_orders">Buyurtmalarim</span></button>
-  <button data-tab="admin" class="hidden" id="adminTab"><span class="ic">🗂</span>Admin<span class="cnt hidden" id="newCnt"></span></button>
+  <button data-tab="catalog" class="on"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 11c0-2 1.5-3 3-3h10c1.5 0 3 1 3 3"/><path d="M2.5 13c0-1.6 3-1.6 3 0v3h13v-3c0-1.6 3-1.6 3 0v5h-19z"/></svg></span><span data-t="nav_catalog">Katalog</span></button>
+  <button data-tab="cart"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 7h14l-1.5 10h-11z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span><span data-t="nav_cart">Savatcha</span><span class="cnt hidden" id="cartCnt"></span></button>
+  <button data-tab="orders"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg></span><span data-t="nav_orders">Buyurtmalarim</span></button>
+  <button data-tab="admin" class="hidden" id="adminTab"><span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span>Admin<span class="cnt hidden" id="newCnt"></span></button>
 </nav>
 
 <div class="shade" id="shade"></div>
@@ -351,7 +418,9 @@ a.tel { color: var(--link); text-decoration: none; font-weight: 600; }
 "use strict";
 const tg = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(tg && tg.initData);
-if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+  try { tg.setHeaderColor && tg.setHeaderColor("#363435"); tg.setBackgroundColor && tg.setBackgroundColor("#f6f2ea");
+        tg.setBottomBarColor && tg.setBottomBarColor("#ffffff"); } catch (e) {} }
 /* To'liq ekran: telefonlarda Telegram sarlavhasisiz, butun ekranni egallaydi (Telegram 8.0+) */
 function syncFullscreen() { document.body.classList.toggle("fs", !!(tg && tg.isFullscreen)); }
 if (IN_TG && ["ios", "android"].includes(tg.platform) && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")) {
@@ -416,7 +485,7 @@ const I18N = {
     door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     ch_t: "✏️ O'lchami, rangi yoki matosi to'g'ri kelmadimi?", ch_p: "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning.",
-    warranty: "Kafolat", wy_n: "{n} yil", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
+    warranty: "Kafolat", wy_n: "{n} yil", tr_wy: "{n} yil kafolat", tr_deliv: "Bepul yetkazish", tr_rev: "{n} fikr", tr_custom: "O'lchamga ham", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
@@ -481,7 +550,7 @@ const I18N = {
     door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     ch_t: "✏️ Не подошёл размер, цвет или ткань?", ch_p: "Изменим эту модель под ваши пожелания. Свяжитесь с администратором.",
-    warranty: "Гарантия", wy_n: "{n} года", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
+    warranty: "Гарантия", wy_n: "{n} года", tr_wy: "Гарантия {n} года", tr_deliv: "Бесплатная доставка", tr_rev: "отзывов: {n}", tr_custom: "И на заказ", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
@@ -583,6 +652,9 @@ const stepper = id => `<div class="stepper" onclick="event.stopPropagation()">
 const buyBtn = p => !p.in_stock ? `<button class="btn ghost" disabled>${t("oos")}</button>`
   : S.cart[p.id] ? stepper(p.id)
   : `<button class="btn" onclick="event.stopPropagation(); setQty(${p.id}, 1)">${t("to_cart")}</button>`;
+/* katalog kartasi: narx chapda, kichik «+» o'ngda; savatda bo'lsa — miqdor */
+const plusBtn = p => !p.in_stock ? `<button class="plus" disabled>${t("oos")}</button>`
+  : S.cart[p.id] ? "" : `<button class="plus" aria-label="${t("to_cart")}" onclick="event.stopPropagation(); setQty(${p.id}, 1)">+</button>`;
 const short = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".0", "") + " mlrd" : n >= 1e6 ? (n / 1e6).toFixed(1).replace(".0", "") + " mln" : Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 const ACTIONS = { new: "🔄 Qayta ochish", confirmed: "✅ Tasdiqlash", delivering: "🚚 Yo'lga chiqarish", done: "📦 Yetkazildi", cancelled: "❌ Bekor qilish" };
 const discount = p => p.old_price > p.price ? Math.round((1 - p.price / p.old_price) * 100) : 0;
@@ -612,7 +684,7 @@ function refresh() {           // ochiq oynani ham yangilash
 
 function renderCats() {
   $("#cats").innerHTML = [{ id: 0, name: t("all"), emoji: "" }, ...S.cats.filter(c => S.products.some(p => p.cat_id === c.id))]
-    .map(c => `<button class="chip ${S.cat === c.id ? "on" : ""}" data-cat="${c.id}">${esc(c.emoji)} ${esc(c.name)}</button>`).join("");
+    .map(c => `<button class="chip ${S.cat === c.id ? "on" : ""}" data-cat="${c.id}">${esc(c.name)}</button>`).join("");
 }
 
 function viewCatalog() {
@@ -628,16 +700,23 @@ function viewCatalog() {
       ${[["new", t("sort_new")], ["cheap", t("sort_cheap")], ["exp", t("sort_exp")], ["sale", t("sort_sale")]]
         .map(([k, t]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${t}</option>`).join("")}
     </select></div>`;
-  if (!list.length) return tools + `<div class="empty"><div class="big">🔎</div>${t("nothing")}</div>`;
-  return tools + `<div class="grid">` + list.map(p => `
+  if (!list.length) return trustHTML() + tools + `<div class="empty"><div class="big">🔎</div>${t("nothing")}</div>`;
+  return (!q ? trustHTML() : "") + tools + `<div class="grid">` + list.map(p => `
     <div class="card" onclick="openProduct(${p.id})">
       <div class="ph">${discount(p) ? `<span class="badge">−${discount(p)}%</span>` : ""}${(p.video && p.video.src) || p.youtube ? `<span class="vbadge">▶</span>` : ""}${picHTML(p)}
-        ${!p.in_stock ? `<span class="oos">${t("oos")}</span>` : ""}</div>
+        ${!p.in_stock ? `<span class="oos">${t("oos")}</span>` : plusBtn(p)}</div>
       <div class="body"><div class="pname">${esc(p.name)}</div>
-        <div><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<br><span class="old" style="margin:0">${money(p.old_price)}</span>` : ""}</div>
-        ${p.delivery_days ? `<div class="dd">🚚 ${esc(p.delivery_days)}</div>` : ""}
-        ${buyBtn(p)}</div>
+        ${p.delivery_days ? `<div class="dd">${esc(p.delivery_days)}</div>` : ""}
+        <div class="pfoot"><span class="price">${money(p.price)}</span>${p.old_price > p.price ? `<span class="old">${money(p.old_price)}</span>` : ""}</div>
+        ${S.cart[p.id] && p.in_stock ? stepper(p.id) : ""}</div>
     </div>`).join("") + `</div>` + (!q && !S.cat ? reviewsHTML() : "");
+}
+function trustHTML() {
+  const s = S.reviewsSum || {};
+  return `<div class="trust">${S.wy ? `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/></svg>${t("tr_wy", { n: S.wy })}</span>` : ""}
+    <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/></svg>${t("tr_deliv")}</span>
+    ${s.count ? `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>${s.avg} · ${t("tr_rev", { n: s.count })}</span>`
+      : `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/></svg>${t("tr_custom")}</span>`}</div>`;
 }
 function reviewsHTML() {
   const R = S.reviews || [];
@@ -747,7 +826,7 @@ let mainHandler = null;
 function setMain(text, fn) {
   mainHandler = fn;
   if (IN_TG) {
-    if (text) tg.MainButton.setParams({ text, is_visible: true, is_active: true }); else tg.MainButton.hide();
+    if (text) tg.MainButton.setParams({ text, is_visible: true, is_active: true, color: "#2f2e30", text_color: "#e9cc85" }); else tg.MainButton.hide();
   } else {
     const b = $("#fallback"); b.textContent = text || ""; b.classList.toggle("hidden", !text);
     b.style.bottom = S.sheets.length ? "calc(14px + env(safe-area-inset-bottom))" : "";
@@ -1891,9 +1970,9 @@ async function loadMe() {
   // serverda saqlangan til (bot orqali tanlangan) ustun turadi
   if (S.me.lang && S.me.lang !== LANG) { LANG = S.me.lang; store.set("lang", LANG); applyStatic(); await loadCatalog().catch(() => {}); }
   document.title = S.shop.name;
-  $("#shopName").textContent = "🛋 " + S.shop.name;
-  if (!IN_TG) $("#shopName").innerHTML = `<a class="home" href="/?lang=${LANG}">← ${esc(S.shop.name)}</a>`;
-  if (S.shop.phone) { const a = $("#shopPhone"); a.textContent = "📞 " + S.shop.phone; a.href = "tel:" + S.shop.phone.replace(/[^\d+]/g, ""); a.classList.remove("hidden"); }
+  const brandHTML = `<img class="mark" src="/s/isofa-mark.png" alt=""><span class="wm">${esc(S.shop.name)}<small>WORLD OF FURNITURE</small></span>`;
+  $("#shopName").innerHTML = IN_TG ? brandHTML : `<a class="home" href="/?lang=${LANG}">${brandHTML}</a>`;
+  if (S.shop.phone) { const a = $("#shopPhone"); a.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4.5-2 1.5a12 12 0 0 0 6 6l1.5-2L20 15.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>`; a.setAttribute("aria-label", S.shop.phone); a.href = "tel:" + S.shop.phone.replace(/[^\d+]/g, ""); a.classList.remove("hidden"); }
   cleanCart(); renderCats();
   const qs = new URLSearchParams(location.search);
   const start = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param)
