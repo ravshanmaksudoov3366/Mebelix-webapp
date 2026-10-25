@@ -771,7 +771,7 @@ class Shop:
         if len(name) < 2:
             raise ShopError("Ismingizni kiriting", "Введите ваше имя")
         phone = normalize_phone(c.get("phone"))
-        delivery = c.get("delivery") if c.get("delivery") in DELIVERY else "delivery"
+        delivery = "delivery"  # faqat yetkazib berish (do'kondan olib ketish yo'q)
         city = (c.get("city") or "").strip()[:200]
         address = (c.get("address") or "").strip()[:300]
         lat = lon = None

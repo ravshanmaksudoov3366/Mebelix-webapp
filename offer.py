@@ -6,7 +6,7 @@ Matn o'zgarsa OFFER_VERSION ni yangilang: har buyurtmada mijoz qaysi versiyaga r
 """
 import html
 
-OFFER_VERSION = "2026-10-25.1"
+OFFER_VERSION = "2026-10-25.2"
 
 _BLANK = "____________"
 
@@ -29,7 +29,6 @@ Sotuvchi chekni tekshirib, buyurtmani tasdiqlaydi yoki rad etadi.</p>
 <h3>3. Yetkazib berish</h3>
 <p>3.1. Mahsulot Xaridor ilovada xaritada belgilagan manzilga ko'rsatilgan muddatda yetkaziladi.
 Aniq vaqt Xaridor bilan telefon orqali kelishiladi.</p>
-<p>3.2. Xaridor do'kondan o'zi olib ketishni ham tanlashi mumkin.</p>
 
 <h3>4. Yig'ib berish xizmati</h3>
 <p>4.1. Yig'iladigan mahsulotlar uchun Xaridor buyurtma paytida yig'ib berish xizmatini tanlashi mumkin.</p>
@@ -80,7 +79,6 @@ OFFER_RU = """<h2>Публичная оферта</h2>
 <h3>3. Доставка</h3>
 <p>3.1. Товар доставляется по адресу, отмеченному Покупателем на карте, в указанный срок.
 Точное время согласовывается по телефону.</p>
-<p>3.2. Покупатель может выбрать самовывоз из магазина.</p>
 
 <h3>4. Услуга сборки</h3>
 <p>4.1. Для товаров, требующих сборки, Покупатель может заказать сборку при оформлении заказа.</p>

@@ -47,9 +47,9 @@ T = {
                  "Qolgan summani mebelni qabul qilganingizda karta yoki Click / Payme orqali to'laysiz.",
         "q_when": "Qachon yetkazasiz?",
         "a_when": "Har bir mahsulot sahifasida yetkazish muddati ko'rsatilgan. Aniq kun va vaqtni siz bilan telefonda "
-                  "kelishamiz. Do'kondan o'zingiz olib ketishingiz ham mumkin.",
+                  "kelishamiz. Yetkazib berish bepul.",
         "q_asm": "Yig'ib berasizmi?",
-        "a_asm": "Ha. Yig'iladigan mebellar uchun buyurtmada «Yig'ib beraylikmi?» degan savol chiqadi. Xizmat narxi — "
+        "a_asm": "Ha. Buyurtma berishda kerakli mebel yonidagi «Yig'ib bering» belgisini qo'yasiz. Xizmat narxi — "
                  "shu mahsulotlar narxining {asm}%.",
         "q_check": "Mebel shikastlangan bo'lsa-chi?",
         "a_check": "Mebelni kuryer yoki usta huzurida ko'zdan kechirasiz. Hammasi joyida bo'lsa «Qabul qildim» deysiz, "
@@ -114,9 +114,9 @@ T = {
                  "Остаток оплачиваете при получении — картой или через Click / Payme.",
         "q_when": "Когда доставите?",
         "a_when": "Срок доставки указан на странице каждого товара. Точные день и время согласуем по телефону. "
-                  "Можно забрать и самовывозом из магазина.",
+                  "Доставка бесплатная.",
         "q_asm": "Собираете мебель?",
-        "a_asm": "Да. Для мебели, которая требует сборки, при заказе появится вопрос «Собрать?». "
+        "a_asm": "Да. При заказе отметьте «Соберите» рядом с нужной мебелью. "
                  "Стоимость услуги — {asm}% от цены этих товаров.",
         "q_check": "А если мебель повреждена?",
         "a_check": "Вы осматриваете мебель при курьере или мастере. Если всё в порядке — подтверждаете приёмку, "

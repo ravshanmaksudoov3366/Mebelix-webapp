@@ -64,6 +64,8 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .rev .b { padding: 10px 12px; font-size: 13.5px; }
 .rev .s { color: #e0a526; letter-spacing: 1px; }
 .rev q { display: block; margin: 6px 0; quotes: none; }
+.asm-chk { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg2); cursor: pointer; font-size: 14.5px; }
+.asm-chk input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; margin: 0; }
 .change-box { background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; }
 .change-box b { display: block; font-size: 15.5px; margin-bottom: 4px; }
 .change-box .acts { display: flex; gap: 8px; margin-top: 12px; }
@@ -418,9 +420,9 @@ const I18N = {
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
-    asm_title: "Yig'ib berish", asm_q: "Qaysilarini yig'ib, o'rnatib beraylik?", asm_yes: "Ha, yig'ib bering (+{sum})",
+    asm_title: "Yig'ib berish (ixtiyoriy)", asm_q: "Kerak bo'lsa, belgilang — usta yig'ib, o'rnatib beradi:", asm_yes: "Ha, yig'ib bering (+{sum})",
     asm_one: "🔧 Yig'ib bering (+{sum})", asm_self: "O'zim yig'aman", asm_tag: "🔧 yig'ib beriladi",
-    asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati — mahsulot narxining {p}% i. Har biri uchun alohida tanlang.",
+    asm_no: "Yo'q, o'zim yig'aman", asm_info: "Yig'ib berish xizmati — mahsulot narxining {p}% i.",
     asm_line: "Yig'ib berish ({p}%)", e_asm: "Har bir mahsulot uchun yig'ib berish kerakmi — tanlang",
     asm_avail: "🔧 Yig'ib berish xizmati bor: +{p}% (buyurtmada tanlanadi)",
     offer_agree: "shartlariga roziman", offer_link: "Ommaviy oferta", offer_title: "Ommaviy oferta",
@@ -483,9 +485,9 @@ const I18N = {
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
-    asm_title: "Сборка", asm_q: "Что собрать и установить?", asm_yes: "Да, соберите (+{sum})",
+    asm_title: "Сборка (по желанию)", asm_q: "Если нужно, отметьте — мастер соберёт и установит:", asm_yes: "Да, соберите (+{sum})",
     asm_one: "🔧 Соберите (+{sum})", asm_self: "Соберу сам", asm_tag: "🔧 соберём",
-    asm_no: "Нет, соберу сам", asm_info: "Сборка — {p}% от цены товара. Выберите для каждого отдельно.",
+    asm_no: "Нет, соберу сам", asm_info: "Сборка — {p}% от цены товара.",
     asm_line: "Сборка ({p}%)", e_asm: "Выберите для каждого товара, нужна ли сборка",
     asm_avail: "🔧 Есть услуга сборки: +{p}% (выбирается при заказе)",
     offer_agree: "— принимаю условия", offer_link: "Публичная оферта", offer_title: "Публичная оферта",
@@ -928,7 +930,7 @@ function openCheckout() {
   const pr = S.me.profile || {};
   const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
   F = { name: pr.name || [u.first_name, u.last_name].filter(Boolean).join(" "), phone: pr.phone || "",
-        delivery: pr.delivery || "delivery", city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
+        delivery: "delivery",  // faqat yetkazib berish (showroom yo'q) city: (CITIES.find(c => (pr.city || "").startsWith(c)) || CITIES[0]), address: pr.address || "",
         lat: pr.lat ?? null, lon: pr.lon ?? null, geo: pr.lat != null ? t("prev_addr") : "", prevGeo: pr.lat != null,
         pay: S.payments.includes(pr.pay) ? pr.pay : S.payments[0], note: "",
         asm: {}, offer: false,  // asm: {mahsulot id: true (yig'ib bering) | false (o'zim)}
@@ -943,7 +945,7 @@ const asmAsk = () => F.delivery === "delivery" && S.asmPct > 0 && asmItems().len
 const feeOf = list => Math.ceil(list.reduce((a, x) => a + x.p.price * x.qty, 0) * S.asmPct / 100 / 1000) * 1000;
 const asmChosen = () => asmItems().filter(x => F.asm[x.p.id] === true);
 const asmFee = () => feeOf(asmChosen());
-const asmAnswered = () => asmItems().every(x => typeof F.asm[x.p.id] === "boolean");
+const asmAnswered = () => true;  // yig'ib berish ixtiyoriy: belgilanmasa — o'zi yig'adi
 const coTotal = () => cartTotal() + (asmAsk() ? asmFee() : 0);
 function setAsm(id, v) { F.asm[id] = v; F.err = ""; refresh(); }
 function openOffer() {
@@ -952,12 +954,7 @@ function openOffer() {
 function checkoutHTML() {
   const total = coTotal(), pre = prepayOf(total), pp = S.prepay || {};
   const step = (n, t) => `<h3><span class="stepno">${n}</span>${t}</h3>`;
-  return `<div class="section">
-      <div class="seg">${[["delivery", t("deliv_opt")], ["pickup", t("pickup_opt")]].map(([k, lb]) =>
-        `<button class="${F.delivery === k ? "on" : ""}" onclick="F.delivery='${k}'; refresh()">${lb}</button>`).join("")}</div>
-      ${F.delivery === "pickup" && S.shop.address ? `<div class="small muted" style="margin-top:8px">📍 ${esc(S.shop.address)}</div>` : ""}
-    </div>
-    <div class="section">${step(1, t("contact"))}
+  return `<div class="section">${step(1, t("contact"))}
       <label class="f">${t("your_name")}</label>
       <input class="in" value="${esc(F.name)}" oninput="F.name=this.value" placeholder="${t("name_ph")}" autocomplete="name">
       <label class="f">${t("phone")}</label>
@@ -994,12 +991,11 @@ function checkoutHTML() {
       <div class="small muted" style="margin-bottom:8px">${t("asm_info", { p: S.asmPct, items: asmItems().map(x => esc(x.p.name)).join(", ") })}</div>
       <div style="font-weight:600;margin-bottom:8px">${t("asm_q")}</div>
       ${asmItems().map(x => `<div style="margin-bottom:10px"><div class="small" style="margin-bottom:6px"><b>${esc(x.p.name)}</b>${x.qty > 1 ? ` × ${x.qty}` : ""}</div>
-        <div class="opts"><button class="${F.asm[x.p.id] === true ? "on" : ""}" onclick="setAsm(${x.p.id}, true)">${t("asm_one", { sum: money(feeOf([x])) })}</button>
-        <button class="${F.asm[x.p.id] === false ? "on" : ""}" onclick="setAsm(${x.p.id}, false)">${t("asm_self")}</button></div></div>`).join("")}
+        <label class="asm-chk"><input type="checkbox" ${F.asm[x.p.id] ? "checked" : ""} onchange="setAsm(${x.p.id}, this.checked)">
+          <span>${t("asm_one", { sum: money(feeOf([x])) })}</span></label></div>`).join("")}
     </div>` : ""}
-    <div class="section"><h3>${t("rest_pay")}</h3>
-      <div class="opts">${S.payments.map(p => `<button class="${F.pay === p ? "on" : ""}" onclick="F.pay=this.dataset.v; refresh()" data-v="${esc(p)}">${esc(payName(p))}</button>`).join("")}</div>
-      <label class="f">${t("note")}</label>
+    <div class="section">
+      <label class="f" style="margin-top:0">${t("note")}</label>
       <textarea class="in" oninput="F.note=this.value" placeholder="${t("note_ph")}">${esc(F.note)}</textarea>
     </div>
     <div class="section">${cartItems().map(({ p, qty }) => `<div class="sum small"><span>${esc(p.name)} × ${qty}${p.delivery_days ? `<br><span class="dd">🚚 ${esc(p.delivery_days)}</span>` : ""}</span><span>${money(p.price * qty)}</span></div>`).join("")}
