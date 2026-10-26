@@ -2476,6 +2476,71 @@ async def connect_channel(chat, by: int) -> str:
             "Mavjud mahsulotni qo'lda yuborish: admin panel → mahsulot → «📣 Kanalga yuborish».")
 
 
+WIPE_TABLES = (("orders", "tayyor mebel buyurtmalari"), ("custom_requests", "o'lchamga buyurtmalar"),
+               ("reviews", "mijoz fikrlari"), ("carts", "savatchalar"))
+
+
+def wipe_counts() -> list:
+    return [(t, name, shop.db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]) for t, name in WIPE_TABLES]
+
+
+def wipe_sales() -> tuple:
+    """Sinov savdolarini o'chiradi. Avval butun bazadan zaxira nusxa oladi."""
+    import sqlite3
+    backup = os.path.join(os.path.dirname(DB_PATH), "backup-" + time.strftime("%Y%m%d-%H%M%S") + ".db")
+    dst = sqlite3.connect(backup)
+    try:
+        shop.db.backup(dst)
+    finally:
+        dst.close()
+    counts = wipe_counts()
+    for t, _ in WIPE_TABLES:
+        shop.db.execute(f"DELETE FROM {t}")
+    try:
+        shop.db.execute("DELETE FROM sqlite_sequence WHERE name IN ('orders','custom_requests','reviews')")
+    except Exception:  # noqa: BLE001 — jadval bo'lmasligi mumkin
+        pass
+    shop.db.commit()
+    return counts, backup
+
+
+@dp.message(Command("tozalash"))
+async def cmd_wipe(m: Message):
+    """Sinov (namuna) savdolarini o'chirish — tasdiqlash tugmasi bilan."""
+    if not is_admin(m.from_user.id):
+        return
+    rows = wipe_counts()
+    if not sum(n for *_, n in rows):
+        return await m.answer("🧹 O'chiriladigan savdo ma'lumoti yo'q — baza toza.")
+    lines = "\n".join(f"• {name}: <b>{n}</b>" for _, name, n in rows)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🗑 Ha, o'chirish", callback_data="wipe:yes"),
+        InlineKeyboardButton(text="❌ Bekor", callback_data="wipe:no")]])
+    await m.answer("🧹 <b>Sinov savdolarini o'chirish</b>\n\n" + lines +
+                   "\n\nMahsulotlar, kategoriyalar, sozlamalar, mijozlar ro'yxati (bot obunachilari), "
+                   "galereya va ustalar <b>saqlanib qoladi</b>. O'chirishdan oldin bazaning zaxira nusxasi olinadi.\n"
+                   "Buyurtma raqamlari yana №1 dan boshlanadi.", reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("wipe:"))
+async def cb_wipe(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer()
+    if c.data != "wipe:yes":
+        await c.message.edit_text("Bekor qilindi — hech narsa o'chirilmadi.")
+        return await c.answer()
+    try:
+        counts, backup = wipe_sales()
+    except Exception as e:  # noqa: BLE001
+        log.exception("wipe")
+        return await c.answer(f"Xato: {e}", show_alert=True)
+    log.info("sinov savdolari o'chirildi (%s): %s, zaxira %s", c.from_user.id, counts, backup)
+    await c.message.edit_text("✅ O'chirildi: " + ", ".join(f"{name} — {n}" for _, name, n in counts) +
+                              "\n\nStatistika endi noldan boshlanadi. Zaxira nusxa serverda saqlandi: "
+                              f"<code>{esc(os.path.basename(backup))}</code>")
+    await c.answer("Tayyor")
+
+
 @dp.message(Command("kanal"))
 async def cmd_channel(m: Message):
     """/kanal @isofa_uz — kanalni ulash; /kanal — holatini ko'rish; /kanal - — uzish."""
