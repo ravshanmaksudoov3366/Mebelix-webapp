@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY, first_name TEXT, username TEXT, created INTEGER
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS carts (user_id INTEGER PRIMARY KEY, items TEXT DEFAULT '{}', updated INTEGER, reminded INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS suppliers (
     id INTEGER PRIMARY KEY, name TEXT NOT NULL, phone TEXT DEFAULT '', note TEXT DEFAULT '', created INTEGER
 );
@@ -406,8 +407,21 @@ class Shop:
         return {"categories": self.categories(lang), "products": [self.localize_product(p, lang) for p in self.products()],
                 "payments": PAYMENTS, "payments_ru": PAYMENTS_RU, "prepay": self.prepay_info(), "lang": lang,
                 "assembly_pct": int(self.settings()["assembly_pct"] or 0), "offer_ver": OFFER_VERSION,
-                "warranty_years": self.warranty_years(),
+                "warranty_years": self.warranty_years(), "related": self.related(),
                 "offer": render_offer(self.seller(), int(self.settings()["assembly_pct"] or 0), lang, self.warranty_years())}
+
+    def related(self, per: int = 6) -> dict:
+        """«Bu bilan birga olishadi»: bir buyurtmada birga sotilgan mahsulotlar (ko'pidan kamiga)."""
+        pairs = {}
+        for (items,) in self.db.execute("SELECT items FROM orders WHERE status NOT IN ('cancelled','rejected') "
+                                        "ORDER BY id DESC LIMIT 2000"):
+            ids = sorted({int(i["id"]) for i in json.loads(items or "[]")})
+            for a in ids:
+                for b in ids:
+                    if a != b:
+                        pairs.setdefault(a, {})
+                        pairs[a][b] = pairs[a].get(b, 0) + 1
+        return {str(a): [b for b, _ in sorted(m.items(), key=lambda x: -x[1])[:per]] for a, m in pairs.items()}
 
     def warranty_years(self) -> int:
         try:
@@ -831,6 +845,8 @@ class Shop:
              1 if assembly else 0, assembly_fee, str(payload.get("offer_ver") or OFFER_VERSION), now,
              json.dumps([["new", now, "mijoz"]])))
         self.db.commit()
+        self.db.execute("DELETE FROM carts WHERE user_id=?", (user["id"],))  # buyurtma berildi — eslatma kerak emas
+        self.db.commit()
         return self.order(cur.lastrowid)
 
     def _supplier_snapshot(self, r) -> dict:
@@ -844,6 +860,40 @@ class Shop:
         if not r:
             raise ShopError("Buyurtma topilmadi", "Заказ не найден")
         return self._order(r)
+
+    # ------------------------------------------------ savatcha (eslatma uchun serverda ham saqlanadi)
+    def save_cart(self, user_id: int, items: dict):
+        clean = {}
+        for k, v in list((items or {}).items())[:50]:
+            try:
+                pid, qty = int(k), int(v)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= qty <= 99:
+                clean[str(pid)] = qty
+        if not clean:
+            self.db.execute("DELETE FROM carts WHERE user_id=?", (user_id,))
+        else:
+            old = self.db.execute("SELECT items FROM carts WHERE user_id=?", (user_id,)).fetchone()
+            if old and json.loads(old[0] or "{}") == clean:
+                return
+            self.db.execute("INSERT INTO carts(user_id, items, updated, reminded) VALUES (?,?,?,0) "
+                            "ON CONFLICT(user_id) DO UPDATE SET items=excluded.items, updated=excluded.updated, reminded=0",
+                            (user_id, json.dumps(clean), int(time.time())))
+        self.db.commit()
+
+    def get_cart(self, user_id: int) -> dict:
+        r = self.db.execute("SELECT items FROM carts WHERE user_id=?", (user_id,)).fetchone()
+        return json.loads(r[0] or "{}") if r else {}
+
+    def carts_to_remind(self, now: int, after: int = 20 * 3600, max_age: int = 7 * 86400) -> list:
+        rows = self.db.execute("SELECT * FROM carts WHERE reminded=0 AND updated<=? AND updated>=?",
+                               (now - after, now - max_age)).fetchall()
+        return [{"user_id": r["user_id"], "items": json.loads(r["items"] or "{}"), "updated": r["updated"]} for r in rows]
+
+    def mark_cart_reminded(self, user_id: int):
+        self.db.execute("UPDATE carts SET reminded=1 WHERE user_id=?", (user_id,))
+        self.db.commit()
 
     def user_orders(self, user_id: int, limit=30) -> list:
         rows = self.db.execute("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ?",

@@ -187,8 +187,15 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    # jadval: usta, o'lchov vaqti (unix), tayyor bo'lish sanasi (YYYY-MM-DD)
                    "master": "TEXT DEFAULT ''", "measure_at": "INTEGER DEFAULT 0", "ready_date": "TEXT DEFAULT ''",
                    # hamkor ustaxona va unga to'lanadigan narx — FAQAT admin uchun, mijozga hech qachon yuborilmaydi
-                   "workshop": "TEXT DEFAULT ''", "workshop_cost": "INTEGER DEFAULT 0"}
+                   "workshop": "TEXT DEFAULT ''", "workshop_cost": "INTEGER DEFAULT 0",
+                   # qo'ng'iroqlar: [[vaqt, natija, kim, izoh]], qayta qo'ng'iroq vaqti, rad etish sababi
+                   "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''"}
+CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
+                "rejected": "❌ Rad etdi"}
+LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",
+                "other_shop": "Boshqa joydan oldi", "think": "O'ylab ko'radi", "other": "Boshqa sabab"}
 PRIVATE_FIELDS = ("admin_msgs", "admin_note", "photos", "user_id", "username", "workshop", "workshop_cost",
+                  "calls", "callback_at", "lost_reason",
                   "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair")
 TZ = 5 * 3600  # Toshkent
 
@@ -464,7 +471,7 @@ class CustomStore:
     @staticmethod
     def _row(r) -> dict:
         d = dict(r)
-        for f, dflt in (("dims", "{}"), ("photos", "[]"), ("events", "[]"), ("admin_msgs", "[]")):
+        for f, dflt in (("dims", "{}"), ("photos", "[]"), ("events", "[]"), ("admin_msgs", "[]"), ("calls", "[]")):
             d[f] = json.loads(d.get(f) or dflt)
         d["kinds"] = kinds_of(d)
         d["kind_name"] = kinds_name(d, d.get("lang") or "uz")
@@ -618,6 +625,41 @@ class CustomStore:
                         (price, prepay, due, note, master, measure_at, ready, workshop, wcost, int(time.time()), rid))
         self.db.commit()
         return self.get(rid)
+
+    # ------------------------------------------------ qo'ng'iroq natijalari
+    def log_call(self, rid: int, result: str, who: str = "", callback_at: int = 0, reason: str = "") -> dict:
+        """Menejer qo'ng'iroq natijasini yozadi. «Javob bermadi» — 2 soatdan keyin qayta eslatiladi;
+        «Rad etdi» — ariza sababi bilan bekor qilinadi; «Rozi» — yangi bo'lsa «O'lchov» bosqichiga o'tadi."""
+        if result not in CALL_RESULTS:
+            raise ShopError("Noto'g'ri natija")
+        r = self.get(rid)
+        now = int(time.time())
+        if result == "noanswer":
+            callback_at = now + 2 * 3600
+        if result == "callback" and callback_at <= now:
+            raise ShopError("Qayta qo'ng'iroq vaqtini tanlang")
+        if result == "rejected" and reason not in LOST_REASONS:
+            raise ShopError("Rad etish sababini tanlang")
+        note = LOST_REASONS.get(reason, "") if result == "rejected" else ""
+        calls = (r["calls"] + [[now, result, who, note]])[-30:]
+        self.db.execute("UPDATE custom_requests SET calls=?, callback_at=?, lost_reason=?, updated=? WHERE id=?",
+                        (json.dumps(calls, ensure_ascii=False), callback_at if result in ("noanswer", "callback") else 0,
+                         reason if result == "rejected" else r.get("lost_reason") or "", now, rid))
+        self.db.commit()
+        if result == "rejected" and r["status"] not in ("cancelled", "done"):
+            return self.set_status(rid, "cancelled", who=f"{who} · {note}")
+        if result == "agreed" and r["status"] == "new":
+            return self.set_status(rid, "measure", who=who)
+        return self.get(rid)
+
+    def callbacks_due(self, now: int) -> list:
+        rows = self.db.execute("SELECT * FROM custom_requests WHERE callback_at>0 AND callback_at<=? "
+                               "AND status NOT IN ('cancelled','done')", (now,)).fetchall()
+        return [self._row(x) for x in rows]
+
+    def clear_callback(self, rid: int):
+        self.db.execute("UPDATE custom_requests SET callback_at=0 WHERE id=?", (rid,))
+        self.db.commit()
 
     # ------------------------------------------------ ustalar va jadval
     def _names(self, key: str) -> list:
@@ -779,6 +821,12 @@ def admin_text(r: dict) -> str:
         lines.append(f"📷 Mijoz rasmlari: {len(r['photos'])} ta")
     if r.get("estimate_min"):
         lines.append(f"\n💡 Ko'rsatilgan taxminiy narx: {fmt_price(r['estimate_min'])} – {fmt_price(r['estimate_max'])}")
+    if r.get("calls"):
+        last = r["calls"][-1]
+        lines.append(f"📞 So'nggi qo'ng'iroq: {CALL_RESULTS.get(last[1], last[1])} ({fmt_dt(last[0])})"
+                     + (f" — {e(last[3])}" if len(last) > 3 and last[3] else "") + (f" · jami {len(r['calls'])} marta" if len(r["calls"]) > 1 else ""))
+    if r.get("callback_at"):
+        lines.append(f"🔁 Qayta qo'ng'iroq: <b>{fmt_dt(r['callback_at'])}</b>")
     if r.get("measure_at"):
         lines.append(f"🗓 <b>O'lchov: {fmt_dt(r['measure_at'])}</b>" + (f" — usta {e(r['master'])}" if r.get("master") else ""))
     elif r.get("master"):

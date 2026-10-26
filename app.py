@@ -1197,7 +1197,17 @@ async def followup_loop():
         except Exception:  # noqa: BLE001
             log.exception("daily_digest")
         try:
+            await remind_carts(now)
+        except Exception:  # noqa: BLE001
+            log.exception("remind_carts")
+        try:
+            await remind_callbacks(now)
+        except Exception:  # noqa: BLE001
+            log.exception("remind_callbacks")
+        try:
             for r in cs.list("new"):
+                if r.get("calls"):  # menejer allaqachon qo'ng'iroq qilgan — «javobsiz» emas
+                    continue
                 n = _due_nudge(r, now)
                 if not n:
                     continue
@@ -1606,6 +1616,9 @@ def custom_admin(r: dict) -> dict:
     out["dims_text"] = cust.dims_text(r)
     out["visit_text"] = cust.visit_text(r)
     out["measure_text"] = cust.fmt_dt(r.get("measure_at") or 0)
+    out["callback_text"] = cust.fmt_dt(r.get("callback_at") or 0)
+    out["calls_view"] = [{"at": cust.fmt_dt(x[0]), "res": cust.CALL_RESULTS.get(x[1], x[1]), "note": x[3] if len(x) > 3 else ""}
+                         for x in (r.get("calls") or [])][::-1]
     out["ready_text"] = cust.fmt_date(r.get("ready_date") or "")
     out["measure_local"] = (time.strftime("%Y-%m-%dT%H:%M", time.gmtime(r["measure_at"] + 5 * 3600))
                             if r.get("measure_at") else "")
@@ -1739,11 +1752,89 @@ async def api_admin_custom_photo(request):
     return web.FileResponse(path, headers={"Cache-Control": "private, no-store"})
 
 
-def custom_kb(r: dict) -> InlineKeyboardMarkup:
+def custom_kb(r: dict, mode: str = "") -> InlineKeyboardMarkup:
+    rid = r["id"]
+    if mode == "cb":  # qayta qo'ng'iroq vaqti
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⏱ 1 soatdan", callback_data=f"cc:{rid}:cb:1h"),
+             InlineKeyboardButton(text="⏱ 3 soatdan", callback_data=f"cc:{rid}:cb:3h")],
+            [InlineKeyboardButton(text="🌅 Ertaga 10:00", callback_data=f"cc:{rid}:cb:t10"),
+             InlineKeyboardButton(text="🌇 Ertaga 16:00", callback_data=f"cc:{rid}:cb:t16")],
+            [InlineKeyboardButton(text="📅 3 kundan keyin", callback_data=f"cc:{rid}:cb:3d"),
+             InlineKeyboardButton(text="📅 1 haftadan keyin", callback_data=f"cc:{rid}:cb:7d")],
+            [InlineKeyboardButton(text="← Orqaga", callback_data=f"cc:{rid}:back")]])
+    if mode == "rej":  # rad etish sababi
+        rows = [[InlineKeyboardButton(text=v, callback_data=f"cc:{rid}:rj:{k}")] for k, v in cust.LOST_REASONS.items()]
+        return InlineKeyboardMarkup(inline_keyboard=rows + [[InlineKeyboardButton(text="← Orqaga", callback_data=f"cc:{rid}:back")]])
     rows = [[InlineKeyboardButton(text=("❌ Bekor qilish" if s == "cancelled" else "🔄 Qayta ochish" if s == "new"
-                                        else "➡️ " + cust.stage_name(s)), callback_data=f"cs:{r['id']}:{s}")]
+                                        else "➡️ " + cust.stage_name(s)), callback_data=f"cs:{rid}:{s}")]
             for s in cust.next_stages(r["status"])]
+    if r["status"] in ("new", "measure"):
+        rows.append([InlineKeyboardButton(text="📵 Javob bermadi", callback_data=f"cc:{rid}:noanswer"),
+                     InlineKeyboardButton(text="🔁 Qayta qo'ng'iroq", callback_data=f"cc:{rid}:cbm")])
+        rows.append([InlineKeyboardButton(text="❌ Rad etdi (sabab)", callback_data=f"cc:{rid}:rejm")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def callback_time(code: str, now: int = 0) -> int:
+    now = now or int(time.time())
+    day0 = (now + 5 * 3600) // 86400 * 86400 - 5 * 3600
+    return {"1h": now + 3600, "3h": now + 3 * 3600, "t10": day0 + 86400 + 10 * 3600, "t16": day0 + 86400 + 16 * 3600,
+            "3d": day0 + 3 * 86400 + 10 * 3600, "7d": day0 + 7 * 86400 + 10 * 3600}.get(code, 0)
+
+
+@dp.callback_query(F.data.startswith("cc:"))
+async def cb_custom_call(c: CallbackQuery):
+    """Guruhdagi ariza: qo'ng'iroq natijasi (javob bermadi / qayta qo'ng'iroq / rad etdi)."""
+    if not is_admin(c.from_user.id):
+        return await c.answer("Ruxsat yo'q", show_alert=True)
+    parts = c.data.split(":")
+    rid, act = int(parts[1]), parts[2]
+    try:
+        r = cs.get(rid)
+        who = f"admin: {c.from_user.full_name}"
+        if act in ("cbm", "rejm", "back"):
+            mode = {"cbm": "cb", "rejm": "rej", "back": ""}[act]
+            try:
+                await c.message.edit_reply_markup(reply_markup=custom_kb(r, mode))
+            except TelegramAPIError:
+                pass
+            return await c.answer()
+        if act == "noanswer":
+            r = cs.log_call(rid, "noanswer", who)
+            note = "📵 Yozildi. 2 soatdan keyin qayta eslataman."
+        elif act == "cb":
+            at = callback_time(parts[3])
+            r = cs.log_call(rid, "callback", who, callback_at=at)
+            note = f"🔁 {cust.fmt_dt(at)} da eslataman."
+        elif act == "rj":
+            r = cs.log_call(rid, "rejected", who, reason=parts[3])
+            note = f"❌ Ariza yopildi: {cust.LOST_REASONS.get(parts[3], '')}"
+        else:
+            return await c.answer()
+    except ShopError as e:
+        return await c.answer(str(e), show_alert=True)
+    await refresh_custom_messages(r)
+    await c.answer(note, show_alert=False)
+
+
+async def api_admin_custom_call(request):
+    u = get_admin(request)
+    data = await request.json()
+    at = cust.parse_local_dt(data.get("at") or "") or callback_time(data.get("preset") or "")
+    r = cs.log_call(int(request.match_info["id"]), data.get("result", ""), f"admin: {u.get('first_name', '')}",
+                    callback_at=at, reason=data.get("reason") or "")
+    asyncio.create_task(refresh_custom_messages(r))
+    return web.json_response({"request": custom_admin(r)})
+
+
+async def remind_callbacks(now: int):
+    for r in cs.callbacks_due(now):
+        cs.clear_callback(r["id"])
+        last = (r.get("calls") or [[0, ""]])[-1]
+        why = "javob bermagan edi" if last[1] == "noanswer" else "qayta qo'ng'iroq qilishga kelishilgan"
+        await _nudge(r.get("admin_msgs"), f"🔁 <b>Qayta qo'ng'iroq vaqti — ariza #{r['id']}</b> ({why})\n"
+                     f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}", custom_kb(r))
 
 
 async def notify_custom_new(r: dict):
@@ -1959,6 +2050,51 @@ async def page_logout(request):
     raise resp
 
 
+async def api_cart(request):
+    """Mijoz savatchasi (Telegram ichida) — buyurtma bermay ketsa, ertasi kuni eslatish uchun."""
+    u = get_user(request)
+    if u.get("web") or u.get("admin_web"):
+        return web.json_response({"ok": True})
+    data = await request.json()
+    shop.save_cart(u["id"], data.get("cart") if isinstance(data.get("cart"), dict) else {})
+    return web.json_response({"ok": True})
+
+
+CART_TX = {
+    "uz": ("🛒 <b>Savatchangizda mebel qoldi</b>\n\n{lines}\n\n<b>Jami: {total}</b>\n\nBuyurtmani tugatish uchun pastdagi "
+           "tugmani bosing. Savollar bo'lsa, qo'ng'iroq qiling: {phone}", "🛒 Savatchani ochish"),
+    "ru": ("🛒 <b>В вашей корзине осталась мебель</b>\n\n{lines}\n\n<b>Итого: {total}</b>\n\nЧтобы оформить заказ, нажмите "
+           "кнопку ниже. Есть вопросы — позвоните: {phone}", "🛒 Открыть корзину"),
+}
+
+
+async def remind_carts(now: int):
+    for c in shop.carts_to_remind(now):
+        shop.mark_cart_reminded(c["user_id"])
+        lang = lang_of(c["user_id"]) or "uz"
+        lines, total = [], 0
+        for pid, qty in c["items"].items():
+            try:
+                p = shop.localize_product(shop.product(int(pid)), lang)
+            except ShopError:
+                continue
+            if not p.get("active") or not p.get("in_stock"):
+                continue
+            lines.append(f"• {esc(p['name'])} × {qty} — {fmt_price(p['price'] * qty, lang)}")
+            total += p["price"] * qty
+        if not lines:
+            continue
+        text, btn = CART_TX["ru" if lang == "ru" else "uz"]
+        try:
+            await bot.send_message(c["user_id"], text.format(lines="\n".join(lines[:8]), total=fmt_price(total, lang),
+                                                             phone=esc(cs.call_phone() or SHOP["phone"] or "")),
+                                   reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+                                       text=btn, web_app=WebAppInfo(url=f"{APP_URL}?go=cart&lang={lang}"))]]))
+        except TelegramAPIError as e:
+            log.info("savatcha eslatmasi yuborilmadi %s: %s", c["user_id"], e)
+        await asyncio.sleep(0.05)
+
+
 async def api_me(request):
     u = get_user(request)
     if not u.get("web") and not u.get("admin_web"):  # saytdagi xaridor buyurtma paytida ro'yxatga olinadi (ismi bilan)
@@ -1966,6 +2102,7 @@ async def api_me(request):
     lang = shop.user_lang(u["id"])
     show = lang or norm_lang(request.headers.get("X-Lang") or u.get("language_code"))
     return web.json_response({"user": u, "is_admin": is_admin(u["id"]), "profile": shop.last_profile(u["id"]),
+                              "cart": shop.get_cart(u["id"]) if not u.get("web") else {},
                               "lang": lang, "orders": [public(shop.localize_order(o, show))
                                                        for o in shop.user_orders(u["id"])]})
 
@@ -2082,6 +2219,13 @@ def business_stats(ym: str) -> dict:
                "profit_n": len(priced),
                "workshops": [{"name": k, **v} for k, v in sorted(ws.items(), key=lambda x: -x[1]["n"])],
                "sources": [{"name": k, "n": v} for k, v in sorted(sources.items(), key=lambda x: -x[1])]}
+    lost = {}
+    for r in reqs:
+        if r["status"] == "cancelled":
+            k = cust.LOST_REASONS.get(r.get("lost_reason") or "", "Sababi yozilmagan")
+            lost[k] = lost.get(k, 0) + 1
+    custom_["lost"] = [{"name": k, "n": v} for k, v in sorted(lost.items(), key=lambda x: -x[1])]
+    custom_["calls"] = sum(len(r.get("calls") or []) for r in reqs)
     custom_["conv"] = round(custom_["contract"] * 100 / custom_["requests"]) if custom_["requests"] else 0
     # oxirgi 6 oy — sotuv dinamikasi (tayyor + shartnomalar)
     import calendar
@@ -2219,7 +2363,13 @@ async def api_admin_product(request):
                 video_tmp = ""
         elif part.name:
             data[part.name] = await part.text()
+    before = None
+    try:
+        before = shop.product(int(data.get("id") or 0)) if data.get("id") else None
+    except (ShopError, ValueError):
+        before = None
     p = shop.save_product(data, images)
+    asyncio.create_task(channel_after_save(before, p["id"]))
     if video_tmp:
         prev = p["video"] if p["video"].get("status") == "ready" else {}
         shop.set_product_video(p["id"], {**prev, "status": "processing"} if prev.get("src") else {"status": "processing"})
@@ -2231,6 +2381,161 @@ async def api_admin_product(request):
     except Exception as e:  # noqa: BLE001
         log.warning("tarjima kechiktirildi: %s", e)
     return web.json_response({"product": p})
+
+
+# ------------------------------------------------------------------ Telegram kanal (yangi mahsulot / narx tushdi)
+def channel_id() -> str:
+    return shop.settings().get("tg_channel") or ""
+
+
+def channel_caption(p: dict, kind: str) -> str:
+    head = {"new": "🆕 <b>Yangi</b>", "sale": "🔥 <b>Narx tushdi!</b>", "manual": ""}.get(kind, "")
+    price = f"<b>{fmt_price(p['price'])}</b>"
+    if (p.get("old_price") or 0) > p["price"]:
+        price += f"  <s>{fmt_price(p['old_price'])}</s>"
+    lines = [x for x in (head, f"<b>{esc(p['name'])}</b>", price) if x]
+    if p.get("delivery_days"):
+        lines.append(f"🚚 Bepul yetkazish · {esc(p['delivery_days'])}")
+    else:
+        lines.append("🚚 Bepul yetkazish")
+    desc = re.sub(r"\s+", " ", p.get("description") or "").strip()
+    if desc:
+        lines.append("\n" + esc(desc[:300]) + ("…" if len(desc) > 300 else ""))
+    lines.append(f"\n📞 {esc(cs.call_phone() or SHOP['phone'] or '')}")
+    return "\n".join(lines)[:1024]
+
+
+async def post_to_channel(p: dict, kind: str = "new") -> str:
+    """Mahsulotni kanalga rasm va «Buyurtma berish» tugmasi bilan joylaydi. Xato bo'lsa — matnini qaytaradi."""
+    ch = channel_id()
+    if not bot or not ch:
+        return "Kanal ulanmagan"
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text="🛋 Buyurtma berish", url=f"https://t.me/{SHOP['bot']}?start=p{p['id']}")]])
+    img = (p.get("images") or [None])[0]
+    path = os.path.join(UPLOAD_DIR, os.path.basename(img)) if img else ""
+    try:
+        if path and os.path.isfile(path):
+            await bot.send_photo(int(ch), FSInputFile(path), caption=channel_caption(p, kind), reply_markup=kb)
+        else:
+            await bot.send_message(int(ch), channel_caption(p, kind), reply_markup=kb)
+        return ""
+    except TelegramAPIError as e:
+        log.warning("kanalga yuborilmadi: %s", e)
+        return str(e)
+
+
+async def channel_after_save(before, pid: int):
+    """Yangi mahsulot (faol, omborda bor, rasmi bor) — «Yangi»; narxi tushgan bo'lsa — «Narx tushdi»."""
+    if not channel_id():
+        return
+    await asyncio.sleep(20)  # rasm va tarjima saqlanib bo'lsin; admin darhol tuzatsa ham ulgursin
+    try:
+        p = shop.product(pid)
+    except ShopError:
+        return
+    if not p.get("active") or not p.get("in_stock") or not p.get("images"):
+        return
+    kind = ""
+    if not before or not before.get("active"):
+        kind = "new"
+    elif p["price"] < before["price"]:
+        kind = "sale"
+    if not kind:
+        return
+    key = f"ch_{kind}_{pid}_{p['price']}"
+    if shop.settings().get("ch_last") == key:
+        return
+    shop.set_setting("ch_last", key)
+    err = await post_to_channel(p, kind)
+    if err:
+        await alert_admins(f"⚠️ Kanalga yuborilmadi: {esc(err)}\nBot kanalda admin ekanini tekshiring.")
+
+
+async def api_admin_product_channel(request):
+    get_admin(request)
+    p = shop.product(int(request.match_info["id"]))
+    err = await post_to_channel(p, "manual")
+    if err:
+        raise ShopError("Kanalga yuborilmadi: " + err)
+    return web.json_response({"ok": True})
+
+
+async def connect_channel(chat, by: int) -> str:
+    """Kanalni ulaydi: bot u yerda admin va post yozish huquqi bo'lishi kerak."""
+    try:
+        me = await bot.get_chat_member(chat.id, (await bot.get_me()).id)
+    except TelegramAPIError as e:
+        return f"⚠️ Kanalni tekshirib bo'lmadi: {esc(str(e))}"
+    if getattr(me, "status", "") not in ("administrator", "creator") or getattr(me, "can_post_messages", True) is False:
+        return "⚠️ Bot kanalda admin emas yoki post yozish huquqi yo'q. Kanal sozlamalarida botga «Xabar joylash» huquqini bering."
+    shop.set_setting("tg_channel", str(chat.id))
+    shop.set_setting("tg_channel_title", getattr(chat, "title", "") or "")
+    return (f"✅ Kanal ulandi: <b>{esc(getattr(chat, 'title', '') or str(chat.id))}</b>\n\n"
+            "Endi yangi mahsulot qo'shsangiz yoki narxini tushirsangiz, bot kanalga o'zi joylaydi.\n"
+            "Mavjud mahsulotni qo'lda yuborish: admin panel → mahsulot → «📣 Kanalga yuborish».")
+
+
+@dp.message(Command("kanal"))
+async def cmd_channel(m: Message):
+    """/kanal @isofa_uz — kanalni ulash; /kanal — holatini ko'rish; /kanal - — uzish."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = ((m.text or "").split(maxsplit=1) + [""])[1].strip()
+    if not arg:
+        ch = channel_id()
+        return await m.answer((f"📣 Ulangan kanal: <b>{esc(shop.settings().get('tg_channel_title') or ch)}</b>\nUzish: /kanal -"
+                               if ch else "📣 Kanal ulanmagan.\n\nUlash: <code>/kanal @kanal_nomi</code>\n"
+                               "yoki kanaldagi istalgan postni shu botga forward qiling."))
+    if arg == "-":
+        shop.set_setting("tg_channel", "")
+        return await m.answer("📣 Kanal uzildi.")
+    name = arg if arg.startswith("@") or arg.lstrip("-").isdigit() else "@" + arg.split("/")[-1]
+    try:
+        chat = await bot.get_chat(name)
+    except TelegramAPIError as e:
+        return await m.answer(f"⚠️ Kanal topilmadi: {esc(str(e))}\nYopiq kanal bo'lsa, undagi istalgan postni shu botga forward qiling.")
+    await m.answer(await connect_channel(chat, m.from_user.id))
+
+
+def _forwarded_channel(m: Message):
+    """Forward qilingan post qaysi kanaldan (Bot API: forward_origin, eskisi — forward_from_chat)."""
+    o = getattr(m, "forward_origin", None)
+    if o is not None and getattr(o, "type", "") == "channel" and getattr(o, "chat", None):
+        return o.chat
+    c = getattr(m, "forward_from_chat", None)
+    return c if c is not None and getattr(c, "type", "") == "channel" else None
+
+
+@dp.message(F.chat.type == "private", F.forward_origin | F.forward_from_chat)
+async def admin_forward_channel(m: Message):
+    """Admin kanaldagi postni forward qilsa — o'sha kanal ulanadi."""
+    ch = _forwarded_channel(m)
+    if not ch:
+        if not is_admin(m.from_user.id):
+            return await refuse_user(m)
+        if m.photo or (m.document and (m.document.mime_type or "").startswith("image/")):
+            return await admin_photo(m)   # admin boshqa joydan rasm forward qildi — Instagram'ga joylash taklifi
+        return await user_message(m) if m.text else None
+    if not is_admin(m.from_user.id):
+        return await refuse_user(m)
+    await m.answer(await connect_channel(ch, m.from_user.id))
+
+
+# Umumiy (har qanday matn/rasm) qabul qiluvchilar buyruqlardan KEYIN tekshirilsin — aks holda /meta, /kanal kabi
+# keyin yozilgan buyruqlar ularga «yutilib» ketadi. Tartibni shu yerda bir marta to'g'rilaymiz.
+_CATCH_ALL = ("admin_reply", "user_message", "admin_photo", "refuse_user")
+
+
+def order_handlers():
+    try:
+        hs = list(dp.message.handlers)
+        dp.message.handlers[:] = ([h for h in hs if getattr(h.callback, "__name__", "") not in _CATCH_ALL]
+                                  + sorted([h for h in hs if getattr(h.callback, "__name__", "") in _CATCH_ALL],
+                                           key=lambda h: _CATCH_ALL.index(h.callback.__name__)))
+        log.info("bot buyruqlari tartibi: %s", [getattr(h.callback, "__name__", "?") for h in dp.message.handlers][-6:])
+    except Exception:  # noqa: BLE001 — tartiblab bo'lmasa ham bot ishlayversin
+        log.exception("order_handlers")
 
 
 async def api_admin_product_delete(request):
@@ -2489,6 +2794,7 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
     app.router.add_post("/api/admin/custom/kinds", api_admin_custom_kinds)
     app.router.add_post("/api/admin/custom/masters", api_admin_custom_masters)
+    app.router.add_post("/api/admin/custom/{id}/call", api_admin_custom_call)
     app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
     app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)
     app.router.add_post("/api/admin/custom/gallery/{gid}", api_admin_gallery_update)
@@ -2498,12 +2804,14 @@ def make_app() -> web.Application:
     app.router.add_static("/uploads/", UPLOAD_DIR)
     app.router.add_get("/api/catalog", api_catalog)
     app.router.add_post("/api/me", api_me)
+    app.router.add_post("/api/cart", api_cart)
     app.router.add_post("/api/order", api_order)
     app.router.add_post("/api/order/{id}/cancel", api_order_cancel)
     app.router.add_post("/api/order/{id}/accept", api_order_accept)
     app.router.add_get("/api/admin/data", api_admin_data)
     app.router.add_get("/api/admin/stats", api_admin_stats)
     app.router.add_post("/api/admin/product", api_admin_product)
+    app.router.add_post("/api/admin/product/{id}/channel", api_admin_product_channel)
     app.router.add_post("/api/admin/product/{id}/delete", api_admin_product_delete)
     app.router.add_post("/api/admin/category", api_admin_category)
     app.router.add_post("/api/admin/category/{id}/delete", api_admin_category_delete)
@@ -2558,6 +2866,7 @@ async def main():
             pass
         app_tasks.append(asyncio.create_task(old_dp.start_polling(old_bot, handle_signals=False)))
         log.info("Eski bot yo'naltiruvchi rejimda ishlayapti")
+    order_handlers()
     await dp.start_polling(bot)
 
 

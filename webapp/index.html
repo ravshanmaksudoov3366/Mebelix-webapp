@@ -69,6 +69,11 @@ header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 1
 .rev q { display: block; margin: 6px 0; quotes: none; }
 .asm-chk { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--bg2); cursor: pointer; font-size: 14.5px; }
 .asm-chk input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; margin: 0; }
+.rel { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding-bottom: 8px; }
+.rel::-webkit-scrollbar { display: none; }
+.relc { flex: none; width: 140px; background: var(--bg2); border-radius: 14px; overflow: hidden; cursor: pointer; }
+.relc .ph { aspect-ratio: 1; font-size: 40px; }
+.relc .rb { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 3px; }
 .change-box { background: var(--soft); border-radius: var(--r); margin: 12px; padding: 14px; }
 .change-box b { display: block; font-size: 15.5px; margin-bottom: 4px; }
 .change-box .acts { display: flex; gap: 8px; margin-top: 12px; }
@@ -485,7 +490,7 @@ const I18N = {
     door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     ch_t: "✏️ O'lchami, rangi yoki matosi to'g'ri kelmadimi?", ch_p: "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning.",
-    warranty: "Kafolat", wy_n: "{n} yil", tr_asm: "Yig'ib beramiz", tr_deliv: "Bepul yetkazish", tr_rev: "{n} fikr", tr_custom: "O'lchamga ham", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
+    rel_t: "Bu bilan birga olishadi", warranty: "Kafolat", wy_n: "{n} yil", tr_asm: "Yig'ib beramiz", tr_deliv: "Bepul yetkazish", tr_rev: "{n} fikr", tr_custom: "O'lchamga ham", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
@@ -550,7 +555,7 @@ const I18N = {
     door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     ch_t: "✏️ Не подошёл размер, цвет или ткань?", ch_p: "Изменим эту модель под ваши пожелания. Свяжитесь с администратором.",
-    warranty: "Гарантия", wy_n: "{n} года", tr_asm: "Соберём мебель", tr_deliv: "Бесплатная доставка", tr_rev: "отзывов: {n}", tr_custom: "И на заказ", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
+    rel_t: "С этим также берут", warranty: "Гарантия", wy_n: "{n} года", tr_asm: "Соберём мебель", tr_deliv: "Бесплатная доставка", tr_rev: "отзывов: {n}", tr_custom: "И на заказ", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
@@ -640,11 +645,19 @@ function setQty(id, qty) {
   qty = Math.max(0, Math.min(99, qty));
   if (qty > (S.cart[id] || 0)) { const p = prod(id); if (p) px("AddToCart", { content_ids: [String(id)], content_type: "product", value: p.price * (qty - (S.cart[id] || 0)), currency: "UZS" }); }
   if (qty) S.cart[id] = qty; else delete S.cart[id];
-  store.set("cart", S.cart); haptic(); refresh();
+  saveCart(); haptic(); refresh();
+}
+/* savatcha: telefonda saqlanadi va (Telegram ichida) serverga ham — buyurtma bermay ketsa, bot eslatadi */
+let _cartT = 0;
+function saveCart() {
+  store.set("cart", S.cart);
+  if (!IN_TG) return;
+  clearTimeout(_cartT);
+  _cartT = setTimeout(() => api("/api/cart", { json: { cart: S.cart } }).catch(() => {}), 1500);
 }
 function cleanCart() {             // sotuvdan olingan mahsulotlarni savatchadan olib tashlash
   for (const id of Object.keys(S.cart)) if (!prod(id) || !prod(id).in_stock) delete S.cart[id];
-  store.set("cart", S.cart);
+  saveCart();
 }
 const stepper = id => `<div class="stepper" onclick="event.stopPropagation()">
   <button onclick="setQty(${id}, ${(S.cart[id] || 0) - 1})">−</button><b>${S.cart[id]}</b>
@@ -745,7 +758,7 @@ function viewCart() {
       <div class="sum total"><span>${t("total")}</span><span>${money(cartTotal())}</span></div></div>
     <div style="padding:0 12px"><button class="btn ghost block" onclick="clearCart()">${t("clear_cart")}</button></div>`;
 }
-async function clearCart() { if (await confirmBox(t("clear_q"))) { S.cart = {}; store.set("cart", {}); render(); } }
+async function clearCart() { if (await confirmBox(t("clear_q"))) { S.cart = {}; saveCart(); render(); } }
 
 const trackOf = o => ["new", "confirmed"].concat(o.delivery === "pickup" ? [] : ["delivering", "delivered"],
   o.assembly ? ["assembled"] : [], ["done"]);
@@ -790,7 +803,7 @@ async function cancelOrder(id) {
 function repeatOrder(id) {
   const o = S.me.orders.find(x => x.id === id); let added = 0;
   o.items.forEach(i => { const p = prod(i.id); if (p && p.in_stock) { S.cart[i.id] = (S.cart[i.id] || 0) + i.qty; added++; } });
-  store.set("cart", S.cart);
+  saveCart();
   if (!added) return alertBox(t("not_avail"));
   toast(t("added")); go("cart");
 }
@@ -875,6 +888,7 @@ function openProduct(id) {
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
         ${p.specs.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table></div>` : ""}
       ${p.description ? `<div class="section"><h3>${t("desc")}</h3><div style="white-space:pre-line">${esc(p.description)}</div></div>` : ""}
+      ${relatedHTML(p)}
       ${changeBoxHTML(p)}`,
     main: () => !p.in_stock ? [null] : S.cart[p.id]
       ? [t("in_cart_go", { n: S.cart[p.id] }), () => { closeAll(); go("cart"); }]
@@ -1325,7 +1339,7 @@ async function submitOrder() {
     const { order } = await api("/api/order", { form: fd });
     notifyH("success");
     px("Purchase", { content_ids: (order.items || []).map(i => String(i.id)), content_type: "product", value: order.total, currency: "UZS" });
-    S.cart = {}; store.set("cart", {});
+    S.cart = {}; saveCart();
     closeAll(); loadMe().then(render);
     go("orders");
     openSheet({ title: "", body: `<div class="done"><div class="big">📨</div><h2>${t("sent_title")}</h2>
@@ -1544,6 +1558,9 @@ function statsHTML() {
       <div class="srow"><span>📈 Sof foyda${C.profit_n < C.contract ? ` <span class="small muted">(${C.profit_n}/${C.contract} ta bo'yicha)</span>` : ""}</span><b>${money(C.profit)}</b></div>
       <div class="small muted" style="margin:12px 0 4px">Ustaxonalar bo'yicha</div>
       ${C.workshops.map(w => `<div class="srow"><span>${esc(w.name)} · ${w.n} ta${w.late ? ` · <span style="color:var(--danger)">${w.late} ta kechikkan</span>` : ""}</span><b>${w.cost ? short(w.price - w.cost) + " foyda" : short(w.price)}</b></div>`).join("")}</div>` : ""}
+    ${C.lost && C.lost.length ? `<div class="section"><h3>❌ Nega rad etishdi</h3>
+      ${C.lost.map(s => `<div class="srow"><span>${esc(s.name)}</span><b>${s.n}</b></div>${bar(s.n, C.cancelled || 1, "alt")}`).join("")}
+      <div class="small muted" style="margin-top:6px">Qo'ng'iroqlar soni: ${C.calls || 0}</div></div>` : ""}
     <div class="section"><h3>📍 Mijozlar qayerdan keldi</h3>
       ${C.sources.length ? C.sources.map(s => `<div class="srow"><span>${esc(s.name)}</span><b>${s.n}</b></div>${bar(s.n, C.requests, "alt")}`).join("") : `<div class="small muted">Shu oyda ariza yo'q</div>`}</div>
     <div class="section"><h3>🛋 Tayyor mebel</h3>
@@ -1574,6 +1591,26 @@ async function loadCustomers(reset) {
 function warrantyOf(p) {
   const s = (p.specs || []).find(([k]) => /kafolat|гарант/i.test(k || ""));
   return s ? s[1] : S.wy ? t("wy_n", { n: S.wy }) : "";
+}
+/* «Bu bilan birga olishadi»: avval birga sotilganlar, keyin mos toifalar (divanga — stol, kreslo...), keyin shu toifa */
+const PAIRS = [[/divan|диван|kreslo|кресл/i, /stol|стол|kreslo|кресл|puf|пуф|gilam|ковр|tumba|тумб/i],
+               [/yotoq|спал|karavot|кроват/i, /tumba|тумб|komod|комод|shkaf|шкаф|ko'zgu|зеркал|matras|матрас/i],
+               [/oshxona|кухн/i, /stol|стол|stul|стул/i], [/shkaf|шкаф/i, /komod|комод|tumba|тумб/i]];
+function relatedOf(p, n = 6) {
+  const out = [], seen = new Set([p.id]);
+  const add = x => { if (x && x.in_stock && !seen.has(x.id) && out.length < n) { seen.add(x.id); out.push(x); } };
+  ((S.related || {})[String(p.id)] || []).forEach(id => add(prod(id)));
+  const cat = c => ((S.cats.find(x => x.id === c) || {}).name || "") + " ";
+  const me = cat(p.cat_id) + p.name;
+  for (const [a, b] of PAIRS) if (a.test(me)) S.products.filter(x => b.test(cat(x.cat_id) + x.name) && !a.test(cat(x.cat_id) + x.name)).forEach(add);
+  S.products.filter(x => x.cat_id === p.cat_id).sort((x, y) => Math.abs(x.price - p.price) - Math.abs(y.price - p.price)).forEach(add);
+  return out;
+}
+function relatedHTML(p) {
+  const R = relatedOf(p);
+  if (!R.length) return "";
+  return `<div class="section" style="padding-bottom:6px"><h3>${t("rel_t")}</h3><div class="rel">${R.map(x => `<div class="relc" onclick="openProduct(${x.id})">
+    <div class="ph">${picHTML(x)}</div><div class="rb"><div class="pname" style="font-size:15px">${esc(x.name)}</div><div class="price" style="font-size:13.5px">${money(x.price)}</div></div></div>`).join("")}</div></div>`;
 }
 function changeBoxHTML(p) {
   const phone = (S.shop && S.shop.phone) || "", nick = (S.shop && S.shop.admin) || "";
@@ -1720,6 +1757,7 @@ function productFormHTML() {
     ${PF.err ? `<div class="err" style="margin:0 16px 10px">⚠️ ${esc(PF.err)}</div>` : ""}
     <div style="padding:0 12px;display:grid;gap:8px">
       <button class="btn block" onclick="saveProduct()" ${PF.busy ? "disabled" : ""}>${PF.busy ? (PF.videoFile ? `Video yuklanmoqda... ${PF.progress}%` : "Saqlanmoqda...") : "💾 Saqlash"}</button>
+      ${PF.id ? `<button class="btn soft block" style="margin-bottom:8px" onclick="sendToChannel(${PF.id})">📣 Telegram kanalga yuborish</button>` : ""}
       ${PF.id ? `<button class="btn danger block" onclick="deleteProduct()">🗑 O'chirish</button>` : ""}
     </div>`;
 }
@@ -1807,6 +1845,11 @@ async function retranslate() {
           specs_ru: (p.specs_ru || []).map(s => s.join(": ")).join("\n"), ru_edited: false });
         toast("Tarjima yangilandi ✓"); refresh(); loadCatalog().catch(() => {}); }
   catch (e) { alertBox("Tarjima qilib bo'lmadi: " + e.message); }
+}
+async function sendToChannel(id) {
+  if (!await confirmBox("Shu mahsulot Telegram kanalga joylansinmi?")) return;
+  try { await api(`/api/admin/product/${id}/channel`, { method: "POST" }); toast("📣 Kanalga yuborildi ✓"); }
+  catch (e) { alertBox(e.message + "\n\nKanal ulanmagan bo'lsa, botga /kanal @kanal_nomi deb yozing."); }
 }
 async function deleteProduct() {
   if (!await confirmBox("Mahsulot butunlay o'chirilsinmi? (Vaqtincha yashirish uchun «Katalogda ko'rsatish»ni o'chiring)")) return;
@@ -1934,7 +1977,7 @@ if (IN_TG) {
 async function loadCatalog() {
   const d = await api("/api/catalog?lang=" + LANG);
   initPixel(d.shop && d.shop.pixel);
-  S.wy = d.warranty_years || 0; S.reviews = d.reviews || []; S.reviewsSum = d.reviews_sum || {};
+  S.related = d.related || {}; S.wy = d.warranty_years || 0; S.reviews = d.reviews || []; S.reviewsSum = d.reviews_sum || {};
   S.shop = d.shop; S.cats = d.categories; S.products = d.products; S.payments = d.payments; S.prepay = d.prepay || {};
   S.asmPct = d.assembly_pct || 0; S.offer = d.offer || ""; S.offerVer = d.offer_ver || "";
   S.paymentsRu = d.payments_ru || {};
@@ -1959,6 +2002,8 @@ $("#langsw").onclick = e => { const b = e.target.closest("[data-l]"); if (b) { h
 async function loadMe() {
   try { S.me = await api("/api/me", { method: "POST" }); } catch (e) { /* Telegram'dan tashqarida */ }
   $("#adminTab").classList.toggle("hidden", !S.me.is_admin);
+  // boshqa qurilmada yoki tozalangan bo'lsa — serverdagi savatchani tiklaymiz
+  if (!Object.keys(S.cart).length && S.me.cart && Object.keys(S.me.cart).length) { S.cart = { ...S.me.cart }; store.set("cart", S.cart); }
 }
 (async function init() {
   applyStatic();

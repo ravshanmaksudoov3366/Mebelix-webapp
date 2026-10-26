@@ -790,6 +790,15 @@ function planHTML() {
     : `<div class="small muted" style="padding:0 16px 14px">Ishlab chiqarishda buyurtma yo'q.</div>`;
   return h;
 }
+const LOST = { price: "Qimmat tuyuldi", fee: "O'lchov puli to'g'ri kelmadi", later: "Keyinroq oladi",
+  other_shop: "Boshqa joydan oldi", think: "O'ylab ko'radi", other: "Boshqa sabab" };
+async function logCall(id, result, preset = "", reason = "") {
+  if (result === "rejected" && !await confirmBox(`Ariza №${id} «${LOST[reason]}» sababi bilan yopilsinmi?`)) return;
+  try {
+    const { request } = await api(`/api/admin/custom/${id}/call`, { json: { result, preset, reason } });
+    S.adm.callMode = ""; toast("Yozildi ✓"); replaceReq(request); loadAdminQuiet();
+  } catch (e) { alertBox(e.message); }
+}
 const num = v => parseInt(String(v || "").replace(/\D/g, "")) || 0;
 function profitText(price, cost) {
   price = num(price); cost = num(cost);
@@ -888,6 +897,18 @@ function adminDetail(r) {
       ${r.sample_image ? `<div class="small muted" style="margin-top:10px">Tanlangan namuna:</div><div class="ph-grid"><img src="${esc(r.sample_image)}" alt="" onclick="window.open(this.src,'_blank')"></div>` : ""}
       ${r.photos ? `<div class="small muted" style="margin-top:10px">Mijoz rasmlari:</div><div class="ph-grid" id="phs">${Array.from({ length: r.photos }, () => `<img alt="">`).join("")}</div>` : ""}
       <div class="admin-acts">${nextBtns}</div></div>
+    ${["new", "measure"].includes(r.status) || (r.calls_view || []).length ? `<div class="section"><b>📞 Qo'ng'iroqlar</b>
+      ${r.callback_text ? `<div class="small" style="margin-top:6px">🔁 Qayta qo'ng'iroq: <b>${esc(r.callback_text)}</b></div>` : ""}
+      ${(r.calls_view || []).slice(0, 6).map(c => `<div class="sum-row"><span>${esc(c.at)}</span><span>${esc(c.res)}${c.note ? "\n" + esc(c.note) : ""}</span></div>`).join("")}
+      ${["new", "measure"].includes(r.status) ? `<div class="admin-acts">
+        <button class="btn small soft" onclick="logCall(${r.id}, 'noanswer')">📵 Javob bermadi</button>
+        <button class="btn small soft" onclick="S.adm.callMode = S.adm.callMode === 'cb' ? '' : 'cb'; refresh()">🔁 Qayta qo'ng'iroq</button>
+        <button class="btn small soft" onclick="S.adm.callMode = S.adm.callMode === 'rej' ? '' : 'rej'; refresh()">❌ Rad etdi</button></div>
+        ${S.adm.callMode === "cb" ? `<div class="chiprow" style="margin-top:10px">${[["1h", "1 soatdan"], ["3h", "3 soatdan"], ["t10", "Ertaga 10:00"], ["t16", "Ertaga 16:00"], ["3d", "3 kundan"], ["7d", "1 haftadan"]]
+          .map(([k, n]) => `<button class="kchip" onclick="logCall(${r.id}, 'callback', '${k}')">${n}</button>`).join("")}</div>` : ""}
+        ${S.adm.callMode === "rej" ? `<div class="chiprow" style="margin-top:10px">${Object.entries(LOST).map(([k, n]) =>
+          `<button class="kchip" onclick="logCall(${r.id}, 'rejected', '', '${k}')">${n}</button>`).join("")}</div>` : ""}` : ""}
+    </div>` : ""}
     <div class="section"><b>👷 Usta va o'lchov</b>
       <label class="f">Usta</label><select class="in" id="aMaster"><option value="">— tanlanmagan —</option>
         ${[...new Set([...(S.adm.masters || []), r.master].filter(Boolean))].map(m => `<option ${m === r.master ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
