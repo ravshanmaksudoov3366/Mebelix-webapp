@@ -585,10 +585,6 @@ def page_product(ctx: dict, p: dict) -> str:
         meta.append(f'<span class="pill">{ICONS["truck"]}{e(tr(lang, "delivery_days"))}: {e(p["delivery_days"])}</span>')
     if p.get("assembly"):
         meta.append(f'<span class="pill">{ICONS["tool"]}{e(tr(lang, "asm_ok"))}</span>')
-    wspec = next((v for k, v in (p.get("specs") or []) if re.search(r"kafolat|гарант", k or "", re.I)), "")
-    wtxt = wspec or (tr(lang, "wy_n").format(n=ctx["warranty_years"]) if ctx.get("warranty_years") else "")
-    if wtxt:
-        meta.append(f'<span class="pill">🛡 {e(tr(lang, "warranty"))}: {e(wtxt)}</span>')
     bot = ctx.get("bot") or ""
     buttons = ""
     if p.get("in_stock"):

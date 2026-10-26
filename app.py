@@ -2281,9 +2281,6 @@ def _act_html(o: dict) -> str:
     addr = "Do'kondan olib ketish" if o["delivery"] != "delivery" else ", ".join(x for x in (o.get("city"), o.get("address")) if x)
     checks = ["Mahsulotlar to'liq komplektda topshirildi", "Tashqi ko'rinishida shikast, tirnalish va dog' yo'q",
               "Rang va o'lchamlar buyurtmaga mos"] + (["Mebel yig'ib, o'rnatib berildi"] if o.get("assembly") else [])
-    wy = shop.warranty_years()
-    checks.append(f"Kafolat: {wy} yil — {warranty_until(o.get('accepted_ts') or int(time.time()), wy)} gacha "
-                  "(ishlab chiqarish nuqsonlari bepul tuzatiladi)")
     return f"""<!doctype html><html lang="uz"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Dalolatnoma #{o['id']}</title>
 <style>

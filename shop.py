@@ -1150,8 +1150,7 @@ STATUS_MESSAGES_RU = {
     "delivering": "🚚 Ваш заказ #{id} в пути.",
     "delivered": "📦 Ваш заказ #{id} доставлен.",
     "assembled": "🔧 Сборка заказа #{id} завершена.",
-    "done": "🤝 Заказ #{id} завершён. Спасибо за покупку! 🙏\n\n🛡 Гарантия: {wy} года — до {until}. "
-            "Если появится дефект, напишите в этот бот или позвоните.",
+    "done": "🤝 Заказ #{id} завершён. Спасибо за покупку! 🙏",
     "cancelled": "❌ Ваш заказ #{id} отменён. Если есть вопросы, свяжитесь с нами.",
 }
 
@@ -1163,8 +1162,7 @@ STATUS_MESSAGES = {
     "delivering": "🚚 Buyurtmangiz #{id} yo'lga chiqdi.",
     "delivered": "📦 Buyurtmangiz #{id} yetkazib berildi.",
     "assembled": "🔧 Buyurtmangiz #{id} yig'ib bo'lindi.",
-    "done": "🤝 Buyurtma #{id} yakunlandi. Xaridingiz uchun rahmat! 🙏\n\n🛡 Kafolat: {wy} yil — {until} gacha. "
-            "Nuqson chiqsa, shu botga yozing yoki qo'ng'iroq qiling.",
+    "done": "🤝 Buyurtma #{id} yakunlandi. Xaridingiz uchun rahmat! 🙏",
     "cancelled": "❌ Buyurtmangiz #{id} bekor qilindi. Savollar bo'lsa, biz bilan bog'laning.",
 }
 

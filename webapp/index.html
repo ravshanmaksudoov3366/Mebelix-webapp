@@ -485,7 +485,7 @@ const I18N = {
     door_ready: "Tayyor mebellar", door_custom: "O'lchamga buyurtma", my_size: "📐 Shu modelni o'z o'lchamimda",
     my_size_t: "O'lcham, mato yoki rang to'g'ri kelmadimi? Xonangizga moslab yasab beramiz.",
     ch_t: "✏️ O'lchami, rangi yoki matosi to'g'ri kelmadimi?", ch_p: "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning.",
-    warranty: "Kafolat", wy_n: "{n} yil", tr_wy: "{n} yil kafolat", tr_deliv: "Bepul yetkazish", tr_rev: "{n} fikr", tr_custom: "O'lchamga ham", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
+    warranty: "Kafolat", wy_n: "{n} yil", tr_asm: "Yig'ib beramiz", tr_deliv: "Bepul yetkazish", tr_rev: "{n} fikr", tr_custom: "O'lchamga ham", rev_t: "⭐ Mijozlarimiz fikri", rev_avg: "{a}⭐ · {n} ta fikr",
     ch_say: "Adminga shu modelni ayting:", ch_call: "📞 Qo'ng'iroq qilish", ch_write: "💬 Telegramda",
     addr_search_ph: "Manzilni qidiring: ko'cha, mahalla, mo'ljal", searching: "Qidirilmoqda...",
     ok: "Yaxshi", retry: "Qayta urinish", lang_q: "Tilni tanlang", som: "so'm", watch_video: "Videoni ko'rish",
@@ -550,7 +550,7 @@ const I18N = {
     door_ready: "Готовая мебель", door_custom: "Мебель на заказ", my_size: "📐 Эту модель — в моём размере",
     my_size_t: "Не подошёл размер, ткань или цвет? Сделаем под вашу комнату.",
     ch_t: "✏️ Не подошёл размер, цвет или ткань?", ch_p: "Изменим эту модель под ваши пожелания. Свяжитесь с администратором.",
-    warranty: "Гарантия", wy_n: "{n} года", tr_wy: "Гарантия {n} года", tr_deliv: "Бесплатная доставка", tr_rev: "отзывов: {n}", tr_custom: "И на заказ", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
+    warranty: "Гарантия", wy_n: "{n} года", tr_asm: "Соберём мебель", tr_deliv: "Бесплатная доставка", tr_rev: "отзывов: {n}", tr_custom: "И на заказ", rev_t: "⭐ Отзывы клиентов", rev_avg: "{a}⭐ · отзывов: {n}",
     ch_say: "Назовите администратору модель:", ch_call: "📞 Позвонить", ch_write: "💬 Написать",
     addr_search_ph: "Поиск адреса: улица, махалля, ориентир", searching: "Поиск...",
     ok: "Хорошо", retry: "Повторить", lang_q: "Выберите язык", som: "сум", watch_video: "Смотреть видео",
@@ -713,7 +713,7 @@ function viewCatalog() {
 }
 function trustHTML() {
   const s = S.reviewsSum || {};
-  return `<div class="trust">${S.wy ? `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/></svg>${t("tr_wy", { n: S.wy })}</span>` : ""}
+  return `<div class="trust"><span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 6a4 4 0 0 0 5 5l-9 9-3-3 9-9a4 4 0 0 0-2-2z"/></svg>${t("tr_asm")}</span>
     <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17" cy="17.5" r="1.6"/></svg>${t("tr_deliv")}</span>
     ${s.count ? `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>${s.avg} · ${t("tr_rev", { n: s.count })}</span>`
       : `<span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/></svg>${t("tr_custom")}</span>`}</div>`;
@@ -870,7 +870,6 @@ function openProduct(id) {
         ${p.delivery_days ? `<div class="ddbox">${t("delivery_time")} <b>${esc(p.delivery_days)}</b></div>` : ""}
         <div class="ddbox free-box">${t("free_deliv")}</div>
         ${p.assembly && S.asmPct ? `<div class="ddbox">${t("asm_avail", { p: S.asmPct })}</div>` : ""}
-        ${warrantyOf(p) ? `<div class="ddbox">🛡 ${t("warranty")}: <b>${esc(warrantyOf(p))}</b></div>` : ""}
         ${!p.in_stock ? `<div class="err">${t("oos")}</div>` : ""}
       </div>
       ${p.specs.length ? `<div class="section"><h3>${t("specs")}</h3><table class="specs">
@@ -1437,7 +1436,7 @@ function viewAdmin() {
       <h3 style="margin-top:18px">🔧 Yig'ib berish</h3>
       <label class="f">Yig'ib berish ustamasi (%) — yig'iladigan mahsulotlar narxidan</label>
       <input class="in" id="setAsm" inputmode="numeric" value="${esc(st2.assembly_pct ?? "5")}" style="width:100px">
-      <label class="f">🛡 Kafolat muddati, yil <span class="small muted">(saytda, ofertada va dalolatnomada ko'rsatiladi; 0 — ko'rsatilmaydi)</span></label>
+      <label class="f">🛡 Kafolat muddati, yil <span class="small muted">(faqat o'lchamga buyurtmada ko'rsatiladi; 0 — ko'rsatilmaydi)</span></label>
       <input class="in" id="setWy" inputmode="numeric" value="${esc(st2.warranty_years ?? "3")}" style="width:100px">
       <h3 style="margin-top:18px">🧾 Sotuvchi rekvizitlari <span class="muted small">(oferta va dalolatnoma uchun)</span></h3>
       <div class="small muted">YaTT yoki MChJ ochilgach to'ldiring. Bo'sh joylar hujjatlarda «______» bo'lib chiqadi.</div>
