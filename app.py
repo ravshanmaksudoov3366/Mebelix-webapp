@@ -27,6 +27,7 @@ from aiogram.types import (
     BotCommandScopeChat,
     CallbackQuery,
     KeyboardButton,
+    LinkPreviewOptions,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
     FSInputFile,
@@ -698,7 +699,8 @@ async def cmd_web_panel(m: Message):
     await m.answer("💻 <b>Kompyuterda admin panel</b>\n\nShu havolani kompyuter brauzerida oching (10 daqiqa ichida, "
                    f"faqat bir marta ishlaydi):\n{WEBAPP_URL}kirish?c={code}\n\n"
                    f"Kirgach, {ADMIN_SESSION_DAYS} kun davomida qayta kirish shart emas. "
-                   "Havolani hech kimga yubormang. Barcha kompyuterlardan chiqarish: /chiqish")
+                   "Havolani hech kimga yubormang. Barcha kompyuterlardan chiqarish: /chiqish",
+                   link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 
 @dp.message(Command("chiqish"))
@@ -2352,16 +2354,41 @@ def _login_page(title: str, text: str, ok: bool) -> str:
             f"<div style='font-size:48px'>{'✅' if ok else '⚠️'}</div><h2>{esc(title)}</h2><p>{text}</p></div></body></html>")
 
 
+LOGIN_LINKS = ("<a href='/app?admin=1'>🛋 Tayyor mebellar — admin</a>"
+               "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>"
+               "<a href='/moliya'>💰 Moliya: daromad va xarajatlar</a>"
+               "<a href='/konstruktor'>🧊 3D konstruktor</a>")
+_BOT_UA = re.compile(r"bot|crawler|spider|preview|facebookexternalhit|whatsapp|slack|discord|skype", re.I)
+
+
 async def page_login(request):
+    """GET faqat «Kirish» tugmasini ko'rsatadi — kodni ishlatmaydi. Shunda Telegram (va boshqa) havola
+    oldindan ko'rish botlari bir martalik kodni «yeb qo'ymaydi». Kod faqat tugma bosilganda (POST) sarflanadi."""
     code = request.query.get("c", "")
+    item = _login_codes.get(code)
+    if not item or item[1] < time.time() or not is_admin(item[0]):
+        return web.Response(text=_login_page("Havola eskirgan", "Botga <b>/panel</b> deb yozib (yoki menyuda «💻 Kompyuterda kirish»), "
+                                             "yangi havola oling.", False),
+                            content_type="text/html", status=403, headers={"Cache-Control": "no-store"})
+    if _BOT_UA.search(request.headers.get("User-Agent", "")):
+        return web.Response(text=_login_page("iSofa", "Admin panelga kirish", True), content_type="text/html",
+                            headers={"Cache-Control": "no-store"})
+    form = (f"<form method='post' action='/kirish'><input type='hidden' name='c' value='{esc(code)}'>"
+            "<button style='margin-top:14px;background:#363435;color:#e9cc85;border:0;padding:14px 26px;border-radius:12px;"
+            "font-weight:700;font-size:16px;cursor:pointer'>💻 Admin panelga kirish</button></form>")
+    return web.Response(text=_login_page("Kompyuterda kirish", f"Tugmani bosing — shu brauzer {ADMIN_SESSION_DAYS} kun eslab qoladi." + form, True),
+                        content_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+async def page_login_post(request):
+    data = await request.post()
+    code = str(data.get("c") or "")
     item = _login_codes.pop(code, None)
     if not item or item[1] < time.time() or not is_admin(item[0]):
         return web.Response(text=_login_page("Havola eskirgan", "Botga <b>/panel</b> deb yozib, yangi havola oling.", False),
                             content_type="text/html", status=403, headers={"Cache-Control": "no-store"})
-    resp = web.Response(text=_login_page("Kirdingiz", "<a href='/app?admin=1'>🛋 Tayyor mebellar — admin</a>"
-                                         "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>"
-                                         "<a href='/moliya'>💰 Moliya: daromad va xarajatlar</a>", True),
-                        content_type="text/html", headers={"Cache-Control": "no-store"})
+    resp = web.Response(text=_login_page("Kirdingiz", LOGIN_LINKS, True), content_type="text/html",
+                        headers={"Cache-Control": "no-store"})
     resp.set_cookie(ADMIN_COOKIE, admin_session_token(item[0]), max_age=ADMIN_SESSION_DAYS * 86400,
                     httponly=True, secure=True, samesite="Lax", path="/")
     asyncio.create_task(alert_admins(f"💻 Admin panelga kompyuterdan kirildi (IP: {esc(client_ip(request))}). "
@@ -3259,6 +3286,7 @@ def make_app() -> web.Application:
     app.router.add_get("/", page_site)
     app.router.add_get("/app", page_index)
     app.router.add_get("/kirish", page_login)
+    app.router.add_post("/kirish", page_login_post)
     app.router.add_get("/chiqish", page_logout)
     app.router.add_get("/p/{slug}", page_product)
     app.router.add_get("/oferta", page_offer)
