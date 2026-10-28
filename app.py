@@ -1539,6 +1539,10 @@ async def page_custom(request):
     return web.FileResponse(BASE / "webapp" / "custom.html", headers={"Cache-Control": "no-cache"})
 
 
+async def page_konstruktor(request):
+    return web.FileResponse(BASE / "webapp" / "konstruktor.html", headers={"Cache-Control": "no-cache"})
+
+
 async def api_custom_config(request):
     lang = norm_lang(request.query.get("lang"))
     model = None
@@ -2852,6 +2856,7 @@ def make_app() -> web.Application:
     app.router.add_static("/s/", SITE_DIR)
     app.router.add_post("/api/web/session", api_web_session)
     app.router.add_get("/custom", page_custom)
+    app.router.add_get("/konstruktor", page_konstruktor)
     app.router.add_get("/api/custom/config", api_custom_config)
     app.router.add_post("/api/custom/request", api_custom_request)
     app.router.add_post("/api/custom/mine", api_custom_mine)

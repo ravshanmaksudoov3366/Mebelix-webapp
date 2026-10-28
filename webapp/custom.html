@@ -315,6 +315,12 @@ body.fs::before { background: var(--char); }
 .fee .check { background: #f6f2ea; color: var(--text); }
 .ptable .row b { white-space: nowrap; }
 .rev .s { color: #c9a24a; }
+.k3d { display: flex; align-items: center; gap: 12px; margin: 12px 12px 0; padding: 14px; border-radius: 18px; background: var(--char); color: #f6f2ea; text-decoration: none; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+.k3d-ic { flex: none; width: 46px; height: 46px; border-radius: 14px; background: var(--gold); color: var(--char); display: grid; place-items: center; font-weight: 700; font-size: 16px; }
+.k3d-tx { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.k3d-tx b { font-family: var(--serif); font-size: 21px; font-weight: 600; color: var(--gold); line-height: 1.05; }
+.k3d-tx small { font-size: 12.5px; line-height: 1.35; color: #d8d1c5; }
+.k3d-go { font-size: 26px; color: var(--gold); flex: none; }
 </style>
 </head>
 <body>
@@ -550,6 +556,7 @@ function setCalc(id) {
 function stylesHTML() {
   const m = S.cfg.model;
   return `${S.cfg.warranty_years ? `<div class="small muted" style="text-align:center;padding:10px 12px 0">${t("wy", { n: S.cfg.warranty_years })}</div>` : ""}<div class="how"><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M14 6l4 4"/></svg></span>${t("how1")}</div><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/></svg></span>${t("how2")}</div><div><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg></span>${t("how3")}</div></div>
+    ${k3dHTML()}
     <div class="intro"><h2>${t("intro_t")}</h2><p>${t("intro_p")}</p></div>
     ${m ? `<div class="section pick" style="margin-top:10px">${m.image ? `<img src="${esc(m.image)}" alt="">` : ""}<div><div class="small muted">${t("f_model")}</div><b>${esc(m.name)}</b></div></div>` : ""}
     <div class="sdoors">${S.cfg.styles.map(s => `<button class="sdoor" onclick="openStyle('${s.id}')">
@@ -557,6 +564,10 @@ function stylesHTML() {
       <div class="ov"><div><b>${esc(s.name)}</b><small>${esc(s.tag)}</small></div><span class="go">${t("open_s")}</span></div></button>`).join("")}</div>
     ${revHTML()}
     ${callHTML()}`;
+}
+function k3dHTML() {
+  const ru = LANG === "ru";
+  return `<a class="k3d" href="/konstruktor" onclick="haptic()"><span class="k3d-ic">3D</span><span class="k3d-tx"><b>${ru ? "3D-конструктор" : "3D konstruktor"}</b><small>${ru ? "Спроектируйте кухню или шкаф сами — и отправьте мастеру" : "Oshxona yoki shkafingizni o'zingiz loyihalang va ustaga yuboring"}</small></span><span class="k3d-go">›</span></a>`;
 }
 function openStyle(id) { S.style = id; S.gk = ""; const pk = F.kinds.find(k => kindOf(k) && kindOf(k).price); if (pk) S.calc.kind = pk; haptic(); go("style"); }
 
