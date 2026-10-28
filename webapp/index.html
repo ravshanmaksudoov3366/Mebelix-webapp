@@ -1369,6 +1369,8 @@ function viewAdmin() {
     <div class="stat"><b>${short(st.month_sum)}</b><span>Shu oy · ${st.month_orders} ta</span></div></div>
     ${d.custom ? `<a class="custom-cta" href="/custom?admin=1"><span class="ic">📐</span><div><b>Individual (o'lchamga) arizalar</b>
       <span class="small muted">Faol: ${d.custom.active} · yangi: ${d.custom.new}</span></div><span class="muted" style="margin-left:auto">›</span></a>` : ""}
+    <a class="custom-cta" href="/moliya"><span class="ic">💰</span><div><b>Moliya: daromad va xarajatlar</b>
+      <span class="small muted">Foyda, xarajat kiritish, sherik uchun hisobot</span></div><span class="muted" style="margin-left:auto">›</span></a>
     <div class="chips adm">${tabs.map(([k, t]) => `<button class="chip ${S.adm.tab === k ? "on" : ""}" onclick="admTab('${k}')">${t}</button>`).join("")}</div>
     ${!d.settings.pay_card ? `<div class="section err" style="margin-top:10px">⚠️ To'lov kartasi kiritilmagan — mijozlar buyurtma bera olmaydi.
       <a class="tel" href="#" onclick="S.adm.tab='settings'; render(); return false">Sozlamalarni ochish</a></div>` : ""}`;

@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import html
+import io
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError, TelegramMigrateToChat
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
+    BufferedInputFile,
     CallbackQuery,
     FSInputFile,
     InlineKeyboardButton,
@@ -34,6 +36,7 @@ from aiogram.types import (
 import aiohttp
 
 import custom as cust
+import finance as fin
 import social as soc
 import reviews as rv
 import sitepages
@@ -117,6 +120,7 @@ shop = Shop(DB_PATH, UPLOAD_DIR)
 cs = cust.CustomStore(shop)   # o'lchamga (individual) buyurtmalar
 ss = soc.SocialStore(shop)    # Instagram / Facebook navbati
 rs = rv.ReviewStore(shop)     # mijozlar fikri
+fn = fin.Finance(shop, cs, os.path.join(shop.receipt_dir, "expenses"))  # moliya: xarajatlar va foyda
 meta = soc.Meta()
 CUSTOM_URL = WEBAPP_URL + "custom"
 # Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
@@ -377,7 +381,7 @@ async def send_order_to(chat_id: int, o: dict, media: dict, role: str = "admin")
 def migrate_role_chat(old_id: int, new_id: int) -> str:
     """Guruh superguruhga aylansa (ID o'zgaradi) — sozlamadagi ID ni yangilaymiz. Qaysi rol ekanini qaytaradi."""
     st = shop.settings()
-    for key in ("courier_chat", "assembler_chat"):
+    for key in ("courier_chat", "assembler_chat", "investor_chat"):
         if st.get(key) and str(st[key]) == str(old_id):
             shop.set_setting(key, str(new_id))
             return key
@@ -413,7 +417,9 @@ async def send_to_role_groups(o: dict) -> list:
 async def on_group_migrated(m: Message):
     """Guruh superguruhga aylanganda Telegram xizmat xabari keladi — ID ni darhol yangilaymiz."""
     key = migrate_role_chat(m.chat.id, m.migrate_to_chat_id)
-    if key:
+    if key == "investor_chat":
+        await alert_admins("ℹ️ Sherik guruhi superguruhga aylandi — yangi manzil avtomatik saqlandi.")
+    elif key:
         await alert_admins(f"ℹ️ {'Kuryerlar' if key == 'courier_chat' else 'Yig' + chr(39) + 'uvchilar'} guruhi "
                            "superguruhga aylandi — yangi manzil avtomatik saqlandi.")
 
@@ -482,6 +488,8 @@ def warranty_until(ts: int, years: int) -> str:
 async def notify_status(o: dict):
     if not bot:
         return
+    if o["status"] == "done":
+        asyncio.create_task(fin_sale("o", o))
     await refresh_order_messages(o)
     await ping_next_role(o)
     if is_web(o["user_id"]):
@@ -669,8 +677,12 @@ async def cb_lang(c: CallbackQuery):
 async def cmd_admin(m: Message):
     if is_admin(m.from_user.id):
         await m.answer("🗂 Admin panel:\n\n📲 Instagram/Facebook: shu yerga rasm yuboring (matnini rasm ostiga yozing).\n"
-                       "/meta — ulanish va sozlamalar · /navbat — navbatdagi postlar",
-                       reply_markup=shop_button("🗂 Admin panelni ochish", "?admin=1"))
+                       "/meta — ulanish va sozlamalar · /navbat — navbatdagi postlar\n\n"
+                       "💰 Moliya: /xarajat — xarajat kiritish · /xarajatlar · /hisobot\n"
+                       "🤝 Sherik guruhi: guruhda /sherik_guruhi deb yozing",
+                       reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                           [InlineKeyboardButton(text="🗂 Admin panelni ochish", web_app=WebAppInfo(url=f"{APP_URL}?admin=1&lang=uz"))],
+                           [InlineKeyboardButton(text="💰 Moliya", web_app=WebAppInfo(url=f"{WEBAPP_URL}moliya"))]]))
     else:
         await m.answer(f"Sizning ID: <code>{m.from_user.id}</code>\nAdmin emassiz.")
 
@@ -820,6 +832,202 @@ async def cmd_link_group(m: Message):
         what = ("🔧 Yig'uvchilar guruhi ulandi. Yig'ib berish so'ralgan buyurtmalar shu yerga keladi: mijoz, manzil "
                 "va yig'iladigan mahsulotlar (narxlarsiz). Tugma: «Yig'ib bo'ldim».")
     await m.answer(what + "\n\n📷 Ish suratini buyurtma xabariga «Reply» qilib yuborsangiz, adminga boradi.")
+
+
+# ------------------------------------------------------------------ moliya: sherik guruhi va xarajatlar
+def investor_chat() -> int:
+    v = str(shop.settings().get("investor_chat") or "")
+    return int(v) if re.fullmatch(r"-?\d+", v) else 0
+
+
+async def to_investor(text: str, photo=None):
+    """Sherik guruhiga xabar (rasm bilan ham). Guruh ulanmagan bo'lsa — hech narsa qilmaydi."""
+    chat = investor_chat()
+    if not (bot and chat):
+        return None
+    for _ in range(2):
+        try:
+            if photo:
+                return await bot.send_photo(chat, photo, caption=text[:1024])
+            return await bot.send_message(chat, text)
+        except TelegramMigrateToChat as e:
+            shop.set_setting("investor_chat", str(e.migrate_to_chat_id))
+            chat = e.migrate_to_chat_id
+        except (TelegramAPIError, ValueError) as e:
+            log.warning("sherik guruhiga yuborilmadi: %s", e)
+            await alert_admins(f"⚠️ Sherik guruhiga xabar yuborilmadi: {esc(e)}\nBot o'sha guruhda a'zo ekanini tekshiring.")
+            return None
+    return None
+
+
+async def fin_sale(kind: str, obj: dict):
+    """Savdo yakunlanganda sherik guruhiga: raqam, mahsulot, mijoz telefoni, tushum, tannarx, foyda (bir marta)."""
+    try:
+        if not investor_chat():
+            return
+        key = f"{kind}{obj['id']}"
+        sent = json.loads(shop.settings().get("fin_sent") or "[]")
+        if key in sent:
+            return
+        s = fn.order_sale(obj) if kind == "o" else fn.custom_sale(obj)
+        if await to_investor(fin.sale_text(s)):
+            shop.set_setting("fin_sent", json.dumps((sent + [key])[-800:]))
+    except Exception:  # noqa: BLE001
+        log.exception("fin_sale")
+
+
+async def fin_expense_added(x: dict, tg_photo: str = ""):
+    photo = tg_photo or (FSInputFile(fn.photo_path(x)) if fn.photo_path(x) else None)
+    await to_investor(fin.expense_text(x), photo)
+
+
+def fin_expense_kb(eid: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🗑 Bekor qilish", callback_data=f"fx:del:{eid}")]])
+
+
+async def fin_add_from_text(m: Message, text: str, photo_id: str = ""):
+    amount, rest = fin.parse_amount(text)
+    if not amount:
+        return await m.answer(fin.HELP)
+    cat, note = fin.guess_cat(rest)
+    data = b""
+    if photo_id:
+        try:
+            buf = io.BytesIO()
+            await bot.download(photo_id, destination=buf)
+            data = buf.getvalue()
+        except Exception as e:  # noqa: BLE001
+            log.warning("xarajat rasmini yuklab bo'lmadi: %s", e)
+    try:
+        x = fn.add(amount, cat, note, photo=data, tg_photo=photo_id, by=m.from_user.full_name if m.from_user else "")
+    except (fin.FinanceError, ShopError) as e:
+        return await m.answer(f"⚠️ {esc(e)}")
+    await m.answer(f"✅ Saqlandi.\n\n{fin.expense_text(x)}" + ("\n\n👥 Sherik guruhiga yuborildi." if investor_chat() else ""),
+                   reply_markup=fin_expense_kb(x["id"]))
+    await fin_expense_added(x, photo_id)
+
+
+@dp.message(Command("sherik_guruhi"))
+async def cmd_investor_group(m: Message):
+    """Admin sherik (investor) guruhida yozsa — guruh ulanadi. «/sherik_guruhi off» — uziladi."""
+    if not is_admin(m.from_user.id):
+        return await m.answer("Guruhni faqat do'kon admini ulay oladi.")
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) > 1 and arg[1].strip().lower() in ("off", "ochir", "o'chir", "uzish"):
+        shop.set_setting("investor_chat", "")
+        return await m.answer("Sherik guruhi uzildi — endi u yerga hisobot yuborilmaydi.")
+    if m.chat.type == "private":
+        return await m.answer("Bu buyruqni sherik bilan ochilgan <b>guruhning o'zida</b> yozing (avval botni o'sha guruhga qo'shing).")
+    if GROUP_ID and m.chat.id == GROUP_ID:
+        return await m.answer("Bu asosiy (admin) guruh. Sherik uchun alohida guruh oching.")
+    st = shop.settings()
+    if str(m.chat.id) in (st.get("courier_chat"), st.get("assembler_chat")):
+        return await m.answer("Bu guruh kuryerlar/yig'uvchilar uchun ulangan. Sherik uchun alohida guruh oching.")
+    shop.set_setting("investor_chat", str(m.chat.id))
+    await m.answer("🤝 <b>Sherik guruhi ulandi.</b>\n\nBu yerga avtomatik keladi:\n"
+                   "💰 har bir yakunlangan savdo — raqami, mahsulot, mijoz telefoni, tushum, tannarx va foyda;\n"
+                   "🧾 har bir xarajat — summasi, turi, izohi (chek rasmi bilan);\n"
+                   "📊 har dushanba — o'tgan hafta hisoboti, har oyning 1-kuni — o'tgan oy hisoboti.\n\n"
+                   "Istalgan payt: /hisobot (shu oy) yoki <code>/hisobot 2026-10</code>")
+
+
+@dp.message(Command("xarajat"))
+async def cmd_expense(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(fin.HELP)
+    await fin_add_from_text(m, arg[1])
+
+
+@dp.message(F.photo, F.caption.regexp(r"^/xarajat(@\w+)?(\s|$)"))
+async def photo_expense(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.caption or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(fin.HELP)
+    await fin_add_from_text(m, arg[1], m.photo[-1].file_id)
+
+
+@dp.message(Command("xarajatlar"))
+async def cmd_expenses(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    xs = fn.last_expenses(10)
+    if not xs:
+        return await m.answer("Hali xarajat kiritilmagan.\n\n" + fin.HELP)
+    lines = ["🧾 <b>Oxirgi xarajatlar</b>"] + [f"#{x['id']} · {x['day']} · {x['cat_name']} · <b>{fin.money(x['amount'])}</b>"
+                                              + (f" — {esc(x['note'])}" if x.get("note") else "") for x in xs]
+    await m.answer("\n".join(lines) + "\n\nO'chirish: <code>/xarajat_ochir 12</code>")
+
+
+async def fin_delete(eid: int, who: str) -> str:
+    try:
+        x = fn.delete(eid, who)
+    except fin.FinanceError as e:
+        return f"⚠️ {esc(e)}"
+    await to_investor(fin.expense_text(x, deleted=True))
+    return f"🗑 Xarajat #{eid} bekor qilindi."
+
+
+@dp.message(Command("xarajat_ochir"))
+async def cmd_expense_delete(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = re.findall(r"\d+", (m.text or "").split(maxsplit=1)[-1] if len((m.text or "").split()) > 1 else "")
+    if not arg:
+        return await m.answer("Qaysi xarajatni o'chirish kerak? Masalan: <code>/xarajat_ochir 12</code>\nRo'yxat: /xarajatlar")
+    await m.answer(await fin_delete(int(arg[0]), m.from_user.full_name))
+
+
+@dp.callback_query(F.data.startswith("fx:del:"))
+async def cb_expense_delete(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Faqat admin", show_alert=True)
+    res = await fin_delete(int(c.data.split(":")[2]), c.from_user.full_name)
+    try:
+        await c.message.edit_reply_markup(reply_markup=None)
+        await c.message.reply(res)
+    except TelegramAPIError:
+        pass
+    await c.answer()
+
+
+@dp.message(Command("hisobot"))
+async def cmd_report(m: Message):
+    """Admin istalgan joyda, sherik esa sherik guruhida so'rashi mumkin."""
+    if not (is_admin(m.from_user.id) or (investor_chat() and m.chat.id == investor_chat())):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    ym = arg[1].strip() if len(arg) > 1 else time.strftime("%Y-%m", time.gmtime(time.time() + 5 * 3600))
+    if not re.fullmatch(r"\d{4}-\d{2}", ym):
+        return await m.answer("Oyni shunday yozing: <code>/hisobot 2026-10</code>")
+    a, b = fin.month_range(ym)
+    await m.answer(fn.report_text(a, b, f"Hisobot — {fin.month_name(ym)}"))
+
+
+async def fin_auto_reports(now: int):
+    """Har dushanba 9:00 — o'tgan hafta, har oyning 1-kuni 9:00 — o'tgan oy hisoboti sherik guruhiga."""
+    if not investor_chat():
+        return
+    t = time.gmtime(now + 5 * 3600)
+    if t.tm_hour != 9:
+        return
+    st = shop.settings()
+    today = time.strftime("%Y-%m-%d", t)
+    if t.tm_wday == 0 and st.get("fin_week_sent") != today:
+        shop.set_setting("fin_week_sent", today)
+        b = fin.day_start(today)
+        a = b - 7 * 86400
+        await to_investor(fn.report_text(a, b, f"Haftalik hisobot — {fin.local_day(a)} … {fin.local_day(b - 1)}"))
+    if t.tm_mday == 1 and st.get("fin_month_sent") != today:
+        shop.set_setting("fin_month_sent", today)
+        pm = time.gmtime(now + 5 * 3600 - 2 * 86400)
+        ym = time.strftime("%Y-%m", pm)
+        a, b = fin.month_range(ym)
+        await to_investor(fn.report_text(a, b, f"Oylik hisobot — {fin.month_name(ym)}"))
 
 
 @dp.message(F.photo, F.reply_to_message, F.chat.type.in_({"group", "supergroup"}))
@@ -1197,6 +1405,10 @@ async def followup_loop():
         except Exception:  # noqa: BLE001
             log.exception("daily_digest")
         try:
+            await fin_auto_reports(now)
+        except Exception:  # noqa: BLE001
+            log.exception("fin_auto_reports")
+        try:
             await remind_carts(now)
         except Exception:  # noqa: BLE001
             log.exception("remind_carts")
@@ -1537,6 +1749,114 @@ CUSTOM_PHOTO_MAX = 15 * 1024 * 1024
 
 async def page_custom(request):
     return web.FileResponse(BASE / "webapp" / "custom.html", headers={"Cache-Control": "no-cache"})
+
+
+async def page_moliya(request):
+    return web.FileResponse(BASE / "webapp" / "moliya.html", headers={"Cache-Control": "no-cache"})
+
+
+def _fin_period(request) -> tuple:
+    q = request.query
+    today = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600))
+    d1, d2 = q.get("from") or today[:8] + "01", q.get("to") or today
+    for d in (d1, d2):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+            raise ShopError("Sana noto'g'ri")
+    a, b = fin.day_start(d1), fin.day_start(d2) + 86400
+    if b <= a:
+        raise ShopError("Davr noto'g'ri: boshlanish sanasi tugashidan keyin")
+    return a, b, d1, d2
+
+
+async def api_fin(request):
+    get_admin(request)
+    a, b, d1, d2 = _fin_period(request)
+    s = fn.summary(a, b)
+    for x in s["sales"]:
+        x["day"] = fin.local_day(x["ts"])
+    exps = [{k: v for k, v in e.items() if k not in ("photo", "tg_photo")} for e in s["exps"]]
+    return web.json_response({"from": d1, "to": d2, "summary": {k: v for k, v in s.items() if k not in ("sales", "exps")},
+                              "sales": s["sales"], "expenses": exps, "months": fn.months(12), "pipeline": fn.pipeline(),
+                              "cats": [{"id": k, "name": v} for k, v in fin.CATS.items()], "investor": bool(investor_chat())})
+
+
+async def api_fin_add(request):
+    u = get_admin(request)
+    payload, photo = {}, b""
+    if request.content_type.startswith("multipart/"):
+        reader = await request.multipart()
+        async for part in reader:
+            if part.name == "data":
+                payload = json.loads(await part.text() or "{}")
+            elif part.name == "photo":
+                buf = bytearray()
+                while True:
+                    chunk = await part.read_chunk(256 * 1024)
+                    if not chunk:
+                        break
+                    buf += chunk
+                    if len(buf) > 15 * 1024 * 1024:
+                        raise ShopError("Rasm juda katta (15 MB dan oshmasin)")
+                photo = bytes(buf)
+    else:
+        payload = await request.json()
+    amount, _ = fin.parse_amount(str(payload.get("amount") or ""))
+    who = "Admin (kompyuter)" if u.get("admin_web") else (u.get("first_name") or "Admin")
+    try:
+        x = fn.add(amount, payload.get("cat") or "boshqa", payload.get("note") or "", payload.get("day") or "", photo, by=who)
+    except fin.FinanceError as e:
+        raise ShopError(str(e))
+    asyncio.create_task(fin_expense_added(x))
+    return web.json_response({"expense": {k: v for k, v in x.items() if k not in ("photo", "tg_photo")}})
+
+
+async def api_fin_delete(request):
+    u = get_admin(request)
+    msg = await fin_delete(int(request.match_info["id"]), "Admin (kompyuter)" if u.get("admin_web") else (u.get("first_name") or "Admin"))
+    if msg.startswith("⚠️"):
+        raise ShopError(msg[2:].strip())
+    return web.json_response({"ok": True})
+
+
+async def api_fin_photo(request):
+    get_admin(request)
+    try:
+        x = fn.get(int(request.match_info["id"]))
+    except fin.FinanceError as e:
+        raise ShopError(str(e))
+    path = fn.photo_path(x)
+    if not path:
+        raise ShopError("Chek rasmi yo'q")
+    return web.FileResponse(path, headers={"Cache-Control": "private, max-age=3600"})
+
+
+async def api_fin_csv(request):
+    get_admin(request)
+    a, b, d1, d2 = _fin_period(request)
+    return web.Response(body=fn.csv_bytes(a, b), content_type="text/csv", charset="utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="isofa-moliya-{d1}_{d2}.csv"'})
+
+
+async def api_fin_send(request):
+    """Telegram ichida: CSV faylni yoki hisobotni botga / sherik guruhiga yuborish."""
+    u = get_admin(request)
+    a, b, d1, d2 = _fin_period(request)
+    what = (await request.json()).get("what")
+    title = f"Hisobot — {d1} … {d2}"
+    if what == "investor":
+        if not investor_chat():
+            raise ShopError("Sherik guruhi ulanmagan. Guruhda /sherik_guruhi deb yozing.")
+        if not await to_investor(fn.report_text(a, b, title)):
+            raise ShopError("Sherik guruhiga yuborib bo'lmadi")
+        return web.json_response({"ok": True, "msg": "Sherik guruhiga yuborildi"})
+    if u.get("admin_web") or not bot:
+        raise ShopError("Bu tugma Telegram ichida ishlaydi — kompyuterda «Excel'ga yuklab olish»ni bosing")
+    try:
+        await bot.send_document(u["id"], BufferedInputFile(fn.csv_bytes(a, b), f"isofa-moliya-{d1}_{d2}.csv"),
+                                caption=fn.report_text(a, b, title)[:1024])
+    except TelegramAPIError as e:
+        raise ShopError(f"Yuborib bo'lmadi: {e}")
+    return web.json_response({"ok": True, "msg": "Fayl botga yuborildi — chatni oching"})
 
 
 async def page_konstruktor(request):
@@ -1883,6 +2203,8 @@ async def refresh_custom_messages(r: dict):
 async def notify_custom_status(r: dict):
     if not bot:
         return
+    if r["status"] == "done":
+        asyncio.create_task(fin_sale("c", r))
     await refresh_custom_messages(r)
     msg = cust.STAGE_MSG.get(r["status"])
     if not msg or is_web(r["user_id"]):
@@ -2039,7 +2361,8 @@ async def page_login(request):
         return web.Response(text=_login_page("Havola eskirgan", "Botga <b>/panel</b> deb yozib, yangi havola oling.", False),
                             content_type="text/html", status=403, headers={"Cache-Control": "no-store"})
     resp = web.Response(text=_login_page("Kirdingiz", "<a href='/app?admin=1'>🛋 Tayyor mebellar — admin</a>"
-                                         "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>", True),
+                                         "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>"
+                                         "<a href='/moliya'>💰 Moliya: daromad va xarajatlar</a>", True),
                         content_type="text/html", headers={"Cache-Control": "no-store"})
     resp.set_cookie(ADMIN_COOKIE, admin_session_token(item[0]), max_age=ADMIN_SESSION_DAYS * 86400,
                     httponly=True, secure=True, samesite="Lax", path="/")
@@ -2857,6 +3180,13 @@ def make_app() -> web.Application:
     app.router.add_post("/api/web/session", api_web_session)
     app.router.add_get("/custom", page_custom)
     app.router.add_get("/konstruktor", page_konstruktor)
+    app.router.add_get("/moliya", page_moliya)
+    app.router.add_get("/api/admin/finance", api_fin)
+    app.router.add_post("/api/admin/finance/expense", api_fin_add)
+    app.router.add_post("/api/admin/finance/expense/{id}/delete", api_fin_delete)
+    app.router.add_get("/api/admin/finance/expense/{id}/photo", api_fin_photo)
+    app.router.add_get("/api/admin/finance/csv", api_fin_csv)
+    app.router.add_post("/api/admin/finance/send", api_fin_send)
     app.router.add_get("/api/custom/config", api_custom_config)
     app.router.add_post("/api/custom/request", api_custom_request)
     app.router.add_post("/api/custom/mine", api_custom_mine)
