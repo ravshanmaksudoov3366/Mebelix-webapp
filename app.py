@@ -23,7 +23,12 @@ from aiogram.exceptions import TelegramAPIError, TelegramMigrateToChat
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     BufferedInputFile,
+    BotCommand,
+    BotCommandScopeChat,
     CallbackQuery,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -676,15 +681,8 @@ async def cb_lang(c: CallbackQuery):
 @dp.message(Command("admin"))
 async def cmd_admin(m: Message):
     if is_admin(m.from_user.id):
-        await m.answer("🗂 Admin panel:\n\n📲 Instagram/Facebook: shu yerga rasm yuboring (matnini rasm ostiga yozing).\n"
-                       "/meta — ulanish va sozlamalar · /navbat — navbatdagi postlar\n\n"
-                       "💰 Moliya: /xarajat — xarajat kiritish · /xarajatlar · /hisobot\n"
-                       "🤝 Sherik guruhi: guruhda /sherik_guruhi deb yozing",
-                       reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                           [InlineKeyboardButton(text="🗂 Admin panelni ochish", web_app=WebAppInfo(url=f"{APP_URL}?admin=1&lang=uz"))],
-                           [InlineKeyboardButton(text="💰 Moliya", web_app=WebAppInfo(url=f"{WEBAPP_URL}moliya"))]]))
-    else:
-        await m.answer(f"Sizning ID: <code>{m.from_user.id}</code>\nAdmin emassiz.")
+        return await cmd_menu(m)
+    await m.answer(f"Sizning ID: <code>{m.from_user.id}</code>\nAdmin emassiz.")
 
 
 @dp.message(Command("panel"))
@@ -2914,6 +2912,99 @@ async def admin_forward_channel(m: Message):
     await m.answer(await connect_channel(ch, m.from_user.id))
 
 
+# ------------------------------------------------------------------ admin menyusi: barcha buyruqlar bir joyda
+# (tugma matni, bajariladigan funksiya nomi, botga yuboriladigan buyruq, «/» ro'yxatidagi izoh)
+ADMIN_MENU = [
+    [("💰 Xarajat qo'shish", "cmd_expense", "/xarajat", "Xarajat kiritish: /xarajat 500000 reklama"),
+     ("🧾 Xarajatlar", "cmd_expenses", "/xarajatlar", "Oxirgi xarajatlar ro'yxati")],
+    [("📊 Hisobot", "cmd_report", "/hisobot", "Shu oyning moliyaviy hisoboti"),
+     ("🗑 Xarajatni o'chirish", "cmd_expense_delete", "/xarajat_ochir", "Xarajatni bekor qilish: /xarajat_ochir 12")],
+    [("📣 Telegram kanal", "cmd_channel", "/kanal", "Telegram kanalga avto-post"),
+     ("📲 Instagram / Facebook", "cmd_meta", "/meta", "Instagram va Facebook ulanishi")],
+    [("🗓 Navbatdagi postlar", "cmd_queue", "/navbat", "Navbatdagi postlar"),
+     ("⏰ Post vaqti", "cmd_post_time", "/post_vaqti", "Postlar chiqadigan vaqt")],
+    [("#️⃣ Heshteglar", "cmd_tags", "/heshteg", "Postlardagi heshteglar"),
+     ("⭐ Mijozlar fikri", "cmd_reviews", "/fikrlar", "Mijozlar fikrlari")],
+    [("🔁 Guruhga qayta yuborish", "cmd_resend_roles", "/guruhga", "Buyurtmani kuryer/yig'uvchilarga qayta yuborish"),
+     ("👥 Guruhlarni ulash", "menu_groups_help", "", "")],
+    [("💻 Kompyuterda kirish", "cmd_web_panel", "/panel", "Kompyuterda admin panelga kirish havolasi"),
+     ("🚪 Kompyuterlardan chiqish", "cmd_web_logout_all", "/chiqish", "Barcha kompyuterlardagi sessiyani yopish")],
+    [("🌐 Til", "cmd_lang", "/til", "Bot tili"), ("🆔 Mening ID", "cmd_id", "/id", "Telegram ID raqamingiz")],
+    [("🔀 Mijozlarni ko'chirish", "cmd_migrate", "/kochish", "Eski botdagi mijozlarni yangi botga o'tkazish"),
+     ("🧹 Sinov savdolarini tozalash", "cmd_wipe", "/tozalash", "Sinov (namuna) savdolarini o'chirish")],
+    [("❌ Menyuni yopish", "menu_close", "", "")],
+]
+_MENU_BY_TEXT = {b[0]: b for row in ADMIN_MENU for b in row}
+
+
+def admin_reply_kb() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=b[0]) for b in row] for row in ADMIN_MENU],
+                               resize_keyboard=True, is_persistent=True, input_field_placeholder="Buyruqni tanlang…")
+
+
+def admin_panels_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=f"{APP_URL}?admin=1&lang=uz")),
+         InlineKeyboardButton(text="📐 O'lchamga arizalar", web_app=WebAppInfo(url=f"{CUSTOM_URL}?admin=1"))],
+        [InlineKeyboardButton(text="💰 Moliya", web_app=WebAppInfo(url=f"{WEBAPP_URL}moliya")),
+         InlineKeyboardButton(text="🧊 3D konstruktor", web_app=WebAppInfo(url=f"{WEBAPP_URL}konstruktor"))]])
+
+
+@dp.message(Command("menyu", "menu", "buyruqlar"))
+async def cmd_menu(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    if m.chat.type == "private":
+        await m.answer("🗂 <b>Admin menyusi</b>\n\nPastdagi tugmalardan buyruqni tanlang. Menyu doim pastda turadi; "
+                       "yopsangiz — /menyu deb qayta oching.", reply_markup=admin_reply_kb())
+    await m.answer("Ilovalar:", reply_markup=admin_panels_kb())
+
+
+@dp.message(F.chat.type == "private", F.text.func(lambda t: t in _MENU_BY_TEXT))
+async def admin_menu_button(m: Message):
+    if not is_admin(m.from_user.id):
+        return await user_message(m)
+    name, cmd = _MENU_BY_TEXT[m.text][1], _MENU_BY_TEXT[m.text][2]
+    if name == "menu_close":
+        return await m.answer("Menyu yopildi. Qayta ochish: /menyu", reply_markup=ReplyKeyboardRemove())
+    if name == "menu_groups_help":
+        return await m.answer("👥 <b>Guruhlarni ulash</b>\n\nAvval guruh oching va botni unga qo'shing, so'ng <b>guruhning o'zida</b> yozing:\n"
+                              "🚚 <code>/kuryer_guruhi</code> — kuryerlar guruhi\n"
+                              "🔧 <code>/yiguvchi_guruhi</code> — yig'uvchilar guruhi\n"
+                              "🤝 <code>/sherik_guruhi</code> — sherik (moliya hisoboti) guruhi\n\n"
+                              "Sherik guruhini uzish: guruhda <code>/sherik_guruhi off</code>")
+    fn_ = globals().get(name)
+    if not fn_:
+        return await m.answer("Bu buyruq topilmadi.")
+    try:
+        msg = m.model_copy(update={"text": cmd})
+    except Exception:  # noqa: BLE001
+        return await m.answer(f"Buyruqni yozing: {cmd}")
+    await fn_(msg)
+
+
+async def setup_admin_commands():
+    """«/» bosilganda admin uchun barcha buyruqlar izohi bilan chiqadi (mijozlarga ko'rinmaydi)."""
+    cmds = [BotCommand(command="menyu", description="🗂 Admin menyusi — barcha buyruqlar")]
+    cmds += [BotCommand(command=b[2].lstrip("/"), description=b[3][:256]) for row in ADMIN_MENU for b in row if b[2]]
+    cmds.append(BotCommand(command="start", description="Do'konni ochish"))
+    for aid in ADMIN_IDS:
+        try:
+            await bot.set_my_commands(cmds, scope=BotCommandScopeChat(chat_id=aid))
+        except TelegramAPIError as e:
+            log.warning("admin buyruqlari ro'yxatini o'rnatib bo'lmadi (%s): %s", aid, e)
+    group_cmds = [BotCommand(command=c, description=d) for c, d in (
+        ("xarajat", "Xarajat kiritish: /xarajat 500000 reklama"), ("xarajatlar", "Oxirgi xarajatlar"),
+        ("hisobot", "Moliyaviy hisobot"), ("guruhga", "Buyurtmani guruhlarga qayta yuborish"),
+        ("kuryer_guruhi", "Shu guruhni kuryerlar guruhi qilish"), ("yiguvchi_guruhi", "Shu guruhni yig'uvchilar guruhi qilish"),
+        ("sherik_guruhi", "Shu guruhni sherik guruhi qilish"), ("menyu", "Ilovalar"))]
+    if GROUP_ID:
+        try:
+            await bot.set_my_commands(group_cmds, scope=BotCommandScopeChat(chat_id=GROUP_ID))
+        except TelegramAPIError as e:
+            log.warning("admin guruhi buyruqlarini o'rnatib bo'lmadi: %s", e)
+
+
 # Umumiy (har qanday matn/rasm) qabul qiluvchilar buyruqlardan KEYIN tekshirilsin — aks holda /meta, /kanal kabi
 # keyin yozilgan buyruqlar ularga «yutilib» ketadi. Tartibni shu yerda bir marta to'g'rilaymiz.
 _CATCH_ALL = ("admin_reply", "user_message", "admin_photo", "refuse_user")
@@ -3267,6 +3358,10 @@ async def main():
         app_tasks.append(asyncio.create_task(old_dp.start_polling(old_bot, handle_signals=False)))
         log.info("Eski bot yo'naltiruvchi rejimda ishlayapti")
     order_handlers()
+    try:
+        await setup_admin_commands()
+    except Exception:  # noqa: BLE001
+        log.exception("setup_admin_commands")
     await dp.start_polling(bot)
 
 
