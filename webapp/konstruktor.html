@@ -46,6 +46,9 @@ main{max-width:1280px;margin:0 auto;padding:12px}
 .ovl svg,.ovr svg{width:15px;height:15px}
 .toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:rgba(54,52,53,.94);color:var(--gold);padding:8px 13px;border-radius:10px;font-size:12.5px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;z-index:4}
 .toast.show{opacity:1}
+.photo{position:absolute;inset:0;background:#000;display:none;z-index:6}.photo.show{display:block}.photo img{width:100%;height:100%;object-fit:contain;display:block}
+.pbar{position:absolute;right:10px;top:10px;display:flex;gap:6px}.pbar button{border:0;background:rgba(255,255,255,.95);border-radius:10px;padding:8px 11px;font-weight:600;font-size:12.5px;cursor:pointer}
+.ovr button.hq{background:var(--gold);color:var(--char)}
 .hint{font-size:12.5px;color:var(--hint);margin:8px 4px 0;line-height:1.4}
 .hint b{color:var(--text)}
 .selbar{display:none;margin-top:8px;background:var(--soft);border-radius:14px;padding:10px;gap:9px;flex-direction:column;max-height:40vh;overflow:auto}
@@ -140,7 +143,8 @@ input[type=range]{width:100%;accent-color:var(--char);height:28px}
         <div class="views"><button data-v="3d" class="on" onclick="preset('3d')">3D</button><button data-v="old" onclick="preset('old')">Old</button><button data-v="reja" onclick="preset('reja')">Reja</button></div></div>
       <div class="pic" id="pic"><canvas id="cv"></canvas><div id="lbls"></div>
         <div class="ovl"><button id="undoBtn" onclick="undo()" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Bekor</button></div>
-        <div class="ovr" id="ovr"></div><div class="toast" id="toast"></div></div>
+        <div class="ovr" id="ovr"></div><div class="toast" id="toast"></div>
+        <div class="photo" id="photoOv"><img id="photoImg" alt=""><div class="pbar"><button onclick="dlPhoto()">Saqlash</button><button onclick="closePhoto()">3D ga qaytish</button></div></div></div>
       <div class="selbar" id="selbar"></div>
       <div class="hint" id="hint">Barmoq bilan aylantiring, ikki barmoq bilan yaqinlashtiring. <b>Shkafga bosing</b> — enini, turini o'zgartirasiz, qo'shasiz yoki o'chirasiz.</div>
     </section>
@@ -184,7 +188,7 @@ const VS=`attribute vec3 aPos;attribute vec3 aNor;uniform mat4 uVP,uModel,uLVP;u
 varying vec3 vW,vN,vP,vLN;varying vec4 vL;
 void main(){vec4 w=uModel*vec4(aPos,1.);vW=w.xyz;vN=mat3(uModel)*(aNor/(uSize*uSize));vP=aPos*uSize;vLN=aNor;vL=uLVP*w;gl_Position=uVP*w;}`;
 const FS=`precision highp float;
-uniform vec3 uColor,uCam,uSun;uniform float uKind,uAlpha,uTexel;uniform sampler2D uShadow;
+uniform vec3 uColor,uCam,uSun,uSize;uniform float uKind,uAlpha,uTexel,uEdge,uSky;uniform sampler2D uShadow;
 varying vec3 vW,vN,vP,vLN;varying vec4 vL;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
@@ -210,17 +214,19 @@ void main(){
    base=woodc(base*(.86+.2*hash(vec2(row,pr))),vec2(vW.x*1.3,vW.z));float seam=step(.03,fract(px))*step(.006,fract(py));base*=mix(.62,1.,seam);gloss=.18;sp=40.;}
  else if(k==12){vec2 t=uv/vec2(25.,7.5);t.x+=step(1.,mod(floor(t.y),2.))*.5;vec2 f=fract(t);vec2 id=floor(t);float gr=step(.05,f.x)*step(.13,f.y);
    base*=(.75+.4*hash(id))*(.9+.1*noise(uv*.8));base=mix(pow(vec3(.78,.75,.7),vec3(2.2)),base,gr);}
+ if(uEdge>.5){vec3 dd=uSize*.5-abs(vP);float de=abs(ln.z)>.5?min(dd.x,dd.y):(abs(ln.x)>.5?min(dd.z,dd.y):min(dd.x,dd.z));base*=mix(.5,1.,smoothstep(0.,.3,de));}
  float sh=shadow();
  vec3 L=normalize(uSun),V=normalize(uCam-vW);
  if(dot(n,V)<0.)n=-n;
  float dif=max(dot(n,L),0.);
  float ao=mix(.72,1.,smoothstep(0.,28.,vW.y));if(n.y>.5&&vW.y<2.)ao=1.;
  vec3 amb=mix(vec3(.42,.37,.32),vec3(.93,.94,.96),n.y*.5+.5)*ao;
- vec3 col=base*(amb*.64+vec3(1.,.95,.87)*dif*sh*.76);
- vec3 H=normalize(L+V);float s=pow(max(dot(n,H),0.),sp)*gloss*(.35+.65*sh);
+ float shD=uSky>.5?1.:sh,aoS=uSky>.5?mix(.28,1.22,sh):1.;
+ vec3 col=base*(amb*.64*aoS+vec3(1.,.95,.87)*dif*shD*.76);
+ vec3 H=normalize(L+V);float s=pow(max(dot(n,H),0.),sp)*gloss*(.35+.65*shD);
  float fr=pow(1.-max(dot(n,V),0.),4.);
  vec3 R=reflect(-V,n);vec3 sky=mix(vec3(.5,.45,.4),vec3(.97,.97,.98),smoothstep(-.25,.45,R.y));sky*=.82+.18*sin(R.x*5.+R.z*3.+R.y*2.);
- if(k==4){col=mix(col,sky*base*1.15,.85);s*=5.;}
+ if(k==4){vec3 me=mix(vec3(.6,.5,.4),vec3(.95,.93,.9),smoothstep(-.12,.06,R.y));me*=.86+.14*smoothstep(.36,.5,abs(fract((vW.x+vW.y)*.006)-.5));col=mix(col,me*base*1.12,.9);s*=5.;}
  else if(k==8){col=mix(col,sky*base,.6);s*=4.;}
  else if(k==7){col=mix(col,sky*.9,.35);s*=5.;}
  else col=mix(col,sky*max(base,vec3(.04)),env+fr*.12);
@@ -230,6 +236,7 @@ void main(){
 const SVS=`attribute vec3 aPos;uniform mat4 uLVP,uModel;void main(){gl_Position=uLVP*uModel*vec4(aPos,1.);}`;
 const SFS=`precision highp float;vec4 pk(float d){vec4 b=fract(d*vec4(1.,255.,65025.,16581375.));b-=b.yzww*vec4(1./255.,1./255.,1./255.,0.);return b;}void main(){gl_FragColor=pk(gl_FragCoord.z);}`;
 
+let SUNJ=null,SHDIR=null,SKY=0,JIT=[0,0];
 let gl,P,SP,GEO={},SH={size:2048},meshes=[],lines=[],needDraw=true,VPm=null;
 const cam={theta:.55,phi:1.1,dist:800,tgt:[0,100,0],goal:null},scene={c:[0,100,0],r:500};
 const SUN=norm([-.42,1,.62]);
@@ -265,17 +272,18 @@ function camPos(){const {theta:t,phi:p,dist:d,tgt:g}=cam;return [g[0]+d*Math.sin
 function draw(){
   const cv=gl.canvas,dpr=Math.min(2,window.devicePixelRatio||1),W=Math.max(1,Math.round(cv.clientWidth*dpr)),H=Math.max(1,Math.round(cv.clientHeight*dpr));
   if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H;}
-  const e=camPos();for(const m of meshes)if(m.cut)m.a=(e[m.cut[0]]-m.cut[1])*m.cut[2]>0?.14:1;
-  const r=scene.r,c=scene.c,lp=[c[0]+SUN[0]*r*2,c[1]+SUN[1]*r*2,c[2]+SUN[2]*r*2],LVP=M4.mul(M4.ortho(-r,r,-r,r,1,r*4),M4.look(lp,c,[0,0,-1]));
+  const e=camPos();for(const m of meshes)if(m.cut)m.a=(e[m.cut[0]]-m.cut[1])*m.cut[2]>0?(m.cutA==null?.14:m.cutA):1;
+  const sunD=SUNJ||SUN,shD=SHDIR||sunD,r=scene.r,c=scene.c,lp=[c[0]+shD[0]*r*2,c[1]+shD[1]*r*2,c[2]+shD[2]*r*2],LVP=M4.mul(M4.ortho(-r,r,-r,r,1,r*4),M4.look(lp,c,[0,0,-1]));
   gl.bindFramebuffer(gl.FRAMEBUFFER,SH.fb);gl.viewport(0,0,SH.size,SH.size);gl.clearColor(1,1,1,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.disable(gl.CULL_FACE);gl.useProgram(SP.p);gl.uniformMatrix4fv(SP.u.uLVP,false,LVP);
   let cur=null;for(const m of meshes){if(m.a<1||m.k===6||m.ns)continue;const g=GEO[m.g];if(g!==cur){bindGeo(SP,g);cur=g;}gl.uniformMatrix4fv(SP.u.uModel,false,m.m);gl.drawArrays(g.mode,0,g.c);}
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.clearColor(.86,.83,.785,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  VPm=M4.mul(M4.persp(.72,W/H,5,Math.max(6000,cam.dist*4)),M4.look(e,cam.tgt,Math.abs(Math.cos(cam.phi))>.995?[0,0,-1]:[0,1,0]));
-  gl.useProgram(P.p);const u=P.u;gl.uniformMatrix4fv(u.uVP,false,VPm);gl.uniformMatrix4fv(u.uLVP,false,LVP);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uSun,SUN);
+  let PR=M4.persp(.72,W/H,5,Math.max(6000,cam.dist*4));if(JIT[0]||JIT[1])PR=M4.mul(M4.t(JIT[0]*2/W,JIT[1]*2/H,0),PR);
+  VPm=M4.mul(PR,M4.look(e,cam.tgt,Math.abs(Math.cos(cam.phi))>.995?[0,0,-1]:[0,1,0]));
+  gl.useProgram(P.p);const u=P.u;gl.uniformMatrix4fv(u.uVP,false,VPm);gl.uniformMatrix4fv(u.uLVP,false,LVP);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uSun,sunD);gl.uniform1f(u.uSky,SKY);
   gl.uniform1f(u.uTexel,1/SH.size);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,SH.tex);gl.uniform1i(u.uShadow,0);
-  const drawM=m=>{const g=GEO[m.g];if(g!==cur){bindGeo(P,g);cur=g;}gl.uniformMatrix4fv(u.uModel,false,m.m);gl.uniform3fv(u.uSize,m.s);gl.uniform3fv(u.uColor,m.c);gl.uniform1f(u.uKind,m.k);gl.uniform1f(u.uAlpha,m.a);gl.drawArrays(g.mode,0,g.c);};
-  cur=null;const tr=[];for(const m of meshes){if(m.a<1){tr.push(m);continue;}drawM(m);}
+  const drawM=m=>{const g=GEO[m.g];if(g!==cur){bindGeo(P,g);cur=g;}gl.uniformMatrix4fv(u.uModel,false,m.m);gl.uniform3fv(u.uSize,m.s);gl.uniform3fv(u.uColor,m.c);gl.uniform1f(u.uKind,m.k);gl.uniform1f(u.uAlpha,m.a);gl.uniform1f(u.uEdge,m.e||0);gl.drawArrays(g.mode,0,g.c);};
+  cur=null;const tr=[];for(const m of meshes){if(m.a<=0)continue;if(m.a<1){tr.push(m);continue;}drawM(m);}
   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
   tr.forEach(m=>{m._d=Math.hypot(m.m[12]-e[0],m.m[13]-e[1],m.m[14]-e[2]);});tr.sort((a,b)=>b._d-a._d).forEach(drawM);lines.forEach(drawM);
   gl.depthMask(true);gl.disable(gl.BLEND);placeLabels(W/dpr,H/dpr);
@@ -308,7 +316,7 @@ function pick(e){
 }
 let CT=M4.id();
 function withT(m,fn){const p=CT;CT=M4.mul(p,m);fn();CT=p;}
-function box(x,y,z,w,h,d,mt,pk,ns){if(w<=.01||h<=.01||d<=.01)return null;const m={g:"box",m:M4.mul(CT,M4.mul(M4.t(x+w/2,y+h/2,z+d/2),M4.s(w,h,d))),s:[w,h,d],c:mt.c,k:mt.k,a:mt.a==null?1:mt.a,pick:pk||null,ns:ns||mt.ns};meshes.push(m);return m;}
+function box(x,y,z,w,h,d,mt,pk,ns){if(w<=.01||h<=.01||d<=.01)return null;const m={g:"box",m:M4.mul(CT,M4.mul(M4.t(x+w/2,y+h/2,z+d/2),M4.s(w,h,d))),s:[w,h,d],c:mt.c,k:mt.k,a:mt.a==null?1:mt.a,pick:pk||null,ns:ns||mt.ns,e:(ns||mt.k===6||mt.k===9||mt.k===11||Math.min(w,h,d)>60)?0:1};meshes.push(m);return m;}
 function cyl(cx,cy,cz,r,len,ax,mt,pk){const R=ax==="x"?M4.rz(Math.PI/2):ax==="z"?M4.rx(Math.PI/2):M4.id();meshes.push({g:"cyl",m:M4.mul(CT,M4.mul(M4.t(cx,cy,cz),M4.mul(R,M4.s(2*r,len,2*r)))),s:[2*r,len,2*r],c:mt.c,k:mt.k,a:mt.a==null?1:mt.a,pick:pk||null});}
 function sph(cx,cy,cz,r,mt,pk){meshes.push({g:"sph",m:M4.mul(CT,M4.mul(M4.t(cx,cy,cz),M4.s(2*r,2*r,2*r))),s:[2*r,2*r,2*r],c:mt.c,k:mt.k,a:1,pick:pk||null});}
 const MT=(hex,k=0,a)=>({c:hex3(hex),k,a});
@@ -318,10 +326,13 @@ const wpt=p=>M4.xp(CT,p);
    2. TANLOVLAR
    ===================================================================== */
 const COL={oq:["Oq","#f1efea"],kashmir:["Kashmir","#d8cab6"],shalfey:["Shalfey","#a2ac96"],olive:["Zaytun","#6f7258"],grafit:["Grafit","#47484c"],qora:["Qora","#252526"],
-  kok:["To'q ko'k","#34475b"],terra:["Terrakota","#b06b4e"],bej:["Qumrang","#c9b69a"],eman:["Eman","#c39869",1],yongoq:["Yong'oq","#7a5135",1],kul:["Kulrang eman","#9d968c",1]};
-const KORP={oq:["Oq","#efede8"],kashmir:["Kashmir","#d8cab6"],grafit:["Grafit","#47484c"],eman:["Eman","#c39869",1],yongoq:["Yong'oq","#7a5135",1]};
-const TOSH={marmar:["Oq marmar","#ecebe6",3],calacatta:["Kalakatta","#f1eee8",3],qum:["Qumrang","#d5c6ab",9],beton:["Beton","#9b9994",9],kvarts:["Qora kvarts","#2a2a2a",9],yogoch:["Yog'och","#a87547",1]};
-const FARTUK={tosh:"Stoleshnitsa kabi",kafel:"Oq kafel",gisht:"G'isht (loft)",shisha:"Qora shisha",yogoch:"Yog'och"};
+  kok:["To'q ko'k","#34475b"],terra:["Terrakota","#b06b4e"],bej:["Qumrang","#c9b69a"],mokko:["Mokko","#8b7f76"],kapuchino:["Kapuchino","#a39383"],fildish:["Fil suyagi","#ddd6c8"],eman:["Eman","#c39869",1],yongoq:["Yong'oq","#7a5135",1],kul:["Kulrang eman","#9d968c",1]};
+const KORP={oq:["Oq","#efede8"],fildish:["Fil suyagi","#ddd6c8"],mokko:["Mokko","#8b7f76"],kashmir:["Kashmir","#d8cab6"],grafit:["Grafit","#47484c"],eman:["Eman","#c39869",1],yongoq:["Yong'oq","#7a5135",1]};
+const TOSH={oq:["Oq kvarts","#f3f2ef",9],marmar:["Oq marmar","#ecebe6",3],calacatta:["Kalakatta","#f1eee8",3],qum:["Qumrang","#d5c6ab",9],beton:["Beton","#9b9994",9],kvarts:["Qora kvarts","#2a2a2a",9],yogoch:["Yog'och","#a87547",1]};
+const FARTUK={devor:"Oq devor",tosh:"Stoleshnitsa kabi",kafel:"Oq kafel",gisht:"G'isht (loft)",shisha:"Qora shisha",yogoch:"Yog'och"};
+const KRAN={xrom:["Xrom","#c7c9ca"],nikel:["Shampan","#b8aa8e"],qora:["Qora","#2a2a2a"],oltin:["Oltin","#c9a24a"]};
+const POL={parket:["Parket","#cdb28d",11],beton:["Och beton","#d4d1cc",9],qparket:["To'q parket","#8a6a4c",11],kafel:["Katta kafel","#e4e1db",9]};
+const DEVOR={oq:["Oq","#f0eeea"],bej:["Bej","#e9e1d4"],kul:["Kulrang","#d6d4d0"],tuq:["To'q","#7e7a75"]};
 const FSTYLE={tekis:"Tekis",frezer:"Frezerli",reyka:"Reykali"};
 const FINISH={mat:"Mat",gl:"Yaltiroq (glyanets)"};
 const KHAND={gola:"Gola (tutqichsiz)",qora:"Qora",oltin:"Oltinrang",push:"Bosib ochiladi"};
@@ -332,23 +343,26 @@ const UPT={eshik:"Eshikli",lift:"Yuqoriga ochiladi",shisha:"Oynali vitrina",ochi
 const SHORT={eshik:"Eshik",tortma:"Tortma",pech:"Duxovka",plita:"Plita",rakovina:"Rakovina",idish:"Idish yuv.",musor:"Chiqindi",karusel:"Karusel",ichki:"Ichki tort.",vino:"Vino",ochiq:"Ochiq",kir:"Kir yuv.",
   muz:"Muzlatgich",muz2:"Muzlatgich",pechk:"Duxovka kol.",pantry:"Kladovka",vinok:"Vino kol."};
 const DEFW={karusel:90,muz2:90,idish:60,rakovina:60,pech:60,plita:60,tortma:60,eshik:50,musor:45,ichki:60,vino:30,ochiq:40,kir:60,muz:60,pechk:60,pantry:60,vinok:60};
-const SEC={uzun:"Uzun ilgich",ikki:"Ikki qavat ilgich",javon:"Javonlar",tortma:"Tortma + javon",poyabzal:"Poyabzal",shim:"Shim ilgichi",aksessuar:"Aksessuar tortmasi",
+const SEC={uzunT:"Ilgich + tortma",uzun:"Uzun ilgich",ikki:"Ikki qavat ilgich",javon:"Javonlar",tortma:"Tortma + javon",poyabzal:"Poyabzal",shim:"Shim ilgichi",aksessuar:"Aksessuar tortmasi",
   savat:"Kir savatlari",chamadon:"Chamadon joyi",seyf:"Seyf",tv:"TV joyi",ochiq:"Ochiq tokcha"};
-const WSHORT={uzun:"Uzun ilg.",ikki:"2 qavat",javon:"Javon",tortma:"Tortma",poyabzal:"Poyabzal",shim:"Shim",aksessuar:"Aksessuar",savat:"Savat",chamadon:"Chamadon",seyf:"Seyf",tv:"TV",ochiq:"Ochiq"};
+const WSHORT={uzunT:"Ilgich+T",uzun:"Uzun ilg.",ikki:"2 qavat",javon:"Javon",tortma:"Tortma",poyabzal:"Poyabzal",shim:"Shim",aksessuar:"Aksessuar",savat:"Savat",chamadon:"Chamadon",seyf:"Seyf",tv:"TV",ochiq:"Ochiq"};
 const WDOOR={odatiy:"Odatiy eshik",kozgu:"Ko'zgu eshik",yoq:"Eshiksiz"};
-const WSTYLE={tekis:"Tekis",frezer:"Frezerli",reyka:"Reykali",kozgu:"Ko'zgu",grafit:"Grafit shisha",bronza:"Bronza shisha",kombi:"Kombinatsiya"};
+const WSTYLE={tekis:"Tekis",frezer:"Frezerli",reyka:"Reykali",kozgu:"Ko'zgu",grafit:"Grafit shisha",bronza:"Bronza shisha",kombi:"Kombinatsiya",orta:"O'rtasi ko'zgu"};
 const PROFIL={kumush:["Kumush","#c9c9c6"],qora:["Qora","#2a2a2a"],oltin:["Oltin","#c7a456"]};
 const WHAND={qora:"Qora uzun",oltin:"Oltinrang",push:"Bosib ochiladi"};
 const RUNNAME={A:"Asosiy devor",B:"Chap devor",C:"O'ng devor"};
 const KPRE={
-  minimal:{n:"Minimalizm",d:"Oq, tutqichsiz, toza chiziqlar",c:["#f1efea","#ecebe6","#2a2a2a"],v:{style:"tekis",finish:"mat",handle:"gola",fl:"oq",fu:"same",tosh:"kvarts",fartuk:"tosh",led:true}},
-  skandi:{n:"Skandinav",d:"Shalfey, yog'och va oq",c:["#a2ac96","#f1efea","#a87547"],v:{style:"tekis",finish:"mat",handle:"qora",fl:"shalfey",fu:"oq",tosh:"yogoch",fartuk:"kafel",led:true}},
-  loft:{n:"Loft",d:"Grafit, eman, beton, g'isht",c:["#47484c","#c39869","#9b9994"],v:{style:"tekis",finish:"mat",handle:"qora",fl:"grafit",fu:"eman",tosh:"beton",fartuk:"gisht",led:true}},
-  neo:{n:"Neoklassika",d:"Frezer, oltin, marmar",c:["#d8cab6","#ecebe6","#c9a24a"],v:{style:"frezer",finish:"mat",handle:"oltin",fl:"kashmir",fu:"same",tosh:"calacatta",fartuk:"tosh",led:true}},
-  premium:{n:"Premium",d:"Qora + yong'oq, yaltiroq tosh",c:["#252526","#7a5135","#f1eee8"],v:{style:"tekis",finish:"mat",handle:"gola",fl:"qora",fu:"yongoq",tosh:"calacatta",fartuk:"tosh",led:true}},
-  hitech:{n:"Hi-Tech",d:"Yaltiroq oq, qora shisha",c:["#f1efea","#2a2a2a","#c9c9c6"],v:{style:"tekis",finish:"gl",handle:"gola",fl:"oq",fu:"same",tosh:"kvarts",fartuk:"shisha",led:true}}
+  mokko:{n:"Mokko minimal",d:"Tutqichsiz, qora ochiq tokcha, oq tosh",c:["#8b7f76","#252526","#f3f2ef"],v:{style:"tekis",finish:"mat",handle:"gola",fl:"mokko",fu:"same",tosh:"oq",tt:2,fartuk:"devor",led:true,niche:true,kran:"nikel",pol:"beton",devor:"oq",upper:true,shift:true}},
+  minimal:{n:"Minimalizm",d:"Oq, tutqichsiz, toza chiziqlar",c:["#f1efea","#ecebe6","#2a2a2a"],v:{style:"tekis",finish:"mat",handle:"gola",fl:"oq",fu:"same",tosh:"kvarts",fartuk:"tosh",led:true,niche:false,kran:"qora",pol:"parket"}},
+  skandi:{n:"Skandinav",d:"Shalfey, yog'och va oq",c:["#a2ac96","#f1efea","#a87547"],v:{style:"tekis",finish:"mat",handle:"qora",fl:"shalfey",fu:"oq",tosh:"yogoch",fartuk:"kafel",led:true,niche:false,kran:"qora",pol:"parket"}},
+  loft:{n:"Loft",d:"Grafit, eman, beton, g'isht",c:["#47484c","#c39869","#9b9994"],v:{style:"tekis",finish:"mat",handle:"qora",fl:"grafit",fu:"eman",tosh:"beton",fartuk:"gisht",led:true,niche:true,kran:"qora",pol:"qparket"}},
+  neo:{n:"Neoklassika",d:"Frezer, oltin, marmar",c:["#d8cab6","#ecebe6","#c9a24a"],v:{style:"frezer",finish:"mat",handle:"oltin",fl:"kashmir",fu:"same",tosh:"calacatta",fartuk:"tosh",led:true,niche:false,kran:"oltin",pol:"parket"}},
+  premium:{n:"Premium",d:"Qora + yong'oq, yaltiroq tosh",c:["#252526","#7a5135","#f1eee8"],v:{style:"tekis",finish:"mat",handle:"gola",fl:"qora",fu:"yongoq",tosh:"calacatta",fartuk:"tosh",led:true,niche:false,kran:"qora",pol:"parket"}},
+  hitech:{n:"Hi-Tech",d:"Yaltiroq oq, qora shisha",c:["#f1efea","#2a2a2a","#c9c9c6"],v:{style:"tekis",finish:"gl",handle:"gola",fl:"oq",fu:"same",tosh:"kvarts",fartuk:"shisha",led:true,niche:false,kran:"xrom",pol:"kafel"}}
 };
 const WPRE={
+  kupeAnt:{n:"Kupe + antresol",d:"Oq eshik, o'rtasi ko'zgu, eman korpus",c:["#f1efea","#c39869","#dde4e6"],v:{door:"kupe",nd:3,style:"orta",fasad:"oq",korpus:"eman",profil:"qora",antDoor:"alohida",ant:true,handle:"qora",finish:"mat",shift:false,hw:255}},
+  ochiq:{n:"Ochiq garderob",d:"Eshiksiz: yon javonlar, ilgich, tortma",c:["#ddd6c8","#2a2a2a"],v:{door:"yoq",korpus:"fildish",fasad:"fildish",handle:"qora",style:"tekis",finish:"mat",ant:false,led:true,yon:false,shift:false,hw:240},open:1},
   minimal:{n:"Minimalizm",d:"Tekis, tutqichsiz",c:["#d8cab6","#efede8"],v:{style:"tekis",fasad:"kashmir",korpus:"oq",handle:"push",finish:"mat",profil:"kumush"}},
   skandi:{n:"Skandinav",d:"Reyka, shalfey, qora",c:["#a2ac96","#efede8","#252526"],v:{style:"reyka",fasad:"shalfey",korpus:"oq",handle:"qora",finish:"mat",profil:"qora"}},
   loft:{n:"Loft",d:"Grafit shisha, qora profil",c:["#3a3d40","#47484c"],v:{style:"grafit",fasad:"grafit",korpus:"grafit",handle:"qora",finish:"mat",profil:"qora"}},
@@ -358,10 +372,10 @@ const WPRE={
 };
 
 const S={tab:"osh",sel:null,dims:false,step:{osh:0,shk:0},
-  k:{lay:"L",A:360,B:260,C:240,H:280,lh:90,tt:4,upper:true,uh:72,shift:true,led:true,orol:false,bezak:true,preset:"premium",
-     style:"tekis",finish:"mat",handle:"gola",fl:"qora",fu:"yongoq",tosh:"calacatta",fartuk:"tosh",mods:{},modsLay:""},
-  w:{lay:"tog",A:300,B:180,H:280,shift:true,hw:240,D:60,door:"oddiy",nd:3,preset:"minimal",style:"tekis",finish:"mat",profil:"kumush",handle:"push",
-     ant:true,led:true,yon:false,bezak:true,korpus:"oq",fasad:"kashmir",open:false,secs:{},secsKey:""}
+  k:{lay:"I",A:360,B:260,C:240,H:280,lh:90,tt:2,upper:true,uh:72,shift:true,led:true,orol:false,bezak:true,preset:"mokko",niche:true,kran:"nikel",pol:"beton",devor:"oq",
+     style:"tekis",finish:"mat",handle:"gola",fl:"mokko",fu:"same",tosh:"oq",fartuk:"devor",mods:{},modsLay:""},
+  w:{lay:"tog",A:200,B:180,H:280,shift:false,hw:255,D:60,door:"kupe",nd:3,preset:"kupeAnt",style:"orta",finish:"mat",profil:"qora",handle:"qora",antDoor:"alohida",pol:"parket",devor:"oq",
+     ant:true,led:true,yon:false,bezak:true,korpus:"eman",fasad:"oq",open:false,secs:{},secsKey:""}
 };
 
 /* =====================================================================
@@ -435,15 +449,27 @@ function facade(x,y,w,h,z,mt,style,pk,hd){
 }
 const BOT=["#3f5a3a","#5b1f2a","#2f3b2c","#6b2a1f"];
 function bottles(x0,y0,w,h,z,pk){const c=Math.max(1,Math.floor(w/10.5)),r=Math.max(1,Math.floor(h/10.5));for(let i=0;i<c;i++)for(let j=0;j<r;j++)cyl(x0+(i+.5)*w/c,y0+(j+.5)*h/r,z,3.7,30,"z",MT(BOT[(i+j)%4],7),pk);}
+function room(A,H,depth,led){
+  const c=box(-400,H,-400,A+800,6,depth+700,MT("#f4f3f0",9),null,true);c.cut=[1,H-1,1];c.cutA=0;
+  if(led){const l1=box(-10,H-1.2,0,A+20,1.2,3,MT("#fff4dc",6));l1.cut=[1,H-1,1];l1.cutA=0;const g1=box(-10,H-26,.6,A+20,25,.2,MT("#fff3d8",6,.07));g1.cut=[1,H-1,1];g1.cutA=0;}
+}
+function bed(x0){const wood=MT("#a87547",1);
+  box(x0,0,0,170,30,212,wood,null);box(x0+4,30,4,162,22,204,MT("#f2f0ea",0),null);box(x0+4,52,150,162,5,58,MT("#7d7a76",0),null);
+  box(x0,0,-2,170,108,10,wood,null);for(let i=0;i<10;i++)box(x0+8+i*15.4,46,8,14.6,52,7,MT("#4e5a69",0),null);
+  box(x0+18,52,16,58,12,34,MT("#ece8e0",0),null);box(x0+94,52,16,58,12,34,MT("#ece8e0",0),null);
+  [-52,182].forEach(dx=>{box(x0+dx,0,0,42,52,40,wood,null);box(x0+dx+2,24,40,38,.4,.3,MT("#5a3f28",0),null);box(x0+dx+15,38,40.2,12,1.2,1,MT("#2a2a2a",8),null);
+    cyl(x0+dx+21,52+16,20,1,30,"y",MT("#c9a24a",8));cyl(x0+dx+21,52+36,20,10,16,"y",MT("#f3ecdc",0));});
+  box(x0-20,0,150,210,.6,160,MT("#d9d0c3",9),null,true);}
 function buildKitchen(){
   ensureK();
-  const k=S.k,runs=kRuns(k),H=k.H,gola=k.handle==="gola",hT=k.handle,KT=k.lh,LT=KT-k.tt,UB=KT+55,upTop=UB+k.uh,antH=H-upTop,tallTop=k.shift?H:upTop;
+  const k=S.k,runs=kRuns(k),H=k.H,gola=k.handle==="gola",hT=k.handle,KT=k.lh,LT=KT-k.tt,UB=KT+55,NH=k.niche&&k.upper?32:0,upTop=UB+NH+k.uh,antH=H-upTop,tallTop=k.shift?H:upTop;
   const fl=k.fl,fu=k.fu==="same"?k.fl:k.fu,mL=facMat(fl,k.style,k.finish),mU=facMat(fu,k.style,k.finish),korp=MT("#b9b3a8",0),inner=MT("#ece8e1",0),plinth=MT("#2b2b2b",0),dark=MT("#1c1c1c",8),steel=MT("#c7c9ca",8),blackGl=MT("#202224",7);
   const tm=TOSH[k.tosh],mT=MT(tm[1],tm[2]);
-  const mF=k.fartuk==="tosh"?mT:k.fartuk==="kafel"?MT("#f3f1ec",5):k.fartuk==="gisht"?MT("#a65a3f",12):k.fartuk==="shisha"?MT("#1e1f21",7):MT("#a87547",1);
+  const wallC=MT(DEVOR[k.devor||"oq"][1],9),nicheM=MT("#262626",0);
+  const mF=k.fartuk==="devor"?wallC:k.fartuk==="tosh"?mT:k.fartuk==="kafel"?MT("#f3f1ec",5):k.fartuk==="gisht"?MT("#a65a3f",12):k.fartuk==="shisha"?MT("#1e1f21",7):MT("#a87547",1);
   const maxZ=Math.max(k.lay==="I"?0:k.B,k.lay==="U"||k.lay==="II"?k.C:0,k.orol?340:0,240);
-  box(-400,-1,-400,k.A+800,1,maxZ+700,MT("#cdb28d",11),null,true);
-  const wall=MT("#ece6dc",9);box(-10,0,-10,k.A+20,H,10,wall,null,true);
+  const pl0=POL[k.pol||"parket"];box(-400,-1,-400,k.A+800,1,maxZ+700,MT(pl0[1],pl0[2]),null,true);
+  const wall=wallC,bw0=k.lay==="I"?-320:-10,bw1=k.lay==="U"||k.lay==="II"?k.A+10:k.A+320;box(bw0,0,-10,bw1-bw0,H,10,wall,null,true);room(k.A,H,maxZ,k.led);
   if(k.lay!=="I"){box(-10,0,0,10,H,maxZ+40,wall,null,true).cut=[0,-10,-1];}
   if(k.lay==="U"||k.lay==="II"){box(k.A,0,0,10,H,maxZ+40,wall,null,true).cut=[0,k.A+10,1];}
   const labels=[];let decorN=0;const prim=k.lay==="II"?"B":"A";
@@ -460,7 +486,7 @@ function buildKitchen(){
         x+=w;});
       groups.forEach(([a,b])=>{box(a,LT,0,b-a,k.tt,62,mT);box(a,KT,0,b-a,k.upper?55:60,1,mF);if(gola)box(a,LT-3.4,52,b-a,3.4,4,dark);
         if(k.led&&k.upper){box(a+1,UB-.8,26,b-a-2,.7,2,MT("#fff3d6",6));box(a+1,KT+.5,1.2,b-a-2,54,.2,MT("#fff2d0",6,.06));}});
-      if(k.upper&&(r.cornerEnd||r.cornerStart)){const fx=r.cornerEnd?r.b:r.a-25;box(fx,UB,0,25,k.uh,33,korp);facade(fx,UB,25,k.uh,33,mU,"",null,null);
+      if(k.upper&&(r.cornerEnd||r.cornerStart)){const fx=r.cornerEnd?r.b:r.a-25;if(NH){box(fx,UB,0,25,NH,1,nicheM);box(fx,UB,0,25,2,34,nicheM);}box(fx,UB+NH,0,25,k.uh,33,korp);facade(fx,UB+NH,25,k.uh,33,mU,"",null,null);
         if(k.shift&&antH>=18){box(fx,upTop,0,25,antH,33,korp);facade(fx,upTop,25,antH,33,mU,"",null,null);}}
     });
   }
@@ -468,7 +494,7 @@ function buildKitchen(){
     const top=gola?LT-3.5:LT,fz=56,H2=top-10;
     box(x,0,0,w,10,50,plinth,p);
     const doors=()=>{const n=w>=70?2:1,dw=w/n;for(let j=0;j<n;j++){const dx=x+j*dw,edge=n===2&&j===0?dx+dw-4:dx+4;facade(dx,10,dw,H2,fz,mL,k.style,p,hb(edge,top-12,16,true));}};
-    const drawers=hs=>{let y=top;hs.forEach(hh=>{facade(x,y-hh,w,hh,fz,mL,k.style,p,hb(x+w/2,y-5,Math.min(w*.5,36),false));y-=hh;});};
+    const drawers=hs=>{let y=top;hs.forEach((hh,j)=>{if(gola&&j>0){box(x,y-3.6,51,w,3.6,4,dark,p);facade(x,y-hh,w,hh-3.6,fz,mL,k.style,p,null);}else facade(x,y-hh,w,hh,fz,mL,k.style,p,hb(x+w/2,y-5,Math.min(w*.5,36),false));y-=hh;});};
     if(t==="kir"){box(x,10,0,w,LT-10,56,inner,p);box(x+1,10.5,2,w-2,LT-12,56,MT("#f4f4f2",10),p);cyl(x+w/2,10+(LT-10)*.45,58.5,Math.min(17,w*.3),1.4,"z",MT("#9a9c9e",8),p);
       cyl(x+w/2,10+(LT-10)*.45,59.3,Math.min(13,w*.23),.4,"z",MT("#2c3136",7),p);box(x+3,LT-9,58,w-6,5,1,MT("#d9d9d6",10),p);return;}
     if(t==="vino"||t==="ochiq"){box(x,10,0,w,LT-10,56,korp,p);box(x+1.8,11.8,1,w-3.6,LT-13.6,55,inner,p);
@@ -485,14 +511,21 @@ function buildKitchen(){
     if(t==="pech"||t==="plita"){const hw=Math.min(w-6,60);box(x+(w-hw)/2,KT,6,hw,.8,50,MT("#141414",7),p);
       [[-1,-1,6.5],[1,-1,5],[-1,1,5],[1,1,8]].forEach(([a,b,rr])=>cyl(x+w/2+a*hw*.24,KT+.9,31+b*11,rr,.2,"y",MT("#3a3a3a",0)));}
     if(t==="rakovina"){const sw=Math.min(w-12,50);box(x+(w-sw)/2,KT-.2,12,sw,.5,40,MT("#9fa2a3",8),p);box(x+(w-sw)/2+2,KT-.4,14,sw-4,.6,36,MT("#55585a",8),p);
-      const fx=x+w/2,fm=hT==="oltin"?MT("#c9a24a",8):hT==="qora"||k.fl==="qora"?MT("#2a2a2a",8):MT("#b9bcbd",8);cyl(fx,KT+1,6,2.2,2,"y",fm);cyl(fx,KT+14,6,1.1,26,"y",fm);withT(M4.mul(M4.t(fx,KT+27,6),M4.rx(-1.2)),()=>cyl(0,0,8,1.1,16,"y",fm));}
+      const fx=x+w/2,fm=MT(KRAN[k.kran||"xrom"][1],8);cyl(fx,KT+1,6,2.2,2,"y",fm);cyl(fx,KT+14,6,1.1,26,"y",fm);withT(M4.mul(M4.t(fx,KT+27,6),M4.rx(-1.2)),()=>cyl(0,0,8,1.1,16,"y",fm));}
   }
   function drawUp(x,w,t,p){
-    const y0=UB,h=k.uh,fz=33;
+    const y0=UB+NH,h=k.uh,fz=33;
+    if(NH&&t!=="yoq"){box(x,UB,0,w,NH,1,nicheM,p);box(x,UB,0,w,2,34,nicheM,p);box(x,UB,0,1,NH,34,nicheM,p);box(x+w-1,UB,0,1,NH,34,nicheM,p);
+      if(k.led)box(x+1,UB+NH-1.2,22,w-2,.6,2,MT("#fff3d6",6));
+      if(k.bezak){const sd=Math.round(x*7+w)%4;const c=["#f1efea","#3a3a3a","#9a8f84","#c7c9ca"];
+        if(sd===0){cyl(x+w*.3,UB+2+4,16,8,8,"y",MT(c[0],10),p);cyl(x+w*.3,UB+2+11,16,7,6,"y",MT(c[0],10),p);cyl(x+w*.65,UB+2+4,16,7,8,"y",MT(c[1],10),p);}
+        else if(sd===1){cyl(x+w*.35,UB+2+7,16,6,14,"y",MT(c[3],8),p);cyl(x+w*.6,UB+2+8,16,5.5,16,"y",MT(c[0],10),p);}
+        else if(sd===2){cyl(x+w*.4,UB+2+4,15,9,8,"y",MT(c[2],0),p);cyl(x+w*.7,UB+2+6,15,5,12,"y",MT(c[0],10),p);}
+        else {cyl(x+w*.5,UB+2+3.5,16,10,7,"y",MT(c[1],10),p);}}}
     if(t==="ochiq"){const wd=MT("#a87547",1);box(x+1,y0+8,0,w-2,2.5,26,wd,p);box(x+1,y0+h/2+6,0,w-2,2.5,26,wd,p);
       cyl(x+w*.25,y0+16.5,13,5,12,"y",MT("#f3efe8",0),p);cyl(x+w*.7,y0+14.5,12,3.5,8,"y",MT("#6f7258",0),p);sph(x+w*.7,y0+21.5,12,5.5,MT("#5f7a4f",0),p);cyl(x+w*.4,y0+h/2+17.5,12,4,18,"y",MT("#d9cdb8",0),p);return;}
     if(t==="yoq")return;
-    box(x,y0,0,w,h,33,korp,p);
+    box(x,y0,0,w,h,33,korp,p);if(NH)box(x,y0-.1,0,w,.2,33,MT("#1e1e1e",0));
     if(t==="sorgich"){box(x+.3,y0,fz-.5,w-.6,8,2.2,MT("#8d8f90",8),p);facade(x,y0+8,w,h-8,fz,mU,k.style,p,hb(x+w/2,y0+14,Math.min(w*.5,36),false));}
     else if(t==="lift"){facade(x,y0,w,h/2,fz,mU,k.style,p,hb(x+w/2,y0+5,Math.min(w*.5,36),false));facade(x,y0+h/2,w,h/2,fz,mU,k.style,p,hb(x+w/2,y0+h/2+5,Math.min(w*.5,36),false));}
     else if(t==="quritgich"){facade(x,y0+h*.36,w,h*.64,fz,mU,k.style,p,hb(x+w/2,y0+h*.36+5,Math.min(w*.5,36),false));box(x+1.8,y0,1,w-3.6,h*.36,30,inner,p);
@@ -546,7 +579,7 @@ function buildKitchen(){
 /* =====================================================================
    5. SHKAF SAHNASI
    ===================================================================== */
-function wMat(w,i,door){const st=w.style,fc=COL[w.fasad];
+function wMat(w,i,door){const st=w.style,fc=COL[w.fasad];if(st==="orta"&&door!=="kozgu")return facMat(w.fasad,"",w.finish);
   if(door==="kozgu"||st==="kozgu")return MT("#dde4e6",4);if(st==="grafit")return MT("#3a3d40",7,.9);if(st==="bronza")return MT("#6e5641",7,.9);
   if(st==="kombi")return i%2?MT("#dde4e6",4):facMat(w.fasad,"",w.finish);
   return facMat(w.fasad,st,w.finish);}
@@ -556,8 +589,9 @@ function buildWardrobe(){
   const kc=KORP[w.korpus],korp=MT(kc[1],kc[2]?1:0),inner=MT(kc[2]?kc[1]:(kc[1]==="#47484c"?"#55565a":"#f3f1ec"),kc[2]?1:0),plinth=MT("#2b2b2b",0),steel=MT("#c7c9ca",8);
   const hasAnt=w.ant&&Hw>=230,mainTop=hasAnt?clamp(Hw-45,190,250):Hw-t,antH=Hw-t-mainTop,antRows=hasAnt?Math.max(1,Math.ceil(antH/80)):0;
   const maxZ=Math.max(w.lay==="L"?w.B:0,200);
-  box(-400,-1,-400,w.A+800,1,maxZ+700,MT("#cdb28d",11),null,true);
-  const wall=MT("#ece6dc",9);box(-10,0,-10,w.A+20,Hroom,10,wall,null,true);
+  const pl0=POL[w.pol||"parket"];box(-400,-1,-400,w.A+800,1,maxZ+700,MT(pl0[1],pl0[2]),null,true);
+  const wall=MT(DEVOR[w.devor||"oq"][1],9),bw0=w.lay==="tog"?-340:-10,bw1=w.lay==="nisha"?w.A+10:w.A+300;box(bw0,0,-10,bw1-bw0,Hroom,10,wall,null,true);room(w.A,Hroom,maxZ,w.led);
+  if(w.bezak&&w.lay==="tog")bed(-250);
   if(w.lay!=="tog")box(-10,0,0,10,Hroom,maxZ+40,wall,null,true).cut=[0,-10,-1];
   if(w.lay==="nisha")box(w.A,0,0,10,Hroom,maxZ+40,wall,null,true).cut=[0,w.A+10,1];
   const cloth=["#b9c4cc","#d8c3a5","#8e9aaf","#c9ada7","#a3b18a","#e8dccb","#5d6b7a","#9c6b5a","#f2f0ea","#3f4650"],ledM=MT("#fff3d6",6);
@@ -573,12 +607,18 @@ function buildWardrobe(){
         const [a,b]=bounds[i],type=sec.t,x0=a+(i===0?t:t/2),x1=b-(i===secs.length-1?t:t/2),ww=x1-x0,y0=pl+t,y1=mainTop,pk={kind:"sec",run:r.id,idx:i};
         box(x0,y0,1,ww,y1-y0,D-2,MT("#000000",6,0),pk);
         const shelf=y=>box(x0,y,1,ww,t,D-3,korp,pk),rod=y=>cyl(x0+ww/2,y,D/2,1,ww,"x",steel,pk);
-        const hang=(y,len)=>{const n=Math.max(2,Math.floor(ww/6.5));for(let j=0;j<n;j++){const cx=x0+3+(ww-6)*(j+.5)/n,l=len*(.78+.22*((j*7+i*3)%5)/4);box(cx-1.6,y-2-l,D/2-21,3.2,l,42,MT(cloth[(i*4+j)%cloth.length],0),pk);}};
+        const hang=(y,len)=>{const n=Math.max(2,Math.floor(ww/6.5));for(let j=0;j<n;j++){const cx=x0+3+(ww-6)*(j+.5)/n,l=len*(.78+.22*((j*7+i*3)%5)/4);box(cx-1.6,y-2-l,D/2-21,3.2,l,42,MT(cloth[(i*4+j)%cloth.length],0),pk);box(cx-.5,y-3.2,D/2-19,1,1.4,38,MT("#b98a55",1),pk);}};
         const stacks=y=>{const n=Math.max(1,Math.floor(ww/34));for(let j=0;j<n;j++){let hy=y+t;for(let q=0;q<3+((i+j)%3);q++){box(x0+4+j*(ww-8)/n,hy,8,(ww-8)/n-4,4.2,D-20,MT(cloth[(i+j*3+q)%cloth.length],0),pk);hy+=4.4;}}};
-        const shelves=(a2,b2,gap,st)=>{const n=Math.max(1,Math.round((b2-a2)/gap));for(let j=1;j<n;j++){const y=a2+(b2-a2)*j/n;shelf(y);if(st&&j%2)stacks(y);}};
+        const bag=(cx,y,c)=>{const m=MT(c,10);box(cx-11,y+t,D/2-6,22,16,11,m,pk);box(cx-7,y+t+16,D/2-1,1,7,1,m,pk);box(cx+6,y+t+16,D/2-1,1,7,1,m,pk);box(cx-7,y+t+22,D/2-1,14,1,1,m,pk);box(cx-2,y+t+12,D/2+5.1,4,2,.4,MT("#c9a24a",8),pk);};
+        const sbox=(cx,y)=>{box(cx-15,y+t,10,30,15,D-22,MT("#2e2d2c",0),pk);box(cx-15.3,y+t+12,9.7,30.6,3,D-21.4,MT("#262524",0),pk);};
+        const shelves=(a2,b2,gap,st)=>{const n=Math.max(1,Math.round((b2-a2)/gap));for(let j=1;j<n;j++){const y=a2+(b2-a2)*j/n;shelf(y);
+          if(st){const v=(j+i)%3;if(v===0||!w.bezak||ww<34)stacks(y);else if(v===1)bag(x0+ww/2,y,["#3b3631","#8a7a66","#2a2a2a"][(i+j)%3]);else sbox(x0+ww/2,y);}}
+          if(st&&w.bezak&&ww>=30){box(x0+ww/2-9,y0,D-24,7,7,22,MT("#ece6da",10),pk);box(x0+ww/2+2,y0,D-24,7,7,22,MT("#ece6da",10),pk);}};
         const drawersAt=(ya,n,dh,glass)=>{for(let j=0;j<n;j++){const dy=ya+j*dh;box(x0+.4,dy+.4,D-4,ww-.8,dh-.8,1.8,korp,pk);box(x0+ww/2-8,dy+dh-6,D-2.2,16,1.2,1,MT("#8a8a86",8),pk);}
           if(glass){box(x0+1,ya+n*dh,2,ww-2,8,D-6,MT("#3b3631",0),pk);box(x0+1.5,ya+n*dh+8,2,ww-3,.4,D-6,MT("#cfdadd",7,.35),pk);for(let q=0;q<Math.floor(ww/9);q++)sph(x0+5+q*9,ya+n*dh+2,D/2,2,MT(q%2?"#c9a24a":"#dcdcdc",8),pk);}};
-        if(type==="uzun"){shelf(y1-32);rod(y1-40);hang(y1-40,Math.min(135,y1-y0-60));}
+        if(type==="uzunT"){const dh=22,fm=facMat(w.fasad,"",w.finish);for(let j=0;j<2;j++){const dy=y0+j*dh;facade(x0,dy,ww,dh,D-3,fm,"",pk,w.handle==="push"?null:[x0+ww/2,dy+dh/2,Math.min(ww*.3,30),false,w.handle==="oltin"?"oltin":"qora"]);}
+          const top=y0+2*dh+1;box(x0,top,1,ww,t,D-3,korp,pk);shelf(y1-32);rod(y1-40);hang(y1-40,Math.min(105,y1-top-50));if(ww>90){box(x0+ww/2-t/2,y1-32,1,t,32,D-3,korp,pk);}}
+        else if(type==="uzun"){shelf(y1-32);rod(y1-40);hang(y1-40,Math.min(135,y1-y0-60));}
         else if(type==="ikki"){shelf(y1-32);rod(y1-40);hang(y1-40,80);const m=y0+(y1-y0)*.42;rod(m);hang(m,78);}
         else if(type==="javon")shelves(y0,y1,36,true);
         else if(type==="tortma"){drawersAt(y0,3,22);const top=y0+66;shelf(top);shelves(top,y1,36,true);}
@@ -602,18 +642,23 @@ function buildWardrobe(){
           const rowsY=[[pl,mainTop+(hasAnt?t/2:t)]];if(hasAnt)for(let q=0;q<antRows;q++){const a=mainTop+t/2+q*antH/antRows;rowsY.push([a,a+antH/antRows+(q===antRows-1?t/2:0)]);}
           for(let j=0;j<n;j++){const left=n===1?(i%2===0):j===0,hx=left?sx+j*dw:sx+(j+1)*dw;
             rowsY.forEach(([ya,yb],ri)=>{const ang=open?(left?-1.65:1.65):0;
-              withT(M4.mul(M4.t(hx,0,D),M4.ry(ang)),()=>{const x=left?0:-dw,mt=ri===0?wMat(w,i*2+j,sec.d):wMat(w,i*2+j,"");
+              withT(M4.mul(M4.t(hx,0,D),M4.ry(ang)),()=>{const x=left?0:-dw,mid=w.style==="orta"&&ri===0&&i===Math.floor(secs.length/2),mt=mid?MT("#dde4e6",4):ri===0?wMat(w,i*2+j,sec.d):wMat(w,i*2+j,"");
                 facade(x,ya,dw,yb-ya,0,mt,w.style==="frezer"&&sec.d!=="kozgu"?"frezer":(w.style==="reyka"&&sec.d!=="kozgu"&&ri===0?"":""),pk,null);
                 if(w.handle!=="push"){const hx2=left?dw-4:-dw+4;if(ri===0)handleBar(hx2,Math.min(110,(ya+yb)/2),1.8,Math.min(80,(yb-ya)*.4),true,w.handle);else handleBar(hx2,ya+8,1.8,12,true,w.handle);}});});}});
       } else if(w.door==="kupe"){
-        const nd=clamp(w.nd,r.ndMin,r.ndMax),seg=r.b-r.a,dwid=seg/nd+2,pm=MT(PROFIL[w.profil][1],8);
-        box(r.a,Hw-3,D,seg,3,8,pm);box(r.a,pl-1,D,seg,2,8,pm);
-        for(let i=0;i<nd;i++){const x=r.a+i*(seg/nd)-(i?1:0),z=D+(i%2?1:4.5),h=Hw-3-(pl+1),y=pl+1,al=open?.1:1,pk={kind:"door",run:r.id,idx:i};
+        const nd=clamp(w.nd,r.ndMin,r.ndMax),x0k=r.a+t,seg=r.b-r.a-2*t,dwid=seg/nd+2,pm=MT(PROFIL[w.profil][1],8),sepA=hasAnt&&w.antDoor==="alohida",topK=sepA?mainTop:Hw-t;
+        box(r.a,0,D-1,t,Hw,11,korp);box(r.b-t,0,D-1,t,Hw,11,korp);box(r.a,Hw-t,D-1,r.b-r.a,t,11,korp);box(x0k,0,D-1,seg,pl-1,10,korp);
+        box(x0k,topK-3,D,seg,3,8,pm);box(x0k,pl-1,D,seg,2,8,pm);
+        if(sepA){box(x0k,mainTop,D-1,seg,4,11,korp);const na=Math.max(1,Math.round(seg/55)),aw=seg/na,ay=mainTop+4,ah=Hw-t-ay;
+          for(let q=0;q<na;q++){const ax=x0k+q*aw;facade(ax,ay,aw,ah,D+7,facMat(w.fasad,w.style==="reyka"?"reyka":"",w.finish),w.style==="frezer"?"frezer":"",{kind:"door",run:r.id,idx:0},w.handle==="push"?null:[ax+aw/2,ay+6,Math.min(aw*.45,26),false,w.handle==="oltin"?"oltin":"qora"]);}}
+        for(let i=0;i<nd;i++){const x=x0k+i*(seg/nd)-(i?1:0),z=D+(i%2?1:4.5),h=topK-3-(pl+1),y=pl+1,al=open?.1:1,pk={kind:"door",run:r.id,idx:i};
+          const isMid=nd%2?i===Math.floor(nd/2):(i===nd/2-1||i===nd/2);
           const panel=(yy,hh,mt)=>box(x+2,yy,z,dwid-4,hh,1,{c:mt.c,k:mt.k,a:Math.min(al,mt.a==null?1:mt.a)},pk);
           const fm=facMat(w.fasad,w.style==="reyka"?"reyka":"",w.finish);
           if(w.style==="kombi"){const a=h*.22;panel(y,a,fm);panel(y+a,h-2*a,MT("#dde4e6",4));panel(y+h-a,a,fm);box(x+2,y+a-.6,z+1,dwid-4,1.2,1,{...pm,a:al},pk);box(x+2,y+h-a-.6,z+1,dwid-4,1.2,1,{...pm,a:al},pk);}
+          else if(w.style==="orta")panel(y,h,isMid?MT("#dde4e6",4):fm);
           else panel(y,h,w.style==="frezer"?fm:wMat(w,i,""));
-          if(hasAnt&&w.style!=="kombi")box(x+2,mainTop-.6,z+1,dwid-4,1.2,1,{...pm,a:al},pk);
+          if(hasAnt&&!sepA&&w.style!=="kombi")box(x+2,mainTop-.6,z+1,dwid-4,1.2,1,{...pm,a:al},pk);
           box(x,y,z-.5,2.4,h,2.6,{...pm,a:al},pk);box(x+dwid-2.4,y,z-.5,2.4,h,2.6,{...pm,a:al},pk);}
       }
       if(r.id==="A"&&w.yon&&w.lay!=="nisha"){const x=r.b;box(x,0,0,35,pl,D-6,plinth);box(x,pl,0,35,Hw-pl,1,inner);box(x+35-t,pl,0,t,Hw-pl,D,korp);box(x,Hw-t,0,35,t,D,korp);
@@ -761,7 +806,7 @@ function kStep(st){const k=S.k;ensureK();
       (k.lay!=="I"?sld("B","Chap devor uzunligi",k.B,100,600,10,"kNum"):"")+(k.lay==="U"||k.lay==="II"?sld("C","O'ng devor uzunligi",k.C,100,600,10,"kNum"):"")+
       sld("lh","Pastki shkaflar balandligi (stoleshnitsa bilan)",k.lh,80,100,1,"kNum"))+
     card("Qavatlar","",chk(k.upper,"Yuqori (osma) shkaflar","kChk('upper')")+
-      (k.upper?`<div class="f"><label>Yuqori shkaflar balandligi</label>${seg({72:"72 sm",92:"92 sm"},k.uh,"kUh")}</div>`+chk(k.shift,"Shiftgacha antresol (tepasi shiftga taqaladi)","kChk('shift')"):""));
+      (k.upper?`<div class="f"><label>Yuqori shkaflar balandligi</label>${seg({72:"72 sm",92:"92 sm"},k.uh,"kUh")}</div>`+chk(k.shift,"Shiftgacha antresol (tepasi shiftga taqaladi)","kChk('shift')")+chk(k.niche,"Yuqori shkaflar ostida qora ochiq tokcha qatori","kChk('niche')"):""));
   if(st===2){const runs=kRuns(k);return card("Modullar","Pastdagi qatordan yoki 3D rasmdan shkafni tanlang: enini o'zgartiring, turini almashtiring (muzlatgich, duxovka, vino kolonnasi…), qo'shing yoki o'chiring.",
       runs.map(r=>stripHTML("mod",r.id,k.mods[r.id],RUNNAME[r.id],r.b-r.a)).join("")+
       `<div class="row2"><button class="ghost" onclick="kAuto()">Avtomatik joylashtirish</button><button class="ghost" onclick="toggleDims()">${S.dims?"O'lchamlarni yashirish":"Har bir modul enini ko'rsatish"}</button></div>`);}
@@ -769,7 +814,8 @@ function kStep(st){const k=S.k;ensureK();
     card("Ranglar","",`<div class="f"><label>Pastki shkaflar</label>${sws(COL,k.fl,"kV('fl')")}</div>`+
       `<div class="f"><label>Yuqori shkaflar va kolonnalar</label>${sws(COL,k.fu,"kV('fu')",`<button class="${k.fu==="same"?"on":""}" onclick="kV('fu')('same')"><i style="background:linear-gradient(135deg,${COL[k.fl][1]} 50%,#fff 50%)"></i>Bir xil</button>`)}</div>`)+
     card("Stoleshnitsa va fartuk","",`<div class="f"><label>Stoleshnitsa</label>${sws(TOSH,k.tosh,"kV('tosh')")}</div><div class="f"><label>Qalinligi</label>${seg({2:"2 sm (yupqa)",4:"4 sm",6:"6 sm"},k.tt,"kV('tt',1)")}</div><div class="f"><label>Fartuk (devor qismi)</label>${seg(FARTUK,k.fartuk,"kV('fartuk')")}</div>`)+
-    card("Qo'shimcha","",chk(k.led,"LED yoritish","kChk('led')")+chk(k.bezak,"Bezaklar (gul, idishlar)","kChk('bezak')"));
+    card("Smesitel va xona","",`<div class="f"><label>Smesitel rangi</label>${sws(KRAN,k.kran||"xrom","kV('kran')")}</div><div class="f"><label>Pol</label>${sws(POL,k.pol||"parket","kV('pol',0,1)")}</div><div class="f"><label>Devor rangi</label>${sws(DEVOR,k.devor||"oq","kV('devor',0,1)")}</div>`+
+      chk(k.led,"LED yoritish (shkaflar ostida va shiftda)","kChk('led')")+chk(k.bezak,"Bezaklar (gul, idishlar)","kChk('bezak')"));
   return arizaCard();
 }
 function wStep(st){const w=S.w;ensureW();const runs=wRuns(w),rA=runs[0];
@@ -779,7 +825,7 @@ function wStep(st){const w=S.w;ensureW();const runs=wRuns(w),rA=runs[0];
       sld("H","Shift balandligi",w.H,200,400,5,"wNum")+chk(w.shift,"Shiftgacha (shkaf shiftga taqaladi)","wChk('shift')")+
       (!w.shift?sld("hw","Shkaf bo'yi",Math.min(w.hw,w.H),180,Math.min(w.H,400),5,"wNum"):"")+
       `<div class="f"><label>Chuqurligi</label>${seg({45:"45 sm",60:"60 sm",70:"70 sm"},w.D,"wV('D',1)")}</div>`);
-  if(st===2)return card("Eshiklar","",seg({oddiy:"Ochiladigan",kupe:"Kupe (suriladigan)",yoq:"Eshiksiz"},w.door,"wDoor")+
+  if(st===2)return card("Eshiklar","",seg({oddiy:"Ochiladigan",kupe:"Kupe (suriladigan)",yoq:"Eshiksiz"},w.door,"wDoor")+(w.door==="kupe"&&w.ant?`<div class="f"><label>Antresol eshiklari</label>${seg({alohida:"Alohida, tutqichli",kupe:"Kupe bilan bir xil"},w.antDoor||"alohida","wV('antDoor')")}</div>`:"")+
       (w.door==="kupe"?`<div class="f"><label>Eshiklar soni</label>${stp(clamp(w.nd,rA.ndMin,rA.ndMax),rA.ndMin,rA.ndMax,"wNd")}</div>`:""))+
     card("Bo'limlar","Bo'limni tanlang: enini, ichini (ilgich, tortma, poyabzal, seyf, TV joyi…) va eshigini o'zgartiring, qo'shing yoki o'chiring.",
       runs.map(r=>stripHTML("sec",r.id,w.secs[r.id],r.id==="B"?"Yon qism":"Asosiy qism",Math.round(r.b-r.a))).join("")+
@@ -787,6 +833,7 @@ function wStep(st){const w=S.w;ensureW();const runs=wRuns(w),rA=runs[0];
   if(st===3)return card("Eshik ko'rinishi","",(w.door!=="yoq"?`<div class="f"><label>Eshik turi</label>${seg(WSTYLE,w.style,"wV('style')")}</div><div class="f"><label>Qoplama</label>${seg(FINISH,w.finish,"wV('finish')")}</div>`:"")+
       (w.door==="kupe"?`<div class="f"><label>Profil rangi</label>${sws(PROFIL,w.profil,"wV('profil')")}</div>`:"")+(w.door==="oddiy"?`<div class="f"><label>Tutqich</label>${seg(WHAND,w.handle,"wV('handle')")}</div>`:""))+
     card("Ranglar","",`<div class="f"><label>Korpus (ichki qism)</label>${sws(KORP,w.korpus,"wV('korpus')")}</div><div class="f"><label>Eshiklar</label>${sws(COL,w.fasad,"wV('fasad')")}</div>`)+
+    card("Xona","",`<div class="f"><label>Pol</label>${sws(POL,w.pol||"parket","wV('pol')")}</div><div class="f"><label>Devor rangi</label>${sws(DEVOR,w.devor||"oq","wV('devor')")}</div>`)+
     card("Qo'shimcha","",chk(w.ant,"Tepasida antresol","wChk('ant')")+chk(w.led,"Ichki LED yoritish","wChk('led')")+(w.lay!=="nisha"?chk(w.yon,"Yon tomonda ochiq tokcha","wChk('yon',1)"):"")+chk(w.bezak,"Bezaklar","wChk('bezak')"));
   return arizaCard();
 }
@@ -800,7 +847,7 @@ function arizaCard(){return card("Arizangiz","Usta loyihani Bazis dasturida aniq
   <button class="btn" id="sendBtn" onclick="send()">Ustaga yuborish</button>`);}
 function esc(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);}
 function renderOv(){const o=document.getElementById("ovr");
-  let h=`<button class="${S.dims?"on":""}" onclick="toggleDims()">O'lchamlar</button><button onclick="savePic()">Rasmni saqlash</button>`;
+  let h=`<button class="hq" onclick="showPhoto()">✦ Haqiqiy rasm</button><button class="${S.dims?"on":""}" onclick="toggleDims()">O'lchamlar</button>`;
   if(S.tab==="shk"&&S.w.door!=="yoq")h=`<button class="${S.w.open?"on":""}" onclick="S.w.open=!S.w.open;renderOv();rebuild(false)">${S.w.open?"Eshiklarni yopish":"Eshiklarni ochish"}</button>`+h;
   o.innerHTML=h;}
 function goStep(i){S.step[S.tab]=i;render();if(i===4)snapPic();window.scrollTo({top:0,behavior:"smooth"});}
@@ -813,11 +860,14 @@ function kPreset(id){snap();Object.assign(S.k,KPRE[id].v);S.k.preset=id;render()
 function kNum(v,id){snap(true);S.k[id]=v;document.getElementById("v_"+id).textContent=v+" sm";if(id!=="H"&&id!=="lh")S.sel=null;soon(id!=="lh");}
 function kUh(v){snap();S.k.uh=+v;render();rebuild(false);}
 function kChk(key){return v=>{snap();S.k[key]=v;if(key==="upper")render();rebuild(false);sum();};}
-function kV(key,num){return v=>{snap();S.k[key]=num?+v:v;if(key!=="tt")S.k.preset="";render();rebuild(false);};}
+function kV(key,num,keep){return v=>{snap();S.k[key]=num?+v:v;if(key!=="tt"&&!keep)S.k.preset="";render();rebuild(false);};}
 function kAuto(){snap();S.k.modsLay="";S.sel=null;ensureK();render();rebuild(false);toast("Modullar qaytadan joylashtirildi");}
 function toggleDims(){S.dims=!S.dims;render();rebuild(false);}
 function wLay(v){snap();S.w.lay=v;S.sel=null;render();rebuild(true);}
-function wPreset(id){snap();Object.assign(S.w,WPRE[id].v);S.w.preset=id;if(S.w.door==="yoq")S.w.door="oddiy";render();rebuild(false);toast(WPRE[id].n+" uslubi qo'llandi");}
+function wPreset(id){snap();const p=WPRE[id];Object.assign(S.w,p.v);if(!("door" in p.v)&&S.w.door==="yoq")S.w.door="oddiy";if(!("antDoor" in p.v))S.w.antDoor="kupe";S.w.preset=id;S.sel=null;
+  if(p.open){const r=wRuns(S.w)[0],L=r.b-r.a,side=L>=160?45:0,mid=L-2*side,nm=mid>170?2:1,secs=[];if(side)secs.push({w:side,t:"javon",d:"yoq"});for(let q=0;q<nm;q++)secs.push({w:mid/nm,t:"uzunT",d:"yoq"});if(side)secs.push({w:side,t:"javon",d:"yoq"});S.w.secs={A:secs};S.w.secsKey=S.w.lay;}
+  else if(id==="kupeAnt"){const r=wRuns(S.w)[0],L=r.b-r.a,n=Math.max(2,Math.round(L/90));S.w.secs={A:Array.from({length:n},(_,i)=>({w:L/n,t:["uzun","javon","ikki","tortma"][i%4],d:"odatiy"}))};S.w.secsKey=S.w.lay;}
+  render();rebuild(true);toast(p.n+" uslubi qo'llandi");}
 function wNum(v,id){snap(true);S.w[id]=v;document.getElementById("v_"+id).textContent=v+" sm";S.sel=null;soon(true);}
 function wChk(key,full){return v=>{snap();S.w[key]=v;if(key==="shift"||full){S.sel=null;render();rebuild(true);}else{rebuild(false);sum();}};}
 function wV(key,num){return v=>{snap();S.w[key]=num?+v:v;if(key==="style"||key==="fasad")S.w.open=false;if(key!=="D")S.w.preset="";render();rebuild(false);};}
@@ -836,7 +886,7 @@ Devorlar: ${lens} sm; shift ${k.H} sm; pastki ${k.lh} sm
 Yuqori: ${k.upper?`${k.uh} sm${k.shift?" + shiftgacha antresol":""}`:"yo'q"}${k.led?"; LED":""}
 Fasad: ${FSTYLE[k.style].toLowerCase()}, ${FINISH[k.finish].toLowerCase()}, ${KHAND[k.handle].toLowerCase()}
 Rang: pastki ${COL[k.fl][0]}, yuqori ${k.fu==="same"?COL[k.fl][0]:COL[k.fu][0]}
-Stoleshnitsa: ${TOSH[k.tosh][0]} ${k.tt} sm; fartuk: ${FARTUK[k.fartuk].toLowerCase()}`;
+Stoleshnitsa: ${TOSH[k.tosh][0]} ${k.tt} sm; fartuk: ${FARTUK[k.fartuk].toLowerCase()}; smesitel: ${KRAN[k.kran||"xrom"][0].toLowerCase()}${k.niche&&k.upper?"\nYuqori shkaflar ostida qora ochiq tokcha qatori":""}`;
     runs.forEach(r=>{s+=`\n${RUNNAME[r.id]}: ${k.mods[r.id].map(m=>`${(SHORT[m.t]||m.t).toLowerCase()} ${Math.round(m.w)}`).join(", ")}`;});
     return s;}
   const w=S.w,runs=wRuns(w),Hw=w.shift?w.H:Math.min(w.hw,w.H),LN={tog:"to'g'ri",L:"burchakli",nisha:"devorlar orasida"};
@@ -844,14 +894,41 @@ Stoleshnitsa: ${TOSH[k.tosh][0]} ${k.tt} sm; fartuk: ${FARTUK[k.fartuk].toLowerC
   let s=`3D: Shkaf — ${LN[w.lay]}
 O'lcham: ${w.A}${w.lay==="L"?` + ${w.B}`:""} × ${Hw} × ${w.D} sm${w.shift?" (shiftgacha)":""}
 Eshik: ${dr}${w.door!=="yoq"?", "+WSTYLE[w.style].toLowerCase():""}${w.door==="oddiy"?", "+WHAND[w.handle].toLowerCase():""}
-Antresol: ${w.ant&&Hw>=230?"bor":"yo'q"}; LED: ${w.led?"bor":"yo'q"}${w.yon&&w.lay!=="nisha"?"; yon ochiq tokcha":""}
+Antresol: ${w.ant&&Hw>=230?(w.door==="kupe"&&w.antDoor==="alohida"?"bor, alohida eshikli":"bor"):"yo'q"}; LED: ${w.led?"bor":"yo'q"}${w.yon&&w.lay!=="nisha"?"; yon ochiq tokcha":""}
 Rang: korpus ${KORP[w.korpus][0]}, eshik ${COL[w.fasad][0]}`;
   runs.forEach(r=>{s+=`\n${r.id==="B"?"Yon qism":"Bo'limlar"}: ${w.secs[r.id].map(x=>`${WSHORT[x.t].toLowerCase()} ${Math.round(x.w)}${x.d==="kozgu"&&w.door==="oddiy"?" (ko'zgu)":""}`).join(", ")}`;});
   return s;
 }
+let busy=false;
+function photo(N){N=N||30;return new Promise(res=>{
+  if(!gl||busy)return res("");busy=true;const keepSel=S.sel;S.sel=null;rebuild(false);draw();
+  const cv=gl.canvas,W=cv.width,H=cv.height,buf=new Uint8Array(W*H*4),acc=new Float32Array(W*H*3);let i=0;
+  const step=()=>{
+    if(cv.width!==W||cv.height!==H){busy=false;SUNJ=SHDIR=null;SKY=0;JIT=[0,0];S.sel=keepSel;rebuild(false);return res("");}
+    const t0=performance.now();
+    while(i<N&&performance.now()-t0<60){
+      const sky=i%3===2;JIT=[Math.random()-.5,Math.random()-.5];
+      if(sky){const a=Math.random()*Math.PI,y=.3+.7*Math.random(),rr=Math.sqrt(1-y*y);SKY=1;SUNJ=SUN;SHDIR=norm([Math.cos(a)*rr,y,Math.sin(a)*rr]);}
+      else{const a=Math.random()*Math.PI*2,rr=Math.sqrt(Math.random())*.14;SKY=0;SHDIR=null;SUNJ=norm([SUN[0]+Math.cos(a)*rr,SUN[1],SUN[2]+Math.sin(a)*rr]);}
+      draw();gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+      for(let p=0,q=0;p<buf.length;p+=4,q+=3){acc[q]+=buf[p];acc[q+1]+=buf[p+1];acc[q+2]+=buf[p+2];}i++;}
+    toast("Haqiqiy rasm tayyorlanmoqda… "+Math.round(i/N*100)+"%");
+    if(i<N){requestAnimationFrame(step);return;}
+    SUNJ=SHDIR=null;SKY=0;JIT=[0,0];
+    const c2=document.createElement("canvas");c2.width=W;c2.height=H;const x=c2.getContext("2d"),img=x.createImageData(W,H),d=img.data;
+    for(let y=0;y<H;y++){const dy=y/H-.5;for(let xx=0;xx<W;xx++){const q=((H-1-y)*W+xx)*3,o=(y*W+xx)*4,dx=xx/W-.5,vg=1-.42*(dx*dx+dy*dy);
+      for(let ch=0;ch<3;ch++){let v=acc[q+ch]/N/255;v=v+(v*v*(3-2*v)-v)*.28;v*=vg*(ch===0?1.02:ch===2?.975:1);d[o+ch]=v>=1?255:v*255;}d[o+3]=255;}}
+    x.putImageData(img,0,0);const url=c2.toDataURL("image/jpeg",.92);
+    S.sel=keepSel;rebuild(false);busy=false;res(url);};
+  requestAnimationFrame(step);});}
+async function showPhoto(){const url=await photo(36);if(!url)return;const o=document.getElementById("photoOv");document.getElementById("photoImg").src=url;o.classList.add("show");LASTPHOTO=url;
+  const im=document.getElementById("snapImg");if(im)im.src=url;toast("Tayyor! Rasmni saqlash uchun ustiga uzoq bosing");}
+let LASTPHOTO="";
+function closePhoto(){document.getElementById("photoOv").classList.remove("show");}
+function dlPhoto(){const u=document.getElementById("photoImg").src;if(!u)return;if(TG&&TG.initData){toast("Rasm ustiga uzoq bosib saqlang");return;}const a=document.createElement("a");a.href=u;a.download=(S.tab==="osh"?"oshxona":"shkaf")+"-isofa.jpg";document.body.appendChild(a);a.click();a.remove();}
 function sum(){const e=document.getElementById("sum");if(e)e.textContent=summary();}
 function grab(){const keep=S.sel,dims=S.dims;S.sel=null;S.dims=false;rebuild(false);draw();let url="";try{url=gl.canvas.toDataURL("image/jpeg",.88);}catch(e){}S.sel=keep;S.dims=dims;rebuild(false);return url;}
-function snapPic(){if(!gl)return;setTimeout(()=>{const u=grab(),im=document.getElementById("snapImg");if(im&&u)im.src=u;},60);}
+function snapPic(){if(!gl)return;setTimeout(async()=>{const u=await photo(24),im=document.getElementById("snapImg");if(u){LASTPHOTO=u;if(im)im.src=u;}},80);}
 function savePic(){if(!gl)return;const u=grab();if(!u)return;
   if(TG&&TG.initData){const im=document.getElementById("snapImg");toast("Rasm «Ariza» bosqichida — ustiga uzoq bosib saqlang");S.step[S.tab]=4;render();setTimeout(()=>{const i=document.getElementById("snapImg");if(i)i.src=u;},50);return;}
   const a=document.createElement("a");a.href=u;a.download=(S.tab==="osh"?"oshxona":"shkaf")+"-3d.jpg";document.body.appendChild(a);a.click();a.remove();}
@@ -876,7 +953,7 @@ async function send(){
     const payload={kinds:[isK?"kitchen":"wardrobe"],kind:isK?"kitchen":"wardrobe",style,dims,need_when:FORM.need,repair:"",fee_ok:FORM.need!=="price"&&(!FORM.fee||FORM.feeOk),
       measure_visit:FORM.need!=="price",color,note:summary().slice(0,1000),name,phone,source:"3d"};
     const fd=new FormData();fd.append("data",JSON.stringify(payload));
-    const u=grab();if(u){const b=await (await fetch(u)).blob();fd.append("photo",b,"3d.jpg");}
+    const u=(await photo(30))||grab();if(u){const b=await (await fetch(u)).blob();fd.append("photo",b,"3d.jpg");}
     const res=await api("/api/custom/request",{method:"POST",body:fd});
     document.getElementById("okBox").innerHTML=`<div class="ok"><b>Arizangiz qabul qilindi${res.request&&res.request.id?` (№${res.request.id})`:""}!</b><br>Usta tez orada siz bilan bog'lanadi. Arizani «O'lchamga buyurtma» bo'limidagi «Arizalarim»da kuzatishingiz mumkin.</div>`;
     btn.textContent="Yuborildi";if(TG&&TG.HapticFeedback)TG.HapticFeedback.notificationOccurred("success");
