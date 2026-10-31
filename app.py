@@ -129,6 +129,9 @@ rs = rv.ReviewStore(shop)     # mijozlar fikri
 fn = fin.Finance(shop, cs, os.path.join(shop.receipt_dir, "expenses"))  # moliya: xarajatlar va foyda
 meta = soc.Meta()
 CUSTOM_URL = WEBAPP_URL + "custom"
+# «Tayyor mebellar» katalogini mijozlarga ko'rsatish. Haqiqiy mahsulotlar qo'yilguncha Render'da READY_CATALOG=0
+# qilib qo'yiladi: botda faqat «O'lchamga buyurtma» qoladi. Qaytarish uchun READY_CATALOG=1 (yoki o'chirib tashlang).
+READY_CATALOG = os.getenv("READY_CATALOG", "1").strip().lower() not in ("0", "false", "no", "off")
 # Agar sozlamada karta bo'lmasa, .env/Render'dagi PAY_CARD dan olinadi (bir martalik)
 if os.getenv("PAY_CARD") and not shop.settings()["pay_card"]:
     shop.save_settings({"pay_card": os.getenv("PAY_CARD"), "pay_owner": os.getenv("PAY_OWNER", ""),
@@ -240,6 +243,11 @@ TX = {
         "custom_sent": "📐 <b>Arizangiz qabul qilindi!</b> №{id}\n\nMenejer tez orada qo'ng'iroq qilib, narx va "
                        "o'lchov vaqtini kelishadi. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
         "menu": "🛋 Do'kon",
+        "hello_custom": "Assalomu alaykum, <b>{name}</b>! 👋\n\n<b>{shop}</b> ga xush kelibsiz.\n"
+                        "Oshxona, shkaf va garderoblarni xonangiz o'lchamiga moslab tayyorlaymiz 👇",
+        "custom_only_hint": "\n\n📐 <b>O'lchamga buyurtma</b> — ariza qoldiring, menejer qo'ng'iroq qilib, "
+                            "narx va o'lchov vaqtini kelishadi.",
+        "menu_custom": "📐 Buyurtma",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
         "manager": "💬 <b>Menejer:</b>",
         "lang_set": "✅ Til: O'zbekcha",
@@ -250,6 +258,11 @@ TX = {
     "ru": {
         "hello": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
                  "Смотрите каталог готовой мебели и оформляйте заказ в пару нажатий 👇",
+        "hello_custom": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
+                        "Изготовим кухню, шкаф или гардероб точно под размеры вашей комнаты 👇",
+        "custom_only_hint": "\n\n📐 <b>Мебель на заказ</b> — оставьте заявку, менеджер позвонит, "
+                            "сориентирует по цене и согласует время замера.",
+        "menu_custom": "📐 Заказать",
         "ask": "\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "open": "🛋 Открыть каталог",
@@ -598,6 +611,8 @@ async def register_user(user: dict):
 # ------------------------------------------------------------------ bot
 def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
     lang = norm_lang(lang)
+    if not READY_CATALOG and "admin=" not in suffix:  # katalog yopiq — mijozga faqat o'lchamga buyurtma
+        return two_doors(lang)
     sep = "&" if "?" in suffix else "?"
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{APP_URL}{suffix}{sep}lang={lang}"))]])
@@ -606,9 +621,43 @@ def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
 def two_doors(lang="uz") -> InlineKeyboardMarkup:
     """Ikki eshik: tayyor mebellar katalogi va o'lchamga buyurtma — mijoz chalkashmasligi uchun alohida ilovalar."""
     lang = norm_lang(lang)
+    custom = [InlineKeyboardButton(text=tx(lang, "open_custom"), web_app=WebAppInfo(url=f"{CUSTOM_URL}?lang={lang}"))]
+    if not READY_CATALOG:  # katalog vaqtincha yopiq — faqat o'lchamga buyurtma
+        return InlineKeyboardMarkup(inline_keyboard=[custom])
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=tx(lang, "open_ready"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}"))],
-        [InlineKeyboardButton(text=tx(lang, "open_custom"), web_app=WebAppInfo(url=f"{CUSTOM_URL}?lang={lang}"))]])
+        custom])
+
+
+async def sync_menu_buttons():
+    """Katalog yoqilgan/o'chirilganda har bir mijozning shaxsiy menyu tugmasini ham yangilaydi
+    (Telegram'da shaxsiy tugma umumiysidan ustun turadi). Rejim o'zgarmagan bo'lsa hech narsa qilmaydi."""
+    mode = "catalog" if READY_CATALOG else "custom"
+    try:
+        if shop.settings().get("menu_mode", "catalog") == mode:
+            return
+        groups = shop.user_ids_by_lang()
+        n = 0
+        for lang, ids in groups.items():
+            for uid in ids:
+                try:
+                    await bot.set_chat_menu_button(chat_id=uid, menu_button=menu_button(lang))
+                    n += 1
+                except TelegramAPIError:
+                    pass
+                await asyncio.sleep(0.05)
+        shop.set_setting("menu_mode", mode)
+        log.info("menyu tugmasi %d ta mijozda «%s» rejimiga o'tkazildi", n, mode)
+    except Exception as e:  # noqa: BLE001
+        log.warning("menyu tugmalarini yangilab bo'lmadi: %s", e)
+
+
+def menu_button(lang="uz") -> MenuButtonWebApp:
+    """Pastdagi menyu tugmasi: katalog yopiq bo'lsa o'lchamga buyurtma ilovasini ochadi."""
+    lang = norm_lang(lang)
+    if not READY_CATALOG:
+        return MenuButtonWebApp(text=tx(lang, "menu_custom"), web_app=WebAppInfo(url=f"{CUSTOM_URL}?lang={lang}"))
+    return MenuButtonWebApp(text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}"))
 
 
 def lang_keyboard() -> InlineKeyboardMarkup:
@@ -626,14 +675,14 @@ def start_suffix(arg: str) -> str:
 
 
 async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
-    text = tx(lang, "hello", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
+    text = tx(lang, "hello" if READY_CATALOG else "hello_custom", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
     if SHOP["phone"]:
         text += f"\n\n📞 {esc(SHOP['phone'])}"
     if SHOP["address"]:
         text += f"\n📍 {esc(SHOP['address'])}"
-    text += tx(lang, "custom_hint") + tx(lang, "ask", contact=admin_contact())
+    text += tx(lang, "custom_hint" if READY_CATALOG else "custom_only_hint") + tx(lang, "ask", contact=admin_contact())
     await bot.send_message(chat_id, text, reply_markup=two_doors(lang))
-    if suffix:
+    if suffix and READY_CATALOG:
         try:
             p = shop.localize_product(shop.product(int(suffix.split("=")[1])), lang)
             await bot.send_message(chat_id, f"🛋 <b>{esc(p['name'])}</b>\n{fmt_price(p['price'], lang)}",
@@ -641,8 +690,7 @@ async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
         except (ShopError, ValueError, TelegramAPIError):
             pass
     try:  # pastdagi menyu tugmasi ham mijoz tilida
-        await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonWebApp(
-            text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}")))
+        await bot.set_chat_menu_button(chat_id=chat_id, menu_button=menu_button(lang))
     except TelegramAPIError:
         pass
     if is_admin(user.id):
@@ -2438,8 +2486,7 @@ async def api_lang(request):
     lang = shop.set_user_lang(u["id"], (await request.json()).get("lang"))
     if bot:
         try:
-            await bot.set_chat_menu_button(chat_id=u["id"], menu_button=MenuButtonWebApp(
-                text=tx(lang, "menu"), web_app=WebAppInfo(url=f"{APP_URL}?lang={lang}")))
+            await bot.set_chat_menu_button(chat_id=u["id"], menu_button=menu_button(lang))
         except TelegramAPIError:
             pass
     return web.json_response({"lang": lang})
@@ -3500,11 +3547,11 @@ async def main():
             await bot.set_my_name(SHOP["name"])
     except TelegramAPIError as e:
         log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
-    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="🛋 Do'kon", web_app=WebAppInfo(url=APP_URL)))
+    await bot.set_chat_menu_button(menu_button=menu_button("uz"))
+    app_tasks.append(asyncio.create_task(sync_menu_buttons()))
     if old_bot:
         try:
-            await old_bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
-                text="🛋 iSofa", web_app=WebAppInfo(url=APP_URL)))
+            await old_bot.set_chat_menu_button(menu_button=menu_button("uz"))
         except TelegramAPIError:
             pass
         app_tasks.append(asyncio.create_task(old_dp.start_polling(old_bot, handle_signals=False)))
