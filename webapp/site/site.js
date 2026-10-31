@@ -77,7 +77,8 @@
     shade.classList.remove("on"); drawer.classList.remove("on"); drawer.setAttribute("aria-hidden", "true");
     document.body.style.overflow = ""; setTimeout(() => { if (!drawer.classList.contains("on")) shade.hidden = true; }, 300);
   }
-  $("#cartBtn").onclick = openCart;
+  const cartBtn = $("#cartBtn");
+  if (cartBtn) cartBtn.onclick = openCart;  // katalog yopiq bo'lsa savatcha tugmasi bo'lmaydi
   $("#drawerClose").onclick = closeCart;
   shade.onclick = closeCart;
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeCart(); });

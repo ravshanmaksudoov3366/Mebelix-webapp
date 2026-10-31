@@ -2460,7 +2460,7 @@ def site_ctx(request) -> dict:
     lang = norm_lang(request.query.get("lang"))
     st = shop.settings()
     products = []
-    for p in shop.products():
+    for p in (shop.products() if READY_CATALOG else []):  # katalog yopiq — saytda mahsulotlar ko'rinmaydi
         lp = shop.localize_product(p, lang)  # ichki maydonlar (kirim narxi, ta'minotchi) shu yerda olib tashlanadi
         lp["name_uz"] = p["name"]
         products.append(lp)
@@ -2468,7 +2468,8 @@ def site_ctx(request) -> dict:
             "categories": shop.categories(lang), "products": products, "bot": SHOP.get("bot", ""),
             "prepay_pct": shop.prepay_info()["pct"], "assembly_pct": int(st.get("assembly_pct") or 0),
             "warranty_years": shop.warranty_years(), "reviews": rs.public(9), "reviews_sum": rs.summary(),
-            "base": site_base(request), "v": ASSET_V, "path": request.path, "year": time.gmtime().tm_year}
+            "base": site_base(request), "v": ASSET_V, "path": request.path, "year": time.gmtime().tm_year,
+            "ready": READY_CATALOG}
 
 
 def html_page(text: str, status: int = 200) -> web.Response:
@@ -2502,7 +2503,8 @@ async def page_not_found(request):
 
 async def page_meta_feed(request):
     """Meta (Facebook/Instagram) katalogi uchun mahsulotlar fayli — Commerce Manager'da «Data feed» sifatida ulanadi."""
-    return web.Response(text=sitepages.meta_feed_csv(site_base(request), shop.products(), shop.categories("uz"), SHOP["name"]),
+    return web.Response(text=sitepages.meta_feed_csv(site_base(request), shop.products() if READY_CATALOG else [],
+                                                     shop.categories("uz"), SHOP["name"]),
                         content_type="text/csv", charset="utf-8", headers={"Cache-Control": "public, max-age=600"})
 
 

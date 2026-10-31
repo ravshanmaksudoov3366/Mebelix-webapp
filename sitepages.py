@@ -21,7 +21,7 @@ T = {
         "hero_cta": "Katalogni ko'rish", "hero_tg": "Telegram orqali",
         "f_delivery": "Uyingizgacha yetkazish", "f_delivery_t": "Manzilni xaritada belgilaysiz",
         "f_asm": "Yig'ib berish", "f_asm_t": "Usta uyingizda yig'ib beradi",
-        "f_prepay": "Oldindan atigi {pct}%", "f_prepay_t": "Qolgani — mebelni olganingizda",
+        "f_prepay": "Oldindan atigi {pct}%", "f_prepay_t": "Faqat tayyor mebellar uchun · qolgani — olganingizda",
         "f_check": "Tekshirib qabul qilasiz", "f_check_t": "Hammasi joyida bo'lsagina tasdiqlaysiz",
         "cats_title": "Bo'limlar", "all": "Hammasi", "items_n": "{n} ta mahsulot",
         "cat_title": "Katalog", "search_ph": "Qidirish: divan, shkaf, stol…",
@@ -35,7 +35,7 @@ T = {
         "how_title": "Buyurtma berish oson", "rev_title": "Mijozlarimiz fikri", "rev_avg": "o'rtacha baho, {n} ta fikr",
         "how_1": "Tanlang", "how_1t": "Katalogdan mebelni tanlab, savatchaga qo'shing.",
         "how_2": "Rasmiylashtiring", "how_2t": "Ism, telefon va manzilni yozing — xaritada belgilang.",
-        "how_3": "Oldindan to'lang", "how_3t": "Summaning {pct}% ini kartaga o'tkazib, chek rasmini yuklang.",
+        "how_3": "Oldindan to'lang", "how_3t": "Tayyor mebel summasining {pct}% ini kartaga o'tkazib, chek rasmini yuklang.",
         "how_4": "Qabul qiling", "how_4t": "Yetkazamiz, xohlasangiz yig'amiz. Tekshirib, qolganini to'laysiz.",
         "tg_title": "Telegram'da qulayroqmi?",
         "tg_text": "Xuddi shu katalog Telegram botimizda ham bor: buyurtma holati haqidagi xabarlar to'g'ridan-to'g'ri "
@@ -43,8 +43,10 @@ T = {
         "tg_btn": "Botni ochish",
         "info_title": "Yetkazish va to'lov",
         "q_pay": "Qanday to'layman?",
-        "a_pay": "Buyurtma berishda summaning {pct}% ini do'kon kartasiga oldindan o'tkazasiz va chek rasmini yuklaysiz. "
-                 "Qolgan summani mebelni qabul qilganingizda karta yoki Click / Payme orqali to'laysiz.",
+        "a_pay": "Tayyor mebellar: buyurtma berishda summaning {pct}% ini do'kon kartasiga oldindan o'tkazasiz va chek rasmini "
+                 "yuklaysiz, qolgan summani mebelni qabul qilganingizda karta yoki Click / Payme orqali to'laysiz. "
+                 "O'lchamga buyurtmada {pct}% qoidasi amal qilmaydi: narx, muddat va avans ikki tomonlama shartnomada "
+                 "alohida kelishiladi.",
         "q_when": "Qachon yetkazasiz?",
         "a_when": "Har bir mahsulot sahifasida yetkazish muddati ko'rsatilgan. Aniq kun va vaqtni siz bilan telefonda "
                   "kelishamiz. Yetkazib berish bepul.",
@@ -66,7 +68,7 @@ T = {
         "install": "Telefonga o'rnatish", "discount": "Chegirma",
         "home_title": "{shop} — mebel do'koni: divan, yotoqxona, oshxona mebellari",
         "home_desc": "{shop} — onlayn mebel do'koni. Divanlar, yotoqxona to'plamlari, oshxona garniturlari, shkaflar. "
-                     "Uyingizgacha yetkazish va yig'ib berish. Oldindan atigi {pct}% to'lov.",
+                     "Uyingizgacha yetkazish va yig'ib berish. Tayyor mebellar uchun oldindan atigi {pct}% to'lov.",
         "prod_title": "{name} — narxi {price} | {shop}",
         "nav_custom": "O'lchamga buyurtma",
         "door_ready": "Tayyor mebellar", "door_ready_t": "Katalogdan tanlang — narxi aniq, tez yetkazamiz.",
@@ -77,6 +79,35 @@ T = {
         "ch_p": "Shu mebelni xohishingizga moslab o'zgartirib yasab beramiz. Admin bilan bog'laning va modelni ayting:",
         "ch_call": "Qo'ng'iroq qilish", "ch_write": "Telegramda yozish",
         "warranty": "Kafolat", "wy_n": "{n} yil",
+        # --- katalog yopiq paytdagi (faqat o'lchamga buyurtma) matnlar
+        "c_eyebrow": "Buyurtma asosida · o'lchov · o'rnatish",
+        "c_title": "Oshxona, shkaf va garderob&nbsp;—<br><em>xonangiz o'lchamida</em>",
+        "c_text": "Premium mebelni buyurtma asosida tayyorlaymiz: usta uyingizga kelib o'lchaydi, dizayn va materialni "
+                  "birga tanlaymiz, tayyor mebelni yetkazib, o'rnatib beramiz.",
+        "c_cta": "Ariza qoldirish", "c_tg": "Telegram botda buyurtma",
+        "c_f1": "O'lchov uyingizda", "c_f1t": "Usta kelib aniq o'lchaydi",
+        "c_f2": "Sizning o'lchamingizda", "c_f2t": "Rang, material va dizaynni o'zingiz tanlaysiz",
+        "c_f3": "Ikki tomonlama shartnoma", "c_f3t": "Narx, muddat va avans hujjatda",
+        "c_f4": "Yetkazish va o'rnatish", "c_f4t": "Tayyor mebelni uyingizga o'rnatamiz",
+        "c_how_title": "Qanday ishlaymiz",
+        "c_how_1": "Ariza qoldiring", "c_how_1t": "Saytda yoki Telegram botimizda — 2 daqiqa.",
+        "c_how_2": "O'lchov", "c_how_2t": "Usta uyingizga kelib o'lchaydi, dizayn va materialni birga tanlaymiz.",
+        "c_how_3": "Shartnoma", "c_how_3t": "Narx, tayyor bo'lish muddati va olingan avans ikki tomonlama shartnomada "
+                                          "aniq ko'rsatiladi.",
+        "c_how_4": "Yetkazish va o'rnatish", "c_how_4t": "Tayyor mebelni uyingizga olib kelib, o'rnatib beramiz.",
+        "c_tg_text": "Ariza qoldirish, buyurtma holatini kuzatish va menejer bilan yozishish — hammasi Telegram botimizda.",
+        "c_info_title": "Savollar",
+        "c_q_order": "Qanday buyurtma beraman?",
+        "c_a_order": "«Ariza qoldirish» tugmasi yoki Telegram botimiz orqali. Menejer qo'ng'iroq qilib, o'lchov vaqtini kelishadi.",
+        "c_q_contract": "Narx va to'lov qanday kelishiladi?",
+        "c_a_contract": "Narx o'lchovdan keyin aniqlanadi. Buyurtma iSofa va mijoz o'rtasida ikki tomonlama shartnoma bilan "
+                        "rasmiylashtiriladi: narx, tayyor bo'lish muddati va olingan avans shartnomada ko'rsatiladi.",
+        "c_q_when": "Qancha vaqtda tayyor bo'ladi?",
+        "c_a_when": "Muddat mebel turi va hajmiga bog'liq va shartnomada aniq yozib qo'yiladi.",
+        "c_nav_how": "Qanday ishlaymiz", "c_nav_info": "Savollar",
+        "c_home_title": "{shop} — buyurtma asosida premium mebel: oshxona, shkaf, garderob",
+        "c_home_desc": "{shop} — Toshkentda buyurtma asosida premium mebel. Oshxona, shkaf va garderoblar xonangiz "
+                       "o'lchamida. O'lchov, yetkazish va o'rnatish. Ikki tomonlama shartnoma.",
     },
     "ru": {
         "tagline": "WORLD OF FURNITURE",
@@ -89,7 +120,7 @@ T = {
         "hero_cta": "Смотреть каталог", "hero_tg": "Через Telegram",
         "f_delivery": "Доставка до двери", "f_delivery_t": "Адрес отмечаете на карте",
         "f_asm": "Сборка", "f_asm_t": "Мастер соберёт у вас дома",
-        "f_prepay": "Предоплата всего {pct}%", "f_prepay_t": "Остальное — при получении",
+        "f_prepay": "Предоплата всего {pct}%", "f_prepay_t": "Только для готовой мебели · остаток — при получении",
         "f_check": "Проверяете при приёмке", "f_check_t": "Подтверждаете, только если всё в порядке",
         "cats_title": "Разделы", "all": "Все", "items_n": "товаров: {n}",
         "cat_title": "Каталог", "search_ph": "Поиск: диван, шкаф, стол…",
@@ -103,15 +134,17 @@ T = {
         "how_title": "Заказать просто", "rev_title": "Отзывы наших клиентов", "rev_avg": "средняя оценка, отзывов: {n}",
         "how_1": "Выберите", "how_1t": "Найдите мебель в каталоге и добавьте в корзину.",
         "how_2": "Оформите", "how_2t": "Укажите имя, телефон и адрес — отметьте его на карте.",
-        "how_3": "Внесите предоплату", "how_3t": "Переведите {pct}% суммы на карту и загрузите фото чека.",
+        "how_3": "Внесите предоплату", "how_3t": "Переведите {pct}% стоимости готовой мебели на карту и загрузите фото чека.",
         "how_4": "Получите", "how_4t": "Доставим и при желании соберём. Проверите и оплатите остаток.",
         "tg_title": "Удобнее в Telegram?",
         "tg_text": "Тот же каталог есть в нашем Telegram-боте: уведомления о статусе заказа приходят прямо в Telegram.",
         "tg_btn": "Открыть бота",
         "info_title": "Доставка и оплата",
         "q_pay": "Как оплатить?",
-        "a_pay": "При оформлении вы переводите {pct}% суммы на карту магазина и загружаете фото чека. "
-                 "Остаток оплачиваете при получении — картой или через Click / Payme.",
+        "a_pay": "Готовая мебель: при оформлении вы переводите {pct}% суммы на карту магазина и загружаете фото чека, "
+                 "остаток оплачиваете при получении — картой или через Click / Payme. "
+                 "На мебель на заказ правило {pct}% не распространяется: цена, сроки и аванс отдельно фиксируются "
+                 "в двустороннем договоре.",
         "q_when": "Когда доставите?",
         "a_when": "Срок доставки указан на странице каждого товара. Точные день и время согласуем по телефону. "
                   "Доставка бесплатная.",
@@ -133,7 +166,7 @@ T = {
         "install": "Установить на телефон", "discount": "Скидка",
         "home_title": "{shop} — магазин мебели: диваны, спальни, кухни",
         "home_desc": "{shop} — онлайн-магазин мебели. Диваны, спальные гарнитуры, кухни, шкафы. "
-                     "Доставка до двери и сборка. Предоплата всего {pct}%.",
+                     "Доставка до двери и сборка. Предоплата всего {pct}% за готовую мебель.",
         "prod_title": "{name} — цена {price} | {shop}",
         "nav_custom": "Мебель на заказ",
         "door_ready": "Готовая мебель", "door_ready_t": "Выберите в каталоге — цена известна, доставим быстро.",
@@ -144,6 +177,34 @@ T = {
         "ch_p": "Изменим эту модель под ваши пожелания. Свяжитесь с администратором и назовите модель:",
         "ch_call": "Позвонить", "ch_write": "Написать в Telegram",
         "warranty": "Гарантия", "wy_n": "{n} года",
+        # --- каталог скрыт: только мебель на заказ
+        "c_eyebrow": "На заказ · замер · установка",
+        "c_title": "Кухни, шкафы и гардеробные&nbsp;—<br><em>точно по размерам</em>",
+        "c_text": "Изготавливаем премиальную мебель на заказ: мастер приедет на замер, вместе подберём дизайн и материалы, "
+                  "доставим и установим готовую мебель.",
+        "c_cta": "Оставить заявку", "c_tg": "Заказать в Telegram-боте",
+        "c_f1": "Замер у вас дома", "c_f1t": "Мастер приедет и всё точно измерит",
+        "c_f2": "По вашим размерам", "c_f2t": "Цвет, материал и дизайн выбираете вы",
+        "c_f3": "Двусторонний договор", "c_f3t": "Цена, сроки и аванс — в документе",
+        "c_f4": "Доставка и установка", "c_f4t": "Установим готовую мебель у вас дома",
+        "c_how_title": "Как мы работаем",
+        "c_how_1": "Оставьте заявку", "c_how_1t": "На сайте или в нашем Telegram-боте — 2 минуты.",
+        "c_how_2": "Замер", "c_how_2t": "Мастер приедет на замер, вместе подберём дизайн и материалы.",
+        "c_how_3": "Договор", "c_how_3t": "Цена, срок изготовления и внесённый аванс чётко прописываются в двустороннем договоре.",
+        "c_how_4": "Доставка и установка", "c_how_4t": "Привезём готовую мебель и установим у вас дома.",
+        "c_tg_text": "Заявка, статус заказа и переписка с менеджером — всё в нашем Telegram-боте.",
+        "c_info_title": "Вопросы",
+        "c_q_order": "Как оформить заказ?",
+        "c_a_order": "Через кнопку «Оставить заявку» или наш Telegram-бот. Менеджер позвонит и согласует время замера.",
+        "c_q_contract": "Как согласуются цена и оплата?",
+        "c_a_contract": "Цена определяется после замера. Заказ оформляется двусторонним договором между iSofa и клиентом: "
+                        "цена, срок изготовления и внесённый аванс прописываются в договоре.",
+        "c_q_when": "Сколько времени занимает изготовление?",
+        "c_a_when": "Срок зависит от вида и объёма мебели и точно фиксируется в договоре.",
+        "c_nav_how": "Как мы работаем", "c_nav_info": "Вопросы",
+        "c_home_title": "{shop} — премиальная мебель на заказ: кухни, шкафы, гардеробные",
+        "c_home_desc": "{shop} — премиальная мебель на заказ в Ташкенте. Кухни, шкафы и гардеробные точно по размерам. "
+                       "Замер, доставка и установка. Двусторонний договор.",
     },
 }
 
@@ -264,18 +325,25 @@ def header(ctx: dict, active: str = "") -> str:
     path = ctx.get("path", "/")
     sw = "".join(f'<a href="{e(path)}?lang={l}" class="{"on" if l == lang else ""}" data-lang="{l}" hreflang="{l}">'
                  f'{l.upper()}</a>' for l in ("uz", "ru"))
-    links = (f'<a href="{home}#katalog">{e(tr(lang, "nav_catalog"))}</a>'
-             f'<a href="/custom?lang={lang}">{e(tr(lang, "nav_custom"))}</a>'
-             f'<a href="{home}#qanday">{e(tr(lang, "nav_how"))}</a>'
-             f'<a href="{home}#tolov">{e(tr(lang, "nav_info"))}</a>'
-             f'<a href="{home}#aloqa">{e(tr(lang, "nav_contact"))}</a>')
+    ready = ctx.get("ready", True)
+    if ready:
+        links = (f'<a href="{home}#katalog">{e(tr(lang, "nav_catalog"))}</a>'
+                 f'<a href="/custom?lang={lang}">{e(tr(lang, "nav_custom"))}</a>'
+                 f'<a href="{home}#qanday">{e(tr(lang, "nav_how"))}</a>'
+                 f'<a href="{home}#tolov">{e(tr(lang, "nav_info"))}</a>'
+                 f'<a href="{home}#aloqa">{e(tr(lang, "nav_contact"))}</a>')
+    else:  # katalog yopiq — faqat o'lchamga buyurtma
+        links = (f'<a href="/custom?lang={lang}">{e(tr(lang, "nav_custom"))}</a>'
+                 f'<a href="{home}#qanday">{e(tr(lang, "c_nav_how"))}</a>'
+                 f'<a href="{home}#tolov">{e(tr(lang, "c_nav_info"))}</a>'
+                 f'<a href="{home}#aloqa">{e(tr(lang, "nav_contact"))}</a>')
     return f"""<header class="top" id="top">
   <div class="wrap top-in">
     <a class="logo" href="{home}" aria-label="{e(shop['name'])}">{LOGO}<span><b>{e(shop['name'])}</b><small>{e(tr(lang, 'tagline'))}</small></span></a>
-    <nav class="menu" id="menu">{links}<a href="/app?go=orders&lang={lang}" class="menu-orders">{e(tr(lang, 'nav_orders'))}</a></nav>
+    <nav class="menu" id="menu">{links}{f'<a href="/app?go=orders&lang={lang}" class="menu-orders">{e(tr(lang, "nav_orders"))}</a>' if ready else ''}</nav>
     <div class="top-r">
       <div class="langsw">{sw}</div>
-      <button class="icon-btn cart-btn" id="cartBtn" aria-label="{e(tr(lang, 'cart'))}">{ICONS['cart']}<span class="cnt" id="cartCnt" hidden>0</span></button>
+      {f'<button class="icon-btn cart-btn" id="cartBtn" aria-label="{e(tr(lang, "cart"))}">{ICONS["cart"]}<span class="cnt" id="cartCnt" hidden>0</span></button>' if ready else ''}
       <button class="icon-btn burger" id="burger" aria-label="Menu">{ICONS['menu']}</button>
     </div>
   </div>
@@ -284,6 +352,7 @@ def header(ctx: dict, active: str = "") -> str:
 
 def footer(ctx: dict) -> str:
     lang, shop, st = ctx["lang"], ctx["shop"], ctx["settings"]
+    ready = ctx.get("ready", True)
     nick = st.get("admin_contact") or ""
     rows = []
     if nick:
@@ -299,11 +368,12 @@ def footer(ctx: dict) -> str:
     return f"""<footer class="foot" id="aloqa">
   <div class="wrap foot-in">
     <div class="foot-brand"><a class="logo light" href="{home}">{LOGO}<span><b>{e(shop['name'])}</b><small>{e(tr(lang, 'tagline'))}</small></span></a>
-      <p>{e(tr(lang, 'hero_text'))}</p></div>
+      <p>{e(tr(lang, 'hero_text' if ready else 'c_text'))}</p></div>
     <div><h4>{e(tr(lang, 'contact_title'))}</h4><div class="foot-links">{''.join(rows)}</div></div>
     <div><h4>{e(shop['name'])}</h4><div class="foot-links">
-      <a href="{home}#katalog">{e(tr(lang, 'nav_catalog'))}</a><a href="{home}#tolov">{e(tr(lang, 'nav_info'))}</a>
-      <a href="/app?go=orders&lang={lang}">{e(tr(lang, 'nav_orders'))}</a><a href="/oferta?lang={lang}">{e(tr(lang, 'offer'))}</a>
+      {f"""<a href="{home}#katalog">{e(tr(lang, 'nav_catalog'))}</a><a href="{home}#tolov">{e(tr(lang, 'nav_info'))}</a>
+      <a href="/app?go=orders&lang={lang}">{e(tr(lang, 'nav_orders'))}</a><a href="/oferta?lang={lang}">{e(tr(lang, 'offer'))}</a>""" if ready
+       else f"""<a href="/custom?lang={lang}">{e(tr(lang, 'nav_custom'))}</a><a href="{home}#tolov">{e(tr(lang, 'c_nav_info'))}</a>"""}
       <button class="linkish" id="installBtn" hidden>{e(tr(lang, 'install'))}</button></div></div>
   </div>
   <div class="wrap foot-copy">© {ctx.get('year', '')} {e(shop['name'])}. {e(tr(lang, 'rights'))}</div>
@@ -427,7 +497,68 @@ def reviews_html(ctx: dict) -> str:
             f'{head}<div class="revs">{cards}</div></div></section>')
 
 
+def page_home_custom(ctx: dict) -> str:
+    """Katalog yopiq paytdagi bosh sahifa: faqat o'lchamga buyurtma. 10% oldindan to'lov bu yerda umuman yo'q —
+    u faqat tayyor mebellarga tegishli; buyurtmada narx, muddat va avans shartnomada kelishiladi."""
+    lang, shop, st = ctx["lang"], ctx["shop"], ctx["settings"]
+    bot = ctx.get("bot") or ""
+    tg_link = f"https://t.me/{bot}" if bot else ""
+    custom = f"/custom?lang={lang}"
+    feats = [("pin", "c_f1", "c_f1t"), ("tool", "c_f2", "c_f2t"), ("check", "c_f3", "c_f3t"), ("truck", "c_f4", "c_f4t")]
+    feats_html = "".join(f'<div class="feat"><span class="feat-ic">{ICONS[ic]}</span><div><b>{e(tr(lang, a))}</b>'
+                         f'<small>{e(tr(lang, b))}</small></div></div>' for ic, a, b in feats)
+    steps = "".join(f'<li><span class="step-n">0{i}</span><h3>{e(tr(lang, f"c_how_{i}"))}</h3>'
+                    f'<p>{e(tr(lang, f"c_how_{i}t"))}</p></li>' for i in range(1, 5))
+    nick = st.get("admin_contact") or ""
+    contact = (f'<a href="https://t.me/{e(nick)}" target="_blank" rel="noopener">@{e(nick)}</a>' if nick
+               else e(shop.get("phone") or "—"))
+    ask = e(tr(lang, "a_ask", contact="{c}")).replace("{c}", contact)
+    if shop.get("phone") and nick:
+        ask += e(tr(lang, "a_ask_phone", phone="{p}")).replace(
+            "{p}", f'<a href="tel:{e(re.sub(r"[^0-9+]", "", shop["phone"]))}">{e(shop["phone"])}</a>')
+    faq = [("c_q_order", e(tr(lang, "c_a_order"))), ("c_q_contract", e(tr(lang, "c_a_contract"))),
+           ("c_q_when", e(tr(lang, "c_a_when"))), ("q_ask", ask)]
+    faq_html = "".join(f'<details{" open" if i == 0 else ""}><summary>{e(tr(lang, q))}</summary><p>{a}</p></details>'
+                       for i, (q, a) in enumerate(faq))
+    tg_band = ""
+    if tg_link:
+        tg_band = f"""<section class="band"><div class="wrap band-in">
+  <div class="band-ic">{ICONS['tg']}</div>
+  <div><h2>{e(tr(lang, 'tg_title'))}</h2><p>{e(tr(lang, 'c_tg_text'))}</p></div>
+  <a class="btn light" href="{tg_link}" target="_blank" rel="noopener">{e(tr(lang, 'tg_btn'))} · @{e(bot)}</a>
+</div></section>"""
+    body = f"""
+<section class="hero"><div class="wrap hero-in">
+  <div class="hero-txt">
+    <div class="eyebrow">{e(tr(lang, 'c_eyebrow'))}</div>
+    <h1>{tr(lang, 'c_title')}</h1>
+    <p class="lead">{e(tr(lang, 'c_text'))}</p>
+    <div class="hero-cta"><a class="btn" href="{custom}">{e(tr(lang, 'c_cta'))}</a>
+      {f'<a class="btn ghost" href="{tg_link}" target="_blank" rel="noopener">{ICONS["tg"]}{e(tr(lang, "c_tg"))}</a>' if tg_link else ''}</div>
+  </div>
+  <div class="hero-art">{SOFA_ART}<div class="hero-sun"></div></div>
+</div>
+<div class="wrap feats">{feats_html}</div></section>
+
+<section class="sec how" id="qanday"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'c_how_title'))}</h2><ol class="steps">{steps}</ol>
+  <p style="text-align:center;margin-top:24px"><a class="btn" href="{custom}">{e(tr(lang, 'c_cta'))} →</a></p></div></section>
+
+{reviews_html(ctx)}
+
+{tg_band}
+
+<section class="sec" id="tolov"><div class="wrap info"><h2 class="sec-t">{e(tr(lang, 'c_info_title'))}</h2><div class="faq">{faq_html}</div></div></section>
+"""
+    title = tr(lang, "c_home_title", shop=shop["name"])
+    desc = tr(lang, "c_home_desc", shop=shop["name"])
+    ld = [store_jsonld(ctx), {"@context": "https://schema.org", "@type": "WebSite", "name": shop["name"],
+                              "url": ctx["base"] + "/", "inLanguage": ["uz", "ru"]}]
+    return layout(ctx, title, desc, body, "/" + ("?lang=ru" if lang == "ru" else ""), "/s/og.png", ld)
+
+
 def page_home(ctx: dict) -> str:
+    if not ctx.get("ready", True):
+        return page_home_custom(ctx)
     lang, shop, st = ctx["lang"], ctx["shop"], ctx["settings"]
     pct = int(ctx.get("prepay_pct") or 10)
     asm = int(ctx.get("assembly_pct") or 0)
