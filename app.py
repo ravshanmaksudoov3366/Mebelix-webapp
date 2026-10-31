@@ -67,7 +67,7 @@ from shop import (
     fmt_price,
     order_text,
 )
-from translate import translate, translate_many
+from translate import detect, translate, translate_many
 
 BASE = Path(__file__).resolve().parent
 
@@ -1342,9 +1342,31 @@ def _prepare(datas: list, kind: str, fixed: bool) -> list:
     return out
 
 
+async def multilang_caption(text: str) -> str:
+    """Post izohini o'zbek, rus va ingliz tillarida beradi: admin yozgan til joyida qoladi, qolganlari tarjima.
+    Tarjima ishlamasa — asl matn o'zi qaytadi (post baribir chiqadi)."""
+    text = (text or "").strip()
+    if not text:
+        return text
+    try:
+        src = await detect(http(), text) or "uz"
+        if src not in {c for c, _ in soc.CAPTION_LANGS}:
+            src = "uz"
+        parts = []
+        for code, flag in soc.CAPTION_LANGS:
+            body = text if code == src else await translate(http(), text, src, code)
+            if body:
+                parts.append(f"{flag} {body}")
+        return "\n\n".join(parts) if len(parts) > 1 else text
+    except Exception as e:  # noqa: BLE001
+        log.warning("post izohi tarjima qilinmadi: %s", e)
+        return text
+
+
 async def social_publish(item: dict) -> dict:
     ss.set(item["id"], status="posting")
-    res = await soc.publish(meta, item, social_url, ss.full_caption(item["caption"], social_footer(), SHOP["bot"]))
+    body = await multilang_caption(item["caption"] or social_footer())
+    res = await soc.publish(meta, item, social_url, ss.full_caption(body, social_footer(), SHOP["bot"]))
     good = soc.ok(res)
     ss.set(item["id"], status="posted" if good else "failed", posted_at=int(time.time()), result=res,
            error="" if good else "; ".join(str(v) for v in res.values())[:500])

@@ -31,5 +31,18 @@ async def translate(session: aiohttp.ClientSession, text: str, src: str = "uz", 
     return out
 
 
+async def detect(session: aiohttp.ClientSession, text: str) -> str:
+    """Matn tilini aniqlaydi (masalan "uz", "ru", "en"); aniqlanmasa — bo'sh."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    async with _sem:
+        async with session.post(URL, params={"client": "gtx", "sl": "auto", "tl": "en", "dt": "t"},
+                                data={"q": text[:500]}, timeout=aiohttp.ClientTimeout(total=12)) as r:
+            r.raise_for_status()
+            data = await r.json(content_type=None)
+    return (data[2] if len(data) > 2 and isinstance(data[2], str) else "").split("-")[0].lower()
+
+
 async def translate_many(session: aiohttp.ClientSession, texts: list, src: str = "uz", tgt: str = "ru") -> list:
     return list(await asyncio.gather(*(translate(session, t, src, tgt) for t in texts)))

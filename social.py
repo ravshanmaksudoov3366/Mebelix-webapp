@@ -35,7 +35,12 @@ STATUS = {"queued": "🗓 navbatda", "posting": "⏳ joylanmoqda", "posted": "�
 DEFAULT_TIME = "19:00"
 # Har bir postga qo'shiladigan Telegram botga chaqiruv ({bot} — botning manzili bilan almashtiriladi).
 # Asosiy savdo botda bo'ladi, Instagram/Facebook — mijoz jalb qiluvchi manba.
-DEFAULT_CTA = "📲 Narxini bilish va buyurtma berish uchun Telegram botimizga yozing:\nt.me/{bot}"
+DEFAULT_CTA = ("📲 Narxini bilish va buyurtma berish uchun Telegram botimizga yozing\n"
+               "📲 Узнать цену и заказать — пишите в наш Telegram-бот\n"
+               "📲 For prices and orders, message our Telegram bot\n"
+               "👉 t.me/{bot}")
+# Post izohi shu tillarda va shu tartibda chiqadi (admin istalgan tilda yozadi, qolganlari tarjima qilinadi).
+CAPTION_LANGS = (("uz", "🇺🇿"), ("ru", "🇷🇺"), ("en", "🇬🇧"))
 DEFAULT_TAGS = "#isofa #mebel #mebeltoshkent #oshxonamebeli #shkaf #garderob #toshkent #мебель #мебельназаказ #ташкент"
 
 SCHEMA = """
