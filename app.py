@@ -1658,10 +1658,12 @@ async def social_loop():
 def moved_text(lang: str) -> str:
     b = SHOP["bot"]
     if lang == "ru":
+        what = "каталог, заказы на заказ" if READY_CATALOG else "мебель на заказ, ваши заявки"
         return (f"🛋 <b>Mebelix теперь {esc(SHOP['name'])}!</b>\n\nНаш новый бот: @{b}\nНажмите кнопку ниже и «Старт» — "
-                "каталог, заказы на заказ и все уведомления теперь там.")
+                f"{what} и все уведомления теперь там.")
+    what = "katalog, o'lchamga buyurtma" if READY_CATALOG else "o'lchamga buyurtma, arizalaringiz"
     return (f"🛋 <b>Mebelix endi {esc(SHOP['name'])}!</b>\n\nYangi botimiz: @{b}\nPastdagi tugmani bosib «Start» ni bosing — "
-            "katalog, o'lchamga buyurtma va barcha xabarlar endi o'sha yerda.")
+            f"{what} va barcha xabarlar endi o'sha yerda.")
 
 
 def moved_kb(lang: str) -> InlineKeyboardMarkup:
@@ -1919,6 +1921,9 @@ async def errors(request, handler):
 
 
 async def page_index(request):
+    q = request.query
+    if not READY_CATALOG and "admin" not in q and q.get("go") != "orders":
+        raise web.HTTPFound(f"/custom?lang={norm_lang(q.get('lang'))}")
     return web.FileResponse(BASE / "webapp" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
@@ -1933,7 +1938,12 @@ CUSTOM_PHOTO_MAX = 15 * 1024 * 1024
 
 
 async def page_custom(request):
-    return web.FileResponse(BASE / "webapp" / "custom.html", headers={"Cache-Control": "no-cache"})
+    if READY_CATALOG:
+        return web.FileResponse(BASE / "webapp" / "custom.html", headers={"Cache-Control": "no-cache"})
+    # katalog yopiq — «Tayyor mebellar» eshigi ko'rinmasin (element qoladi, skript buzilmasin)
+    html_text = (BASE / "webapp" / "custom.html").read_text(encoding="utf-8").replace(
+        '<div class="doors">', '<div class="doors" hidden style="display:none">', 1)
+    return web.Response(text=html_text, content_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 async def page_moliya(request):
@@ -2630,6 +2640,8 @@ CART_TX = {
 
 
 async def remind_carts(now: int):
+    if not READY_CATALOG:  # katalog yopiq — tayyor mebel savatchasi haqida eslatmaymiz
+        return
     for c in shop.carts_to_remind(now):
         shop.mark_cart_reminded(c["user_id"])
         lang = lang_of(c["user_id"]) or "uz"
@@ -2988,7 +3000,7 @@ async def post_to_channel(p: dict, kind: str = "new") -> str:
 
 async def channel_after_save(before, pid: int):
     """Yangi mahsulot (faol, omborda bor, rasmi bor) — «Yangi»; narxi tushgan bo'lsa — «Narx tushdi»."""
-    if not channel_id():
+    if not channel_id() or not READY_CATALOG:  # katalog yopiq — mahsulotlarni kanalga e'lon qilmaymiz
         return
     await asyncio.sleep(20)  # rasm va tarjima saqlanib bo'lsin; admin darhol tuzatsa ham ulgursin
     try:
