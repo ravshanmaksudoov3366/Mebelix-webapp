@@ -800,7 +800,10 @@ def page_404(ctx: dict) -> str:
     lang = ctx["lang"]
     home = "/" if lang == "uz" else "/?lang=ru"
     body = (f'<section class="sec"><div class="wrap nf"><div class="nf-art">{SOFA_ART}</div><h1>{e(tr(lang, "not_found"))}</h1>'
-            f'<p>{e(tr(lang, "not_found_t"))}</p><a class="btn" href="{home}#katalog">{e(tr(lang, "back_catalog"))}</a></div></section>')
+            f'<p>{e(tr(lang, "not_found_t"))}</p>'
+            + (f'<a class="btn" href="{home}#katalog">{e(tr(lang, "back_catalog"))}</a>' if ctx.get("ready", True)
+               else f'<a class="btn" href="/custom?lang={lang}">{e(tr(lang, "c_cta"))} →</a>')
+            + '</div></section>')
     return layout(ctx, tr(lang, "not_found"), tr(lang, "not_found_t"), body, "/", noindex=True)
 
 
