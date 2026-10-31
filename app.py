@@ -2424,11 +2424,11 @@ async def notify_custom_status(r: dict):
     if r["status"] == "done":
         asyncio.create_task(fin_sale("c", r))
     await refresh_custom_messages(r)
-    msg = cust.STAGE_MSG.get(r["status"])
+    wy = shop.warranty_years()
+    msg = cust.STAGE_MSG.get("done_nowy" if r["status"] == "done" and not wy else r["status"])
     if not msg or is_web(r["user_id"]):
         return
     lang = r.get("lang") or lang_of(r["user_id"])
-    wy = shop.warranty_years()
     text = msg[1 if lang == "ru" else 0].format(id=r["id"], wy=wy, until=warranty_until(int(time.time()), wy))
     if r["status"] == "done":
         asyncio.create_task(ask_review("c", r["id"], r["user_id"], lang, delay=5))
@@ -3606,6 +3606,10 @@ async def main():
         log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
     await bot.set_chat_menu_button(menu_button=menu_button("uz"))
     app_tasks.append(asyncio.create_task(sync_menu_buttons()))
+    if shop.settings().get("wy_reset_2026_11") != "1":  # egasi so'radi: 3 yil kafolat va'dasi olib tashlansin (bir marta)
+        shop.set_setting("warranty_years", "0")
+        shop.set_setting("wy_reset_2026_11", "1")
+        log.info("kafolat muddati 0 ga tushirildi (sayt va botda kafolat ko'rsatilmaydi)")
     if old_bot:
         try:
             await old_bot.set_chat_menu_button(menu_button=menu_button("uz"))

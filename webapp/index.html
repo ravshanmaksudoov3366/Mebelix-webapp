@@ -1453,7 +1453,7 @@ function viewAdmin() {
       <label class="f">Yig'ib berish ustamasi (%) — yig'iladigan mahsulotlar narxidan</label>
       <input class="in" id="setAsm" inputmode="numeric" value="${esc(st2.assembly_pct ?? "5")}" style="width:100px">
       <label class="f">🛡 Kafolat muddati, yil <span class="small muted">(faqat o'lchamga buyurtmada ko'rsatiladi; 0 — ko'rsatilmaydi)</span></label>
-      <input class="in" id="setWy" inputmode="numeric" value="${esc(st2.warranty_years ?? "3")}" style="width:100px">
+      <input class="in" id="setWy" inputmode="numeric" value="${esc(st2.warranty_years ?? "0")}" style="width:100px">
       <h3 style="margin-top:18px">🧾 Sotuvchi rekvizitlari <span class="muted small">(oferta va dalolatnoma uchun)</span></h3>
       <div class="small muted">YaTT yoki MChJ ochilgach to'ldiring. Bo'sh joylar hujjatlarda «______» bo'lib chiqadi.</div>
       <label class="f">Nomi (masalan: «iSofa» MChJ yoki YaTT Maksudov R.)</label><input class="in" id="setSName" value="${esc(st2.seller_name || "")}">

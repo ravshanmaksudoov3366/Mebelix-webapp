@@ -89,7 +89,7 @@ PAYMENTS_RU = {"Karta orqali (qabul qilganda)": "Картой (при получ
                "Naqd (qabul qilganda)": "Наличными (при получении)"}
 DEFAULT_SETTINGS = {"pay_card": "", "pay_owner": "", "prepay_pct": "10", "notify_new_users": "1",
                     "assembly_pct": "5",
-                    "warranty_years": "3",  # do'kon bo'yicha kafolat (mahsulotda «Kafolat» xususiyati bo'lsa — o'shasi)
+                    "warranty_years": "0",  # do'kon bo'yicha kafolat (0 — kafolat va'da qilinmaydi) (mahsulotda «Kafolat» xususiyati bo'lsa — o'shasi)
                     # mijozlar savol uchun yozadigan admin Telegram niki (@siz)
                     "admin_contact": "MRS3366",
                     # sotuvchi rekvizitlari (oferta va dalolatnoma uchun; YaTT/MChJ ochilgach to'ldiriladi)
@@ -425,9 +425,9 @@ class Shop:
 
     def warranty_years(self) -> int:
         try:
-            return max(0, min(10, int(self.settings().get("warranty_years") or 3)))
+            return max(0, min(10, int(self.settings().get("warranty_years") or 0)))
         except ValueError:
-            return 3
+            return 0
 
     # ------------------------------------------------ tarjima (uz -> ru)
     @staticmethod

@@ -158,6 +158,11 @@ STAGE_MSG = {
              "Nuqson chiqsa, shu botga yozing yoki qo'ng'iroq qiling.",
              "🤝 Заявка №{id} завершена. Спасибо за покупку! 🙏\n\n🛡 Гарантия: {wy} года — до {until}. "
              "Если появится дефект, напишите в этот бот или позвоните."),
+    # kafolat belgilanmagan bo'lsa (0 yil) — kafolat haqida hech narsa yozilmaydi
+    "done_nowy": ("🤝 Ariza №{id} yakunlandi. Xaridingiz uchun rahmat! 🙏\n\n"
+                  "Savol yoki muammo bo'lsa, shu botga yozing yoki qo'ng'iroq qiling.",
+                  "🤝 Заявка №{id} завершена. Спасибо за покупку! 🙏\n\n"
+                  "Если появятся вопросы, напишите в этот бот или позвоните."),
     "cancelled": ("❌ Ariza №{id} bekor qilindi. Savollar bo'lsa, adminga yozing.",
                   "❌ Заявка №{id} отменена. Если есть вопросы, напишите администратору."),
 }
