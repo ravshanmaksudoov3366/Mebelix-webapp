@@ -33,6 +33,9 @@ KINDS = {"post": "📸 Post", "story": "⭕ Stories", "both": "📸 Post + ⭕ S
 STATUS = {"queued": "🗓 navbatda", "posting": "⏳ joylanmoqda", "posted": "✅ joylandi", "failed": "⚠️ xato",
           "cancelled": "❌ bekor qilindi"}
 DEFAULT_TIME = "19:00"
+# Har bir postga qo'shiladigan Telegram botga chaqiruv ({bot} — botning manzili bilan almashtiriladi).
+# Asosiy savdo botda bo'ladi, Instagram/Facebook — mijoz jalb qiluvchi manba.
+DEFAULT_CTA = "📲 Narxini bilish va buyurtma berish uchun Telegram botimizga yozing:\nt.me/{bot}"
 DEFAULT_TAGS = "#isofa #mebel #mebeltoshkent #oshxonamebeli #shkaf #garderob #toshkent #мебель #мебельназаказ #ташкент"
 
 SCHEMA = """
@@ -145,6 +148,15 @@ class SocialStore:
         self.shop.set_setting("social_tags", v)
         return v
 
+    def cta(self) -> str:
+        v = self.shop.settings().get("social_cta")
+        return DEFAULT_CTA if v is None else v
+
+    def set_cta(self, s: str) -> str:
+        v = (s or "").strip()[:400]
+        self.shop.set_setting("social_cta", v)
+        return v
+
     def next_slot(self, now: int = 0) -> int:
         """Keyingi bo'sh kun: belgilangan soatda, har kuni bittadan."""
         now = now or int(time.time())
@@ -203,10 +215,15 @@ class SocialStore:
             self.db.execute("UPDATE social_posts SET scheduled_at=? WHERE id=?", (self.next_slot(), it["id"]))
         self.db.commit()
 
-    def full_caption(self, caption: str, footer: str) -> str:
+    def full_caption(self, caption: str, footer: str, bot: str = "") -> str:
         text = (caption or "").strip()
         if not text:
             text = footer
+        cta = self.cta()
+        if cta and bot:
+            cta = cta.replace("{bot}", bot)
+        if cta and "{bot}" not in cta and "t.me/" not in text:  # matnda bot havolasi bo'lmasa — qo'shamiz
+            text += "\n\n" + cta
         tags = self.tags()
         if tags and "#" not in text:
             text += "\n\n" + tags

@@ -1261,8 +1261,7 @@ def social_footer() -> str:
     lines = [f"✨ {SHOP['name']} — mebel o'lchamingizga moslab", "📏 Usta uyingizga kelib o'lchaydi"]
     if cs.call_phone():
         lines.append(f"📞 {cs.call_phone()}")
-    lines.append(f"🛋 Katalog va buyurtma: t.me/{SHOP['bot']}")
-    return "\n".join(lines)
+    return "\n".join(lines)   # Telegram botga chaqiruv qatori full_caption'da qo'shiladi (/cta)
 
 
 async def social_ask(chat_id: int, files: list, caption: str):
@@ -1345,7 +1344,7 @@ def _prepare(datas: list, kind: str, fixed: bool) -> list:
 
 async def social_publish(item: dict) -> dict:
     ss.set(item["id"], status="posting")
-    res = await soc.publish(meta, item, social_url, ss.full_caption(item["caption"], social_footer()))
+    res = await soc.publish(meta, item, social_url, ss.full_caption(item["caption"], social_footer(), SHOP["bot"]))
     good = soc.ok(res)
     ss.set(item["id"], status="posted" if good else "failed", posted_at=int(time.time()), result=res,
            error="" if good else "; ".join(str(v) for v in res.values())[:500])
@@ -1400,6 +1399,7 @@ async def cmd_meta(m: Message):
     q = ss.queued()
     tail = (f"\n\n🕖 Kunlik post vaqti: <b>{ss.post_time()}</b> (/post_vaqti 19:00)\n🗓 Navbatda: {len(q)} ta (/navbat)"
             f"\n#️⃣ Heshteglar: {esc(ss.tags()) or '—'} (/heshteg ...)"
+            f"\n📲 Botga chaqiruv: {esc(ss.cta().replace('{bot}', SHOP['bot'])) or '—'} (/cta ...)"
             f"\n\n🔗 Instagram bio uchun havola:\n{WEBAPP_URL}custom?src=ig\n🔗 Facebook uchun:\n{WEBAPP_URL}custom?src=fb")
     if not soc.configured():
         return await m.answer("⚠️ Meta ulanmagan. Render → Environment ga META_TOKEN va FB_PAGE_ID ni yozing." + tail)
@@ -1473,6 +1473,27 @@ async def cmd_tags(m: Message):
                               "O'zgartirish: /heshteg #isofa #mebel ...\nO'chirish: /heshteg -")
     v = ss.set_tags("" if arg[1].strip() == "-" else arg[1])
     await m.answer("✅ Heshteglar saqlandi:\n" + (esc(v) or "— (heshtegsiz)"))
+
+
+@dp.message(Command("cta"))
+async def cmd_cta(m: Message):
+    """Har bir post oxiriga qo'shiladigan Telegram botga chaqiruv matni."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(f"📲 Hozirgi chaqiruv matni (har bir post oxirida):\n\n"
+                              f"{esc(ss.cta().replace('{bot}', SHOP['bot'])) or '—'}\n\n"
+                              "O'zgartirish: /cta yangi matn ({bot} — bot manzili o'rniga qo'yiladi)\n"
+                              "Standartga qaytarish: /cta standart\nO'chirish: /cta -")
+    raw = arg[1].strip()
+    if raw.lower() in ("standart", "default"):
+        ss.shop.db.execute("DELETE FROM settings WHERE key='social_cta'")
+        ss.shop.db.commit()
+        v = ss.cta()
+    else:
+        v = ss.set_cta("" if raw == "-" else raw)
+    await m.answer("✅ Saqlandi:\n" + (esc(v.replace("{bot}", SHOP["bot"])) or "— (chaqiruvsiz)"))
 
 
 # ------------------------------------------------------------------ javobsiz arizalar eslatmasi
