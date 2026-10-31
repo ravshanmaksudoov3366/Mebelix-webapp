@@ -100,7 +100,7 @@ tr:hover td{background:#fbf8f2}
 "use strict";
 const TG=window.Telegram&&window.Telegram.WebApp,IN_TG=!!(TG&&TG.initData);
 if(TG){try{TG.ready();TG.expand();}catch(e){}}
-const S={from:"",to:"",preset:"month",tab:"sales",q:"",data:null,form:{amount:"",cat:"reklama",day:"",note:"",file:null},busy:false};
+const S={from:"",to:"",preset:"month",tab:"sales",q:"",data:null,form:{amount:"",cat:"reklama",day:"",note:"",file:null},cap:{partner:"",kind:"in",amount:"",note:""},busy:false};
 const pad=n=>String(n).padStart(2,"0");
 function today(){const d=new Date(Date.now()+5*3600e3);return d.toISOString().slice(0,10);}
 function setPreset(p){S.preset=p;const t=today(),[y,m]=t.split("-").map(Number);
@@ -162,9 +162,41 @@ function render(){
     <div class="f wide"><label>Chek rasmi (ixtiyoriy)</label><input class="inp" type="file" accept="image/*" onchange="S.form.file=this.files[0]||null"></div>
     <div class="f wide"><button class="btn" style="justify-content:center;padding:13px" onclick="addExp()" ${S.busy?"disabled":""}>${S.busy?"Saqlanmoqda…":"＋ Xarajatni saqlash"}</button></div></div>
     <div class="note" style="margin-top:8px">Botda ham kiritish mumkin: <b>/xarajat 500000 reklama Instagram</b> (chek rasmi izohiga yozsangiz — rasm bilan saqlanadi).</div></div>`;
+  h+=capCard(d,s);
   h+=`<div class="card"><div class="tabs"><button class="${S.tab==="sales"?"on":""}" onclick="S.tab='sales';render()">💰 Savdolar (${d.sales.length})</button><button class="${S.tab==="exp"?"on":""}" onclick="S.tab='exp';render()">🧾 Xarajatlar (${d.expenses.length})</button>
     <input class="inp" placeholder="Qidirish: raqam, mahsulot, telefon, izoh…" value="${esc(S.q)}" oninput="S.q=this.value;renderTable()"></div><div id="tbl"></div></div>`;
   document.getElementById("app").innerHTML=h;renderTable();
+}
+function capCard(d,s){
+  const C=S.cap,ps=d.partners||[],n=ps.length||1,share=Math.floor(s.net/n);if(!C.partner&&ps.length)C.partner=ps[ps.length-1];
+  const tot=d.capital||{_all:{net:0,in:0}};
+  let h=`<div class="card"><h2>Kapital va foyda taqsimoti <small>foyda ${n===2?"50/50":"teng"} bo'linadi</small></h2>
+    <div class="kpis" style="grid-template-columns:repeat(${n+1},minmax(0,1fr))">${ps.map((p,i)=>kpi(`${esc(p)} ulushi`,i===0?s.net-share*(n-1):share,"tanlangan davr foydasi")).join("")}
+    ${kpi("Oborotdagi kapital",tot._all.net,money(tot._all.net),"main")}</div>
+    <div class="cats" style="margin:12px 0">${ps.map(p=>{const t=tot[p]||{in:0,out:0,net:0};return `<div class="catrow"><span>${esc(p)} kiritgan</span><div class="bar"><i style="width:${tot._all.in?t.in/tot._all.in*100:0}%"></i></div><b>${money(t.net)}</b></div>`;}).join("")}</div>
+    <div class="f" style="margin-bottom:10px"><label>Kim</label><div class="chips">${ps.map(p=>`<button class="${C.partner===p?"on":""}" onclick="S.cap.partner='${esc(p)}';render()">👤 ${esc(p)}</button>`).join("")}
+      <span style="width:12px"></span><button class="${C.kind==="in"?"on":""}" onclick="S.cap.kind='in';render()">💰 Kiritdi</button><button class="${C.kind==="out"?"on":""}" onclick="S.cap.kind='out';render()">💸 Qaytarib oldi</button></div></div>
+    <div class="form"><div class="f"><label>Summa (so'm)</label><input class="inp" inputmode="numeric" placeholder="5 000 000" value="${esc(C.amount)}" oninput="fmtAmt(this,'cap')"></div>
+    <div class="f wide"><label>Maqsad / izoh</label><input class="inp" placeholder="Masalan: material xaridi" value="${esc(C.note)}" oninput="S.cap.note=this.value"></div>
+    <div class="f"><button class="btn" style="justify-content:center;padding:13px" onclick="addCap()" ${S.busy?"disabled":""}>＋ Saqlash</button></div></div>
+    <div class="note" style="margin-top:8px">Kapital daromad emas — foydaga qo'shilmaydi. Botda: <b>/kapital Shaxzod 5mln material xaridi</b>, qaytarish: <b>/kapital_qaytar Shaxzod 1mln</b>.</div>`;
+  const mv=d.capital_moves||[];
+  if(mv.length)h+=`<table style="margin-top:12px"><thead><tr><th>Sana</th><th>Raqam</th><th>Kim</th><th>Maqsad</th><th class="n">Summa</th><th></th></tr></thead><tbody>${mv.map(c=>`<tr>
+    <td data-l="Sana">${fmtDay(c.day)}</td><td data-l="Raqam">#${c.id}</td><td data-l="Kim">${esc(c.partner)}</td><td data-l="Maqsad">${esc(c.note)||"—"}</td>
+    <td class="n" data-l="Summa"><b class="${c.kind==="out"?"neg":""}">${c.kind==="out"?"−":"+"}${money(c.amount)}</b></td><td data-l=""><button class="del" onclick="delCap(${c.id})">O'chirish</button></td></tr>`).join("")}</tbody></table>`;
+  return h+`</div>`;
+}
+async function addCap(){
+  const C=S.cap,amt=C.amount.replace(/\D/g,"");if(!amt){toast("Summani kiriting");return;}if(!C.partner){toast("Sherikni tanlang");return;}
+  S.busy=true;render();
+  try{await api("/api/admin/finance/capital",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({partner:C.partner,kind:C.kind,amount:amt,note:C.note})});
+    S.cap={partner:C.partner,kind:"in",amount:"",note:""};S.busy=false;toast(S.data.investor?"Saqlandi va sherik guruhiga yuborildi":"Saqlandi");await load();}
+  catch(e){S.busy=false;render();toast("⚠️ "+e.message);}
+}
+async function delCap(id){
+  const q=`Kapital yozuvi #${id} o'chirilsinmi? Sherik guruhiga ham xabar boradi.`;
+  const ok=IN_TG&&TG.showConfirm?await new Promise(r=>TG.showConfirm(q,r)):confirm(q);if(!ok)return;
+  try{await api(`/api/admin/finance/capital/${id}/delete`,{method:"POST"});toast("O'chirildi");await load();}catch(e){toast("⚠️ "+e.message);}
 }
 function renderTable(){
   const d=S.data,q=S.q.trim().toLowerCase(),el=document.getElementById("tbl");if(!el)return;
@@ -180,7 +212,7 @@ function renderTable(){
       <td data-l="Sana">${fmtDay(x.day)}</td><td data-l="Raqam">#${x.id}</td><td data-l="Turi">${x.cat_name}</td><td data-l="Izoh">${esc(x.note)||"—"}</td><td data-l="Kiritgan">${esc(x.by_name)}</td>
       <td class="n" data-l="Summa"><b>${money(x.amount)}</b></td><td data-l="">${x.has_photo?`<button class="link" onclick="showPhoto(${x.id})">Chek</button> · `:""}<button class="del" onclick="delExp(${x.id})">O'chirish</button></td></tr>`).join("")}</tbody></table>`;}
 }
-function fmtAmt(el){const v=el.value.replace(/\D/g,"");el.value=v?Number(v).toLocaleString("ru-RU").replace(/ |,/g," "):"";S.form.amount=el.value;}
+function fmtAmt(el,w){const v=el.value.replace(/\D/g,"");el.value=v?Number(v).toLocaleString("ru-RU").replace(/ |,/g," "):"";(w==="cap"?S.cap:S.form).amount=el.value;}
 async function addExp(){
   const F=S.form,amt=F.amount.replace(/\D/g,"");if(!amt){toast("Summani kiriting");return;}
   S.busy=true;render();

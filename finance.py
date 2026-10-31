@@ -48,7 +48,18 @@ CREATE TABLE IF NOT EXISTS expenses (
     note TEXT DEFAULT '', photo TEXT DEFAULT '', tg_photo TEXT DEFAULT '', by_name TEXT DEFAULT '',
     created INTEGER, deleted INTEGER DEFAULT 0, deleted_by TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS capital (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, partner TEXT, amount INTEGER, kind TEXT DEFAULT 'in',
+    note TEXT DEFAULT '', by_name TEXT DEFAULT '', created INTEGER, deleted INTEGER DEFAULT 0, deleted_by TEXT DEFAULT ''
+);
 """
+
+# Sheriklar: foyda teng (50/50) bo'linadi. Kapital har biri bo'yicha alohida hisoblanadi.
+PARTNERS = ["Ravshanbek", "Shaxzod"]
+PARTNER_ALIASES = {
+    "Ravshanbek": ("ravshanbek", "ravshan", "равшанбек", "равшан"),
+    "Shaxzod": ("shaxzod", "shahzod", "shohzod", "shoxzod", "шахзод", "шохзод"),
+}
 
 
 class FinanceError(Exception):
@@ -104,6 +115,19 @@ def guess_cat(text: str):
         if any(x in low for x in words):
             return cat, t
     return "boshqa", t
+
+
+def find_partner(text: str):
+    """Matnning birinchi so'zi sherik ismi bo'lsa — (ism, qolgan matn), aks holda ("", matn)."""
+    t = (text or "").strip()
+    parts = t.split(maxsplit=1)
+    if not parts:
+        return "", t
+    w = parts[0].lower().strip(".,:;-")
+    for name, words in PARTNER_ALIASES.items():
+        if w == name.lower() or w in words:
+            return name, (parts[1] if len(parts) > 1 else "").strip()
+    return "", t
 
 
 def local_day(ts: int) -> str:
@@ -219,6 +243,70 @@ class Finance:
         return [self._exp(r) for r in self.db.execute(
             "SELECT * FROM expenses WHERE deleted=0 ORDER BY id DESC LIMIT ?", (n,))]
 
+    # ------------------------------------------------ kapital (sheriklar kiritgan / qaytarib olgan pul)
+    def add_capital(self, partner: str, amount: int, kind: str = "in", note: str = "", day: str = "", by: str = "") -> dict:
+        if partner not in PARTNERS:
+            raise FinanceError("Sherik ismini yozing: " + " yoki ".join(PARTNERS))
+        amount = int(amount or 0)
+        if amount <= 0:
+            raise FinanceError("Summani kiriting (masalan: 5000000 yoki 5mln)")
+        if amount > 10_000_000_000:
+            raise FinanceError("Summa juda katta — tekshirib qayta kiriting")
+        kind = "out" if kind == "out" else "in"
+        if kind == "out" and amount > self.capital_totals()[partner]["net"]:
+            raise FinanceError(f"{partner} kapitalida buncha pul yo'q "
+                               f"(hozir: {money(self.capital_totals()[partner]['net'])})")
+        now = int(time.time())
+        ts = now
+        if day:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                raise FinanceError("Sana noto'g'ri")
+            ts = day_start(day) + 12 * 3600
+            if ts > now + 86400:
+                raise FinanceError("Kelajakdagi sana kiritib bo'lmaydi")
+        cur = self.db.execute(
+            "INSERT INTO capital(ts,partner,amount,kind,note,by_name,created) VALUES (?,?,?,?,?,?,?)",
+            (ts, partner, amount, kind, (note or "").strip()[:300], (by or "")[:80], now))
+        self.db.commit()
+        return self.get_capital(cur.lastrowid)
+
+    def get_capital(self, cid: int) -> dict:
+        r = self.db.execute("SELECT * FROM capital WHERE id=?", (cid,)).fetchone()
+        if not r:
+            raise FinanceError("Kapital yozuvi topilmadi")
+        d = dict(r)
+        d["day"] = local_day(d["ts"])
+        d["when"] = time.strftime("%d.%m.%Y, %H:%M", time.gmtime(d["ts"] + TZ))
+        return d
+
+    def delete_capital(self, cid: int, by: str = "") -> dict:
+        c = self.get_capital(cid)
+        if c["deleted"]:
+            raise FinanceError("Bu yozuv allaqachon o'chirilgan")
+        self.db.execute("UPDATE capital SET deleted=1, deleted_by=? WHERE id=?", ((by or "")[:80], cid))
+        self.db.commit()
+        return self.get_capital(cid)
+
+    def capitals(self, a: int = 0, b: int = 2 ** 62) -> list:
+        return [self.get_capital(r["id"]) for r in self.db.execute(
+            "SELECT id FROM capital WHERE deleted=0 AND ts>=? AND ts<? ORDER BY ts DESC, id DESC", (a, b))]
+
+    def last_capitals(self, n: int = 10) -> list:
+        return [self.get_capital(r["id"]) for r in self.db.execute(
+            "SELECT id FROM capital WHERE deleted=0 ORDER BY id DESC LIMIT ?", (n,))]
+
+    def capital_totals(self, until: int = 2 ** 62) -> dict:
+        """Har bir sherik: kiritgan, qaytarib olgan, oborotdagi (net). Oxirida «_all» — umumiy."""
+        out = {p: {"in": 0, "out": 0, "net": 0} for p in PARTNERS}
+        for r in self.db.execute("SELECT partner, kind, SUM(amount) s FROM capital WHERE deleted=0 AND ts<? "
+                                 "GROUP BY partner, kind", (until,)):
+            d = out.setdefault(r["partner"], {"in": 0, "out": 0, "net": 0})
+            d["out" if r["kind"] == "out" else "in"] += int(r["s"] or 0)
+        for d in out.values():
+            d["net"] = d["in"] - d["out"]
+        out["_all"] = {k: sum(v[k] for p, v in out.items() if p != "_all") for k in ("in", "out", "net")}
+        return out
+
     # ------------------------------------------------ savdolar (daromad)
     def order_sale(self, o: dict) -> dict:
         items = o.get("items") or []
@@ -305,6 +393,8 @@ class Finance:
         for c in s["by_cat"]:
             lines.append(f"     {c['name']}: {money(c['sum'])}")
         lines.append(f"\n✅ <b>Sof foyda: {money(s['net'])}</b>")
+        lines += [""] + split_lines(s["net"])
+        lines += [""] + capital_lines(self.capital_totals(b), self.capitals(a, b))
         if s["no_cost"]:
             lines.append(f"\nℹ️ {s['no_cost']} ta savdoda tannarx kiritilmagan — foydasi to'liq hisoblanmagan.")
         p = self.pipeline()
@@ -327,6 +417,17 @@ class Finance:
         w.writerow(["Sana", "Raqam", "Turi", "Summa", "Izoh", "Kiritgan"])
         for e in s["exps"]:
             w.writerow([e["day"], e["id"], CATS.get(e["cat"], e["cat"]).split(" ", 1)[-1], e["amount"], e["note"], e["by_name"]])
+        w.writerow([])
+        w.writerow(["KAPITAL"])
+        w.writerow(["Sana", "Raqam", "Sherik", "Turi", "Summa", "Izoh", "Kiritgan"])
+        for c in self.capitals(a, b):
+            w.writerow([c["day"], c["id"], c["partner"], "Kiritdi" if c["kind"] == "in" else "Qaytarib oldi",
+                        c["amount"], c["note"], c["by_name"]])
+        w.writerow([])
+        w.writerow(["FOYDA TAQSIMOTI (teng)"])
+        share = s["net"] // len(PARTNERS)
+        for i, p in enumerate(PARTNERS):
+            w.writerow([p, s["net"] - share * (len(PARTNERS) - 1) if i == 0 else share])
         w.writerow([])
         w.writerow(["JAMI"])
         for k, v in (("Tushum", s["income"]), ("Tannarx", s["cost"]), ("Yalpi foyda", s["gross"]),
@@ -351,6 +452,63 @@ def sale_text(s: dict) -> str:
     else:
         lines.append("ℹ️ Tannarx kiritilmagan — foyda hisoblanmadi")
     return "\n".join(lines)
+
+
+def split_lines(net: int) -> list:
+    """Sof foyda (yoki zarar) sheriklar o'rtasida teng bo'linadi."""
+    n = len(PARTNERS)
+    share = net // n
+    title = "🤝 <b>Foyda taqsimoti (50/50):</b>" if net >= 0 else "🤝 <b>Zarar taqsimoti (50/50):</b>"
+    out = [title]
+    for i, p in enumerate(PARTNERS):
+        v = net - share * (n - 1) if i == 0 else share   # qoldiq so'm birinchi sherikka
+        out.append(f"• {p}: <b>{money(v)}</b>")
+    return out
+
+
+def capital_lines(tot: dict, moves: list = None) -> list:
+    out = ["💼 <b>Kapital holati:</b>"]
+    for p in PARTNERS:
+        d = tot.get(p) or {"in": 0, "out": 0, "net": 0}
+        out.append(f"• {p} kiritgan: {money(d['in'])}" + (f" (qaytarib olgan: {money(d['out'])})" if d["out"] else ""))
+    out.append(f"• Oborotdagi jami kapital: <b>{money(tot['_all']['net'])}</b>")
+    if moves:
+        ins = sum(c["amount"] for c in moves if c["kind"] == "in")
+        outs = sum(c["amount"] for c in moves if c["kind"] == "out")
+        out.append(f"  Shu davrda: +{money(ins)} kiritildi" + (f", −{money(outs)} qaytarildi" if outs else ""))
+    return out
+
+
+def capital_text(c: dict, tot: dict, deleted: bool = False) -> str:
+    e = lambda v: str(v).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    if deleted:
+        head = f"🗑 <b>Kapital yozuvi #{c['id']} bekor qilindi</b>"
+    elif c["kind"] == "in":
+        head = f"💰 <b>KAPITAL KIRITILDI</b> (#{c['id']})"
+    else:
+        head = f"💸 <b>KAPITAL QAYTARIB OLINDI</b> (#{c['id']})"
+    lines = [head, "",
+             f"👤 Kim: <b>{e(c['partner'])}</b>",
+             f"💵 Summa: <b>{money(c['amount'])}</b>",
+             f"📝 Maqsad: {e(c['note']) if c.get('note') else '—'}",
+             f"📅 Sana: {c['when']}", "",
+             "📊 <b>Jami kiritilgan kapital:</b>"]
+    for p in PARTNERS:
+        d = tot.get(p) or {"net": 0}
+        lines.append(f"• {p}: {money(d['net'])}")
+    lines.append(f"• Umumiy: <b>{money(tot['_all']['net'])}</b>")
+    return "\n".join(lines)
+
+
+CAPITAL_HELP = ("💰 <b>Kapital kiritish</b>\n"
+                "Yozing: <code>/kapital ism summa maqsad</code>\n\n"
+                "Misollar:\n"
+                "<code>/kapital Shaxzod 5mln material xaridi</code>\n"
+                "<code>/kapital Ravshanbek 3 000 000 oborot uchun</code>\n\n"
+                "Sherik pulini qaytarib olsa:\n"
+                "<code>/kapital_qaytar Shaxzod 1mln</code>\n\n"
+                "Ro'yxat: /kapitallar\nO'chirish: <code>/kapital_ochir 3</code>\n\n"
+                "Sheriklar: " + ", ".join(PARTNERS) + ". Kapital daromad hisoblanmaydi — foyda 50/50 bo'linadi.")
 
 
 def expense_text(x: dict, deleted: bool = False) -> str:

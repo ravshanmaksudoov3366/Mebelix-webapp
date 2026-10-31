@@ -927,6 +927,7 @@ async def cmd_investor_group(m: Message):
     await m.answer("🤝 <b>Sherik guruhi ulandi.</b>\n\nBu yerga avtomatik keladi:\n"
                    "💰 har bir yakunlangan savdo — raqami, mahsulot, mijoz telefoni, tushum, tannarx va foyda;\n"
                    "🧾 har bir xarajat — summasi, turi, izohi (chek rasmi bilan);\n"
+                   "💼 har bir kapital kiritish — kim, qancha, nima uchun;\n"
                    "📊 har dushanba — o'tgan hafta hisoboti, har oyning 1-kuni — o'tgan oy hisoboti.\n\n"
                    "Istalgan payt: /hisobot (shu oy) yoki <code>/hisobot 2026-10</code>")
 
@@ -987,6 +988,99 @@ async def cb_expense_delete(c: CallbackQuery):
     if not is_admin(c.from_user.id):
         return await c.answer("Faqat admin", show_alert=True)
     res = await fin_delete(int(c.data.split(":")[2]), c.from_user.full_name)
+    try:
+        await c.message.edit_reply_markup(reply_markup=None)
+        await c.message.reply(res)
+    except TelegramAPIError:
+        pass
+    await c.answer()
+
+
+# ------------------------------------------------------------------ kapital: sheriklar oborotga kiritgan pul
+def fin_capital_kb(cid: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🗑 Bekor qilish", callback_data=f"cx:del:{cid}")]])
+
+
+async def fin_capital_from_text(m: Message, text: str, kind: str):
+    partner, rest = fin.find_partner(text)
+    amount, note = fin.parse_amount(rest)
+    if not partner or not amount:
+        return await m.answer(fin.CAPITAL_HELP)
+    try:
+        c = fn.add_capital(partner, amount, kind, note, by=m.from_user.full_name if m.from_user else "")
+    except fin.FinanceError as e:
+        return await m.answer(f"⚠️ {esc(e)}")
+    txt = fin.capital_text(c, fn.capital_totals())
+    sent = await to_investor(txt)
+    if not (sent and m.chat.id == investor_chat()):
+        await m.answer(f"✅ Saqlandi.\n\n{txt}" + ("\n\n👥 Sherik guruhiga yuborildi." if sent else ""),
+                       reply_markup=fin_capital_kb(c["id"]))
+    else:
+        await m.answer(f"✅ Kapital #{c['id']} saqlandi.", reply_markup=fin_capital_kb(c["id"]))
+
+
+@dp.message(Command("kapital"))
+async def cmd_capital(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(fin.CAPITAL_HELP)
+    await fin_capital_from_text(m, arg[1], "in")
+
+
+@dp.message(Command("kapital_qaytar"))
+async def cmd_capital_out(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)
+    if len(arg) < 2:
+        return await m.answer(fin.CAPITAL_HELP)
+    await fin_capital_from_text(m, arg[1], "out")
+
+
+@dp.message(Command("kapitallar"))
+async def cmd_capitals(m: Message):
+    if not (is_admin(m.from_user.id) or (investor_chat() and m.chat.id == investor_chat())):
+        return
+    cs_ = fn.last_capitals(15)
+    lines = ["💼 <b>Kapital harakati</b>"]
+    for c in cs_:
+        sign = "+" if c["kind"] == "in" else "−"
+        lines.append(f"#{c['id']} · {c['day']} · {esc(c['partner'])} · <b>{sign}{fin.money(c['amount'])}</b>"
+                     + (f" — {esc(c['note'])}" if c.get("note") else ""))
+    if not cs_:
+        lines.append("Hali kapital kiritilmagan.")
+    lines += [""] + fin.capital_lines(fn.capital_totals())
+    if is_admin(m.from_user.id):
+        lines.append("\nO'chirish: <code>/kapital_ochir 3</code>")
+    await m.answer("\n".join(lines))
+
+
+async def fin_capital_delete(cid: int, who: str) -> str:
+    try:
+        c = fn.delete_capital(cid, who)
+    except fin.FinanceError as e:
+        return f"⚠️ {esc(e)}"
+    await to_investor(fin.capital_text(c, fn.capital_totals(), deleted=True))
+    return f"🗑 Kapital yozuvi #{cid} bekor qilindi."
+
+
+@dp.message(Command("kapital_ochir"))
+async def cmd_capital_delete(m: Message):
+    if not is_admin(m.from_user.id):
+        return
+    arg = re.findall(r"\d+", (m.text or "").split(maxsplit=1)[-1] if len((m.text or "").split()) > 1 else "")
+    if not arg:
+        return await m.answer("Qaysi yozuvni o'chirish kerak? Masalan: <code>/kapital_ochir 3</code>\nRo'yxat: /kapitallar")
+    await m.answer(await fin_capital_delete(int(arg[0]), m.from_user.full_name))
+
+
+@dp.callback_query(F.data.startswith("cx:del:"))
+async def cb_capital_delete(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer("Faqat admin", show_alert=True)
+    res = await fin_capital_delete(int(c.data.split(":")[2]), c.from_user.full_name)
     try:
         await c.message.edit_reply_markup(reply_markup=None)
         await c.message.reply(res)
@@ -1777,7 +1871,30 @@ async def api_fin(request):
     exps = [{k: v for k, v in e.items() if k not in ("photo", "tg_photo")} for e in s["exps"]]
     return web.json_response({"from": d1, "to": d2, "summary": {k: v for k, v in s.items() if k not in ("sales", "exps")},
                               "sales": s["sales"], "expenses": exps, "months": fn.months(12), "pipeline": fn.pipeline(),
-                              "cats": [{"id": k, "name": v} for k, v in fin.CATS.items()], "investor": bool(investor_chat())})
+                              "cats": [{"id": k, "name": v} for k, v in fin.CATS.items()], "investor": bool(investor_chat()),
+                              "partners": fin.PARTNERS, "capital": fn.capital_totals(), "capital_moves": fn.capitals()[:100]})
+
+
+async def api_fin_capital_add(request):
+    u = get_admin(request)
+    payload = await request.json()
+    amount, _ = fin.parse_amount(str(payload.get("amount") or ""))
+    who = "Admin (kompyuter)" if u.get("admin_web") else (u.get("first_name") or "Admin")
+    try:
+        c = fn.add_capital(payload.get("partner") or "", amount, payload.get("kind") or "in",
+                           payload.get("note") or "", payload.get("day") or "", by=who)
+    except fin.FinanceError as e:
+        raise ShopError(str(e))
+    asyncio.create_task(to_investor(fin.capital_text(c, fn.capital_totals())))
+    return web.json_response({"capital": c})
+
+
+async def api_fin_capital_delete(request):
+    u = get_admin(request)
+    msg = await fin_capital_delete(int(request.match_info["id"]), "Admin (kompyuter)" if u.get("admin_web") else (u.get("first_name") or "Admin"))
+    if msg.startswith("⚠️"):
+        raise ShopError(msg[2:].strip())
+    return web.json_response({"ok": True})
 
 
 async def api_fin_add(request):
@@ -2946,6 +3063,10 @@ ADMIN_MENU = [
      ("🧾 Xarajatlar", "cmd_expenses", "/xarajatlar", "Oxirgi xarajatlar ro'yxati")],
     [("📊 Hisobot", "cmd_report", "/hisobot", "Shu oyning moliyaviy hisoboti"),
      ("🗑 Xarajatni o'chirish", "cmd_expense_delete", "/xarajat_ochir", "Xarajatni bekor qilish: /xarajat_ochir 12")],
+    [("💼 Kapital kiritish", "cmd_capital", "/kapital", "Sherik kapitali: /kapital Shaxzod 5mln material"),
+     ("📒 Kapitallar", "cmd_capitals", "/kapitallar", "Kapital harakati va holati")],
+    [("💸 Kapital qaytarish", "cmd_capital_out", "/kapital_qaytar", "Sherik pulini qaytarib oldi: /kapital_qaytar Shaxzod 1mln"),
+     ("🗑 Kapitalni o'chirish", "cmd_capital_delete", "/kapital_ochir", "Kapital yozuvini bekor qilish: /kapital_ochir 3")],
     [("📣 Telegram kanal", "cmd_channel", "/kanal", "Telegram kanalga avto-post"),
      ("📲 Instagram / Facebook", "cmd_meta", "/meta", "Instagram va Facebook ulanishi")],
     [("🗓 Navbatdagi postlar", "cmd_queue", "/navbat", "Navbatdagi postlar"),
@@ -3022,7 +3143,8 @@ async def setup_admin_commands():
             log.warning("admin buyruqlari ro'yxatini o'rnatib bo'lmadi (%s): %s", aid, e)
     group_cmds = [BotCommand(command=c, description=d) for c, d in (
         ("xarajat", "Xarajat kiritish: /xarajat 500000 reklama"), ("xarajatlar", "Oxirgi xarajatlar"),
-        ("hisobot", "Moliyaviy hisobot"), ("guruhga", "Buyurtmani guruhlarga qayta yuborish"),
+        ("hisobot", "Moliyaviy hisobot"), ("kapital", "Kapital: /kapital Shaxzod 5mln maqsad"),
+        ("kapitallar", "Kapital holati"), ("guruhga", "Buyurtmani guruhlarga qayta yuborish"),
         ("kuryer_guruhi", "Shu guruhni kuryerlar guruhi qilish"), ("yiguvchi_guruhi", "Shu guruhni yig'uvchilar guruhi qilish"),
         ("sherik_guruhi", "Shu guruhni sherik guruhi qilish"), ("menyu", "Ilovalar"))]
     if GROUP_ID:
@@ -3306,6 +3428,8 @@ def make_app() -> web.Application:
     app.router.add_get("/api/admin/finance/expense/{id}/photo", api_fin_photo)
     app.router.add_get("/api/admin/finance/csv", api_fin_csv)
     app.router.add_post("/api/admin/finance/send", api_fin_send)
+    app.router.add_post("/api/admin/finance/capital", api_fin_capital_add)
+    app.router.add_post("/api/admin/finance/capital/{id}/delete", api_fin_capital_delete)
     app.router.add_get("/api/custom/config", api_custom_config)
     app.router.add_post("/api/custom/request", api_custom_request)
     app.router.add_post("/api/custom/mine", api_custom_mine)
