@@ -99,7 +99,10 @@ tr:hover td{background:#fbf8f2}
 <script>
 "use strict";
 const TG=window.Telegram&&window.Telegram.WebApp,IN_TG=!!(TG&&TG.initData);
-if(TG){try{TG.ready();TG.expand();}catch(e){}}
+if(TG){try{TG.ready();TG.expand();
+  /* kompyuterdagi Telegram'da moliya sahifasi to'liq ekranda ochiladi */
+  if(IN_TG&&["tdesktop","macos","weba","webk","web","unigram"].includes(TG.platform)&&TG.isVersionAtLeast&&TG.isVersionAtLeast("8.0")&&!TG.isFullscreen)TG.requestFullscreen();
+}catch(e){}}
 const S={from:"",to:"",preset:"month",tab:"sales",q:"",data:null,form:{amount:"",cat:"reklama",day:"",note:"",file:null},cap:{partner:"",kind:"in",amount:"",note:""},busy:false};
 const pad=n=>String(n).padStart(2,"0");
 function today(){const d=new Date(Date.now()+5*3600e3);return d.toISOString().slice(0,10);}
