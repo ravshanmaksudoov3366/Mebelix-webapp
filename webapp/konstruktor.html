@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uz">
+<html lang="uz" id="htm">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -17,6 +17,7 @@ header{background:var(--char);padding:10px 14px 12px;display:flex;flex-direction
 .back{border:1px solid #5a5758;background:transparent;color:var(--gold);border-radius:12px;padding:8px 11px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none}
 .brand{display:flex;flex-direction:column;color:var(--gold);font-size:22px;font-weight:600;line-height:1;flex:1}
 .brand small{font-size:8px;letter-spacing:1.6px;color:#cdb57a;margin-top:3px;font-weight:500}
+.langsw{display:flex;border:1px solid #5a5758;border-radius:12px;padding:3px;gap:2px}.langsw button{border:0;background:transparent;color:#bdb6ab;font-weight:700;font-size:12px;padding:6px 8px;border-radius:9px;cursor:pointer}.langsw button.on{background:var(--gold);color:var(--char)}
 .badge3d{background:var(--gold);color:var(--char);font-weight:700;font-size:11px;padding:4px 8px;border-radius:8px}
 .tabs{display:flex;background:var(--char2);border-radius:14px;padding:3px}
 .tabs button{flex:1;border:0;background:transparent;color:#d8d1c5;font-weight:600;font-size:14px;padding:10px 6px;border-radius:11px;cursor:pointer}
@@ -133,18 +134,18 @@ input[type=range]{width:100%;accent-color:var(--char);height:28px}
 </head>
 <body>
 <header>
-  <div class="hrow"><a class="back" id="backBtn" href="/custom">‹ Orqaga</a><div class="brand">iSofa<small>WORLD OF FURNITURE</small></div><span class="badge3d">3D</span></div>
+  <div class="hrow"><a class="back" id="backBtn" href="/custom">‹ Orqaga</a><div class="brand">iSofa<small>WORLD OF FURNITURE</small></div><div class="langsw" id="langsw"><button data-l="uz" onclick="setLang('uz')">UZ</button><button data-l="ru" onclick="setLang('ru')">RU</button></div><span class="badge3d">3D</span></div>
   <div class="tabs"><button id="tOsh" class="on" onclick="setTab('osh')">Oshxona</button><button id="tShk" onclick="setTab('shk')">Shkaf</button></div>
 </header>
 <main>
   <div class="wrap">
     <section class="stage">
       <div class="st-head"><h2 id="stTitle">Oshxonangizni loyihalang</h2>
-        <div class="views"><button data-v="3d" class="on" onclick="preset('3d')">3D</button><button data-v="old" onclick="preset('old')">Old</button><button data-v="reja" onclick="preset('reja')">Reja</button></div></div>
+        <div class="views"><button data-v="3d" class="on" onclick="preset('3d')">3D</button><button data-v="old" onclick="preset('old')" id="vOld">Old</button><button data-v="reja" onclick="preset('reja')" id="vReja">Reja</button></div></div>
       <div class="pic" id="pic"><canvas id="cv"></canvas><div id="lbls"></div>
-        <div class="ovl"><button id="undoBtn" onclick="undo()" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Bekor</button></div>
+        <div class="ovl"><button id="undoBtn" onclick="undo()" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span id="undoTx">Bekor</span></button></div>
         <div class="ovr" id="ovr"></div><div class="toast" id="toast"></div>
-        <div class="photo" id="photoOv"><img id="photoImg" alt=""><div class="pbar"><button onclick="dlPhoto()">Saqlash</button><button onclick="closePhoto()">3D ga qaytish</button></div></div></div>
+        <div class="photo" id="photoOv"><img id="photoImg" alt=""><div class="pbar"><button onclick="dlPhoto()" id="pSave">Saqlash</button><button onclick="closePhoto()" id="pBack">3D ga qaytish</button></div></div></div>
       <div class="selbar" id="selbar"></div>
       <div class="hint" id="hint">Barmoq bilan aylantiring, ikki barmoq bilan yaqinlashtiring. <b>Shkafga bosing</b> — enini, turini o'zgartirasiz, qo'shasiz yoki o'chirasiz.</div>
     </section>
@@ -154,6 +155,11 @@ input[type=range]{width:100%;accent-color:var(--char);height:28px}
 
 <script>
 "use strict";
+/* til: UZ / RU (sayt va «O'lchamga buyurtma» bilan bir xil saqlanadi) */
+const normLang=l=>String(l||"").toLowerCase().startsWith("ru")?"ru":"uz";
+const LANG=(()=>{const q=new URLSearchParams(location.search);let s="";try{s=JSON.parse(localStorage.getItem("lang"))||"";}catch(e){}
+  const tg=window.Telegram&&window.Telegram.WebApp,u=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;return normLang(q.get("lang")||s||(u&&u.language_code));})();
+const RU=LANG==="ru",T=(uz,ru)=>RU?ru:uz,SM=RU?"см":"sm";
 /* =====================================================================
    1. KICHIK 3D DVIGATEL (WebGL): qutilar, silindrlar, sferalar, soya, tanlash
    ===================================================================== */
@@ -243,7 +249,7 @@ const SUN=norm([-.42,1,.62]);
 function initGL(){
   const cv=document.getElementById("cv");
   gl=cv.getContext("webgl",{antialias:true,preserveDrawingBuffer:true});
-  if(!gl){document.getElementById("pic").innerHTML='<div class="nogl">Bu qurilmada 3D ko\'rinish ishlamadi.</div>';return false;}
+  if(!gl){document.getElementById("pic").innerHTML='<div class="nogl">'+T("Bu qurilmada 3D ko'rinish ishlamadi.","На этом устройстве 3D не поддерживается.")+'</div>';return false;}
   const mk=(vs,fs)=>{const p=gl.createProgram();[[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]].forEach(([t,src])=>{const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));gl.attachShader(p,s);});gl.linkProgram(p);
     const u={};const n=gl.getProgramParameter(p,gl.ACTIVE_UNIFORMS);for(let i=0;i<n;i++){const a=gl.getActiveUniform(p,i);u[a.name]=gl.getUniformLocation(p,a.name);}return {p,u,aPos:gl.getAttribLocation(p,"aPos"),aNor:gl.getAttribLocation(p,"aNor")};};
   P=mk(VS,FS);SP=mk(SVS,SFS);
@@ -370,6 +376,35 @@ const WPRE={
   premium:{n:"Premium",d:"Bronza shisha, yong'oq",c:["#6e5641","#7a5135","#c7a456"],v:{style:"bronza",fasad:"yongoq",korpus:"yongoq",handle:"oltin",finish:"mat",profil:"oltin"}},
   kozgu:{n:"Ko'zguli",d:"Kombinatsiya, kumush",c:["#dde4e6","#efede8"],v:{style:"kombi",fasad:"oq",korpus:"oq",handle:"push",finish:"gl",profil:"kumush"}}
 };
+
+/* rus tilidagi nomlar (kalitlar o'zgarmaydi) */
+if(RU){
+  const nm=(m,o)=>{for(const k in o){if(!(k in m))continue;if(Array.isArray(m[k]))m[k][0]=o[k];else m[k]=o[k];}};
+  nm(COL,{oq:"Белый",kashmir:"Кашемир",shalfey:"Шалфей",olive:"Олива",grafit:"Графит",qora:"Чёрный",kok:"Тёмно-синий",terra:"Терракота",bej:"Песочный",mokko:"Мокко",kapuchino:"Капучино",fildish:"Слоновая кость",eman:"Дуб",yongoq:"Орех",kul:"Серый дуб"});
+  nm(KORP,{oq:"Белый",fildish:"Слоновая кость",mokko:"Мокко",kashmir:"Кашемир",grafit:"Графит",eman:"Дуб",yongoq:"Орех"});
+  nm(TOSH,{oq:"Белый кварц",marmar:"Белый мрамор",calacatta:"Калакатта",qum:"Песочный",beton:"Бетон",kvarts:"Чёрный кварц",yogoch:"Дерево"});
+  nm(FARTUK,{devor:"Белая стена",tosh:"Как столешница",kafel:"Белая плитка",gisht:"Кирпич (лофт)",shisha:"Чёрное стекло",yogoch:"Дерево"});
+  nm(KRAN,{xrom:"Хром",nikel:"Шампань",qora:"Чёрный",oltin:"Золото"});
+  nm(POL,{parket:"Паркет",beton:"Светлый бетон",qparket:"Тёмный паркет",kafel:"Крупная плитка"});
+  nm(DEVOR,{oq:"Белый",bej:"Бежевый",kul:"Серый",tuq:"Тёмный"});
+  nm(FSTYLE,{tekis:"Гладкий",frezer:"Фрезерованный",reyka:"Реечный"});
+  nm(FINISH,{mat:"Матовый",gl:"Глянцевый"});
+  nm(KHAND,{gola:"Gola (без ручек)",qora:"Чёрные",oltin:"Золотистые",push:"Push-to-open"});
+  nm(LOW,{kargo:"Карго (узкий, с корзинами)",eshik:"С дверцей",tortma:"С ящиками",pech:"Духовка + варочная",plita:"Варочная + ящик",rakovina:"Мойка",idish:"Посудомоечная машина",musor:"Ящик для мусора",karusel:"Угловая карусель",ichki:"С внутренними ящиками",vino:"Винная полка",ochiq:"Открытая полка",kir:"Стиральная машина"});
+  nm(TALL,{kargoK:"Карго-колонна (до потолка)",muz:"Встроенный холодильник",muz2:"Большой холодильник (отдельный)",pechk:"Духовка + микроволновка",pantry:"Кладовая (продукты)",vinok:"Винная колонна"});
+  nm(UPT,{pantograf:"Пантограф (опускающаяся полка)",eshik:"С дверцей",lift:"Открывается вверх",shisha:"Стеклянная витрина",ochiq:"Открытая полка",quritgich:"Сушилка для посуды",mikro:"Место под микроволновку",yoq:"Пусто"});
+  nm(SHORT,{kargo:"Карго",kargoK:"Карго кол.",eshik:"Дверца",tortma:"Ящики",pech:"Духовка",plita:"Плита",rakovina:"Мойка",idish:"Посудомойка",musor:"Мусор",karusel:"Карусель",ichki:"Вн. ящики",vino:"Вино",ochiq:"Полка",kir:"Стир.",muz:"Холод.",muz2:"Холод.",pechk:"Духовка кол.",pantry:"Кладовая",vinok:"Вино кол."});
+  nm(SEC,{pantograf:"Пантограф (опускающаяся штанга)",uzunT:"Штанга + ящики",uzun:"Длинная штанга",ikki:"Две штанги",javon:"Полки",tortma:"Ящики + полки",poyabzal:"Обувь",shim:"Брючница",aksessuar:"Ящик для аксессуаров",savat:"Корзины для белья",chamadon:"Место для чемоданов",seyf:"Сейф",tv:"Место под ТВ",ochiq:"Открытая полка"});
+  nm(WSHORT,{pantograf:"Пантограф",uzunT:"Штанга+Я",uzun:"Длин. шт.",ikki:"2 штанги",javon:"Полки",tortma:"Ящики",poyabzal:"Обувь",shim:"Брюки",aksessuar:"Аксесс.",savat:"Корзины",chamadon:"Чемоданы",seyf:"Сейф",tv:"ТВ",ochiq:"Полка"});
+  nm(WDOOR,{odatiy:"Обычная дверь",kozgu:"Зеркальная дверь",yoq:"Без двери"});
+  nm(WSTYLE,{tekis:"Гладкие",frezer:"Фрезерованные",reyka:"Реечные",kozgu:"Зеркало",grafit:"Графитовое стекло",bronza:"Бронзовое стекло",kombi:"Комбинированные",orta:"Зеркало по центру"});
+  nm(PROFIL,{kumush:"Серебро",qora:"Чёрный",oltin:"Золото"});
+  nm(WHAND,{qora:"Чёрные длинные",oltin:"Золотистые",push:"Push-to-open"});
+  nm(RUNNAME,{A:"Основная стена",B:"Левая стена",C:"Правая стена"});
+  const pr=(m,o)=>{for(const k in o)if(m[k]){m[k].n=o[k][0];m[k].d=o[k][1];}};
+  pr(KPRE,{mokko:["Мокко минимал","Без ручек, чёрная открытая полка, белый камень"],minimal:["Минимализм","Белый, без ручек, чистые линии"],skandi:["Скандинавский","Шалфей, дерево и белый"],loft:["Лофт","Графит, дуб, бетон, кирпич"],neo:["Неоклассика","Фрезеровка, золото, мрамор"],premium:["Премиум","Чёрный + орех, глянцевый камень"],hitech:["Хай-тек","Глянцевый белый, чёрное стекло"]});
+  pr(WPRE,{kupeAnt:["Купе + антресоль","Белые двери, зеркало по центру, корпус дуб"],ochiq:["Открытая гардеробная","Без дверей: боковые полки, штанга, ящики"],minimal:["Минимализм","Гладкий, без ручек"],skandi:["Скандинавский","Рейки, шалфей, чёрный"],loft:["Лофт","Графитовое стекло, чёрный профиль"],neo:["Неоклассика","Фрезеровка, золотые ручки"],premium:["Премиум","Бронзовое стекло, орех"],kozgu:["Зеркальный","Комбинированный, серебро"]});
+}
 
 const S={tab:"osh",sel:null,dims:false,step:{osh:0,shk:0},
   k:{lay:"I",A:360,B:260,C:240,H:280,lh:90,tt:2,upper:true,uh:72,shift:true,led:true,orol:false,bezak:true,preset:"mokko",niche:true,kran:"nikel",pol:"beton",devor:"oq",
@@ -586,11 +621,11 @@ function buildKitchen(){
     if(k.bezak){cyl(x0+L*.3,KT+2.5,z0+60,13,5,"y",MT("#f6f4ef",10));sph(x0+L*.3-3,KT+7,z0+58,3.6,MT("#e08a3c",10));sph(x0+L*.3+3,KT+7,z0+62,3.6,MT("#9bb34a",10));
       cyl(x0+L*.7,KT+12,z0+60,5,24,"y",MT("#d8cab6",10));sph(x0+L*.7,KT+28,z0+60,7,MT("#b9c9a8",0));}
   }
-  if(k.lay!=="II")labels.push([[k.A/2,H+10,0],`${k.A} sm`]);
-  if(k.lay==="II")labels.push([[k.A/2,2,Math.min(k.B,k.C)/2+20],`Orasi ${k.A} sm`]);
-  if(k.lay!=="I")labels.push([[0,H+10,k.B/2+20],`${k.B} sm`]);
-  if(k.lay==="U"||k.lay==="II")labels.push([[k.A,H+10,k.C/2+20],`${k.C} sm`]);
-  labels.push([[-5,H*.5,-5],`Shift ${H} sm`,"h"]);
+  if(k.lay!=="II")labels.push([[k.A/2,H+10,0],`${k.A} ${SM}`]);
+  if(k.lay==="II")labels.push([[k.A/2,2,Math.min(k.B,k.C)/2+20],`${T("Orasi","Между")} ${k.A} ${SM}`]);
+  if(k.lay!=="I")labels.push([[0,H+10,k.B/2+20],`${k.B} ${SM}`]);
+  if(k.lay==="U"||k.lay==="II")labels.push([[k.A,H+10,k.C/2+20],`${k.C} ${SM}`]);
+  labels.push([[-5,H*.5,-5],`${T("Shift","Потолок")} ${H} ${SM}`,"h"]);
   return {labels,bounds:[[-10,0,-10],[k.A+10,H,Math.max(maxZ,120)]]};
 }
 
@@ -694,9 +729,9 @@ function buildWardrobe(){
   }
   if(w.bezak){const bx=w.lay==="nisha"?-999:w.A+(w.yon?60:30);if(bx>0){cyl(bx+20,15,D/2+20,14,30,"y",MT("#efebe4",10));sph(bx+20,48,D/2+20,18,MT("#58704a",0));sph(bx+12,62,D/2+16,11,MT("#6a8458",0));}
     box(w.A/2-90,0,D+60,180,1,120,MT("#e8e1d4",9),null);}
-  labels.push([[w.A/2,2,D+45],`Eni ${w.A} sm`],[[w.A+18,Hw/2,D/2],`Bo'yi ${Hw} sm`,"h"]);
-  if(w.lay==="L")labels.push([[D+30,2,w.B/2],`${w.B} sm`]);
-  if(!w.shift)labels.push([[w.A/2,Hroom+6,-5],`Shift ${Hroom} sm`,"h"]);
+  labels.push([[w.A/2,2,D+45],`${T("Eni","Ширина")} ${w.A} ${SM}`],[[w.A+18,Hw/2,D/2],`${T("Bo'yi","Высота")} ${Hw} ${SM}`,"h"]);
+  if(w.lay==="L")labels.push([[D+30,2,w.B/2],`${w.B} ${SM}`]);
+  if(!w.shift)labels.push([[w.A/2,Hroom+6,-5],`${T("Shift","Потолок")} ${Hroom} ${SM}`,"h"]);
   return {labels,bounds:[[-10,0,-10],[w.A+(w.yon?45:10),Hroom,Math.max(maxZ,D+60)]]};
 }
 
@@ -735,7 +770,7 @@ function placeLabels(W,H){const el=document.getElementById("lbls");if(!VPm)retur
    ===================================================================== */
 const HIST=[];let lastSnap=0;
 function snap(slider){const now=Date.now();if(slider&&now-lastSnap<700){lastSnap=now;return;}lastSnap=now;HIST.push(JSON.stringify({k:S.k,w:S.w}));if(HIST.length>50)HIST.shift();updUndo();}
-function undo(){if(!HIST.length)return;const o=JSON.parse(HIST.pop());S.k=o.k;S.w=o.w;S.sel=null;updUndo();render();rebuild(false);toast("Oxirgi o'zgarish bekor qilindi");}
+function undo(){if(!HIST.length)return;const o=JSON.parse(HIST.pop());S.k=o.k;S.w=o.w;S.sel=null;updUndo();render();rebuild(false);toast(T("Oxirgi o'zgarish bekor qilindi","Последнее изменение отменено"));}
 function updUndo(){document.getElementById("undoBtn").disabled=!HIST.length;}
 
 /* =====================================================================
@@ -748,8 +783,8 @@ const IC={l:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 let tt;function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>e.classList.remove("show"),2300);}
 function onPick(p){
   if(!p){if(S.sel){S.sel=null;rebuild(false);}return;}
-  if(p.kind==="orol"){toast("Orol — 1-bosqich «Planirovka»da yoqiladi");return;}
-  if(p.kind==="door"){S.w.open=true;renderOv();toast("Eshiklar ochildi — endi bo'limni bosing");rebuild(false);return;}
+  if(p.kind==="orol"){toast(T("Orol — 1-bosqich «Planirovka»da yoqiladi","Остров включается на 1-м шаге «Планировка»"));return;}
+  if(p.kind==="door"){S.w.open=true;renderOv();toast(T("Eshiklar ochildi — endi bo'limni bosing","Двери открыты — теперь нажмите на секцию"));rebuild(false);return;}
   S.sel=p;if(p.kind==="sec"&&S.w.door!=="yoq"&&!S.w.open){S.w.open=true;renderOv();}
   rebuild(false);if(S.tab==="osh"&&S.step.osh===2||S.tab==="shk"&&S.step.shk===2)render();
 }
@@ -762,20 +797,20 @@ function renderSel(){
   const chips=(opts,cur,fn)=>`<div class="chips">${Object.entries(opts).map(([k,v])=>`<button class="${k===cur?"on":""}" onclick="${fn}('${k}')">${v}</button>`).join("")}</div>`;
   const mech=m.t==="kargo"||m.t==="kargoK"||m.t==="pantograf"||(isK&&m.u==="pantograf");
   const ws=isK?(tall?[30,40,45,60,90]:(m.t==="kargo"?[15,20,30,40]:[30,40,45,50,60,80,90])):[40,50,60,80,90,100,120];
-  let h=`<div class="t"><span>${isK?RUNNAME[p.run]:(p.run==="B"?"Yon qism":"Shkaf")} · ${p.idx+1}-${isK?"modul":"bo'lim"}</span><button onclick="onPick(null)" aria-label="Yopish">×</button></div>`;
-  h+=`<div class="sg"><small>Eni</small><div class="wst"><button onclick="selW(-5)">−</button><b>${Math.round(m.w)} sm</b><button onclick="selW(5)">+</button></div>
+  let h=`<div class="t"><span>${isK?RUNNAME[p.run]:(p.run==="B"?T("Yon qism","Боковая часть"):T("Shkaf","Шкаф"))} · ${RU?(isK?"модуль ":"секция ")+(p.idx+1):(p.idx+1)+"-"+(isK?"modul":"bo'lim")}</span><button onclick="onPick(null)" aria-label="${T("Yopish","Закрыть")}">×</button></div>`;
+  h+=`<div class="sg"><small>${T("Eni","Ширина")}</small><div class="wst"><button onclick="selW(-5)">−</button><b>${Math.round(m.w)} ${SM}</b><button onclick="selW(5)">+</button></div>
     <div class="chips">${ws.map(v=>`<button class="w ${Math.round(m.w)===v?"on":""}" onclick="selWset(${v})">${v}</button>`).join("")}</div></div>`;
   if(isK){
-    h+=`<div class="sg"><small>Pastki qism</small>${chips(LOW,tall?"":m.t,"selT")}</div>`;
-    if(S.k.upper&&!tall)h+=(m.t==="pech"||m.t==="plita")?`<div class="hint" style="margin:0">Plita ustida so'rg'ich (vityajka) avtomatik turadi.</div>`:`<div class="sg"><small>Yuqori qism</small>${chips(UPT,m.u,"selU")}</div>`;
-    h+=`<div class="sg"><small>Baland kolonna (shiftgacha)</small>${chips(TALL,tall?m.t:"","selT")}</div>`;
+    h+=`<div class="sg"><small>${T("Pastki qism","Нижняя часть")}</small>${chips(LOW,tall?"":m.t,"selT")}</div>`;
+    if(S.k.upper&&!tall)h+=(m.t==="pech"||m.t==="plita")?`<div class="hint" style="margin:0">${T("Plita ustida so'rg'ich (vityajka) avtomatik turadi.","Над плитой вытяжка ставится автоматически.")}</div>`:`<div class="sg"><small>${T("Yuqori qism","Верхняя часть")}</small>${chips(UPT,m.u,"selU")}</div>`;
+    h+=`<div class="sg"><small>${T("Baland kolonna (shiftgacha)","Высокая колонна (до потолка)")}</small>${chips(TALL,tall?m.t:"","selT")}</div>`;
   } else {
-    h+=`<div class="sg"><small>Ichki qism</small>${chips(SEC,m.t,"selT")}</div>`;
-    if(S.w.door==="oddiy")h+=`<div class="sg"><small>Eshigi</small>${chips(WDOOR,m.d,"selD")}</div>`;
+    h+=`<div class="sg"><small>${T("Ichki qism","Наполнение")}</small>${chips(SEC,m.t,"selT")}</div>`;
+    if(S.w.door==="oddiy")h+=`<div class="sg"><small>${T("Eshigi","Дверь")}</small>${chips(WDOOR,m.d,"selD")}</div>`;
   }
-  if(mech)h+=`<div class="hint" style="margin:0">Tanlangan paytda mexanizm <b>ochilgan holda</b> ko'rsatiladi — qanday ishlashini ko'rasiz.</div>`;
-  h+=`<div class="acts"><button onclick="selMove(-1)" ${p.idx===0?"disabled":""}>${IC.l}Chapga</button><button onclick="selMove(1)" ${p.idx===list.length-1?"disabled":""}>${IC.r}O'ngga</button>
-    <button onclick="selAdd()">${IC.add}Qo'shish</button><button class="del" onclick="selDel()" ${list.length<=1?"disabled":""}>${IC.del}O'chirish</button></div>`;
+  if(mech)h+=`<div class="hint" style="margin:0">${T("Tanlangan paytda mexanizm <b>ochilgan holda</b> ko'rsatiladi — qanday ishlashini ko'rasiz.","При выборе механизм показан <b>в открытом виде</b> — видно, как он работает.")}</div>`;
+  h+=`<div class="acts"><button onclick="selMove(-1)" ${p.idx===0?"disabled":""}>${IC.l}${T("Chapga","Влево")}</button><button onclick="selMove(1)" ${p.idx===list.length-1?"disabled":""}>${IC.r}${T("O'ngga","Вправо")}</button>
+    <button onclick="selAdd()">${IC.add}${T("Qo'shish","Добавить")}</button><button class="del" onclick="selDel()" ${list.length<=1?"disabled":""}>${IC.del}${T("O'chirish","Удалить")}</button></div>`;
   el.innerHTML=h;el.classList.add("show");
 }
 function afterEdit(){rebuild(false);if(S.step[S.tab]===2)render();else sum();}
@@ -789,7 +824,7 @@ function selD(v){const list=selList();if(!list)return;snap();list[S.sel.idx].d=v
 function selMove(d){const p=S.sel,list=selList();if(!list)return;const j=p.idx+d;if(j<0||j>=list.length)return;snap();[list[p.idx],list[j]]=[list[j],list[p.idx]];S.sel={...p,idx:j};afterEdit();}
 function selAdd(){const p=S.sel,list=selList();if(!list)return;snap();const isK=p.kind==="mod",src=list[p.idx];
   const n=isK?{w:isTall(src)?60:45,t:isTall(src)?"eshik":src.t,u:"eshik"}:{w:60,t:"javon",d:"odatiy"};list.splice(p.idx+1,0,n);S.sel={...p,idx:p.idx+1};
-  fitRun(list,runLen(p),p.idx+1,isK?15:30,isK?isTall:()=>false);if(!list[S.sel.idx])S.sel=null;toast(isK?"Yangi modul qo'shildi":"Yangi bo'lim qo'shildi");afterEdit();}
+  fitRun(list,runLen(p),p.idx+1,isK?15:30,isK?isTall:()=>false);if(!list[S.sel.idx])S.sel=null;toast(isK?T("Yangi modul qo'shildi","Модуль добавлен"):T("Yangi bo'lim qo'shildi","Секция добавлена"));afterEdit();}
 function selDel(){const p=S.sel,list=selList();if(!list||list.length<=1)return;snap();list.splice(p.idx,1);const isK=p.kind==="mod";fitRun(list,runLen(p),null,isK?15:30,isK?isTall:()=>false);
   S.sel=list.length?{...p,idx:Math.min(p.idx,list.length-1)}:null;afterEdit();}
 function pickMod(kind,run,idx){S.sel={kind,run,idx};if(kind==="sec"&&S.w.door!=="yoq"){S.w.open=true;renderOv();}rebuild(false);render();}
@@ -800,7 +835,7 @@ function pickMod(kind,run,idx){S.sel={kind,run,idx};if(kind==="sec"&&S.w.door!==
 const seg=(opts,cur,fn)=>`<div class="seg">${Object.entries(opts).map(([k,v])=>`<button class="${k===String(cur)?"on":""}" onclick="${fn}('${k}')">${v}</button>`).join("")}</div>`;
 const swStyle=(c,tx)=>`background:${c}${tx===1?";background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.08) 0 2px,transparent 2px 7px)":tx===3?";background-image:linear-gradient(135deg,transparent 40%,rgba(0,0,0,.15) 45%,transparent 50%)":""}`;
 const sws=(map,cur,fn,extra)=>`<div class="sw">${extra||""}${Object.entries(map).map(([k,[nm,c,tx]])=>`<button class="${k===cur?"on":""}" onclick="${fn}('${k}')"><i style="${swStyle(c,tx)}"></i>${nm}</button>`).join("")}</div>`;
-const sld=(id,label,val,min,max,st,fn)=>`<div class="f"><label>${label}<b id="v_${id}">${val} sm</b></label><input type="range" min="${min}" max="${max}" step="${st}" value="${val}" oninput="${fn}(+this.value,'${id}')"></div>`;
+const sld=(id,label,val,min,max,st,fn)=>`<div class="f"><label>${label}<b id="v_${id}">${val} ${SM}</b></label><input type="range" min="${min}" max="${max}" step="${st}" value="${val}" oninput="${fn}(+this.value,'${id}')"></div>`;
 const chk=(on,label,fn)=>`<label class="chk"><input type="checkbox" ${on?"checked":""} onchange="${fn}(this.checked)">${label}</label>`;
 const card=(t,sub,b)=>`<div class="card"><h3>${t}</h3>${sub?`<p class="sub">${sub}</p>`:""}${b}</div>`;
 const stp=(v,a,b,fn)=>`<div class="wst"><button onclick="${fn}(-1)" ${v<=a?"disabled":""} style="border:1.5px solid var(--line)">−</button><b>${v}</b><button onclick="${fn}(1)" ${v>=b?"disabled":""} style="border:1.5px solid var(--line)">+</button></div>`;
@@ -811,72 +846,72 @@ const LAYI={I:'<svg viewBox="0 0 46 46"><rect x="4" y="6" width="38" height="34"
   tog:'<svg viewBox="0 0 46 46"><rect x="4" y="6" width="38" height="34" fill="none" stroke="#bbb" stroke-width="1.5"/><rect x="6" y="8" width="34" height="9" fill="#363435"/></svg>',
   wL:'<svg viewBox="0 0 46 46"><rect x="4" y="6" width="38" height="34" fill="none" stroke="#bbb" stroke-width="1.5"/><rect x="6" y="8" width="34" height="9" fill="#363435"/><rect x="6" y="17" width="9" height="16" fill="#363435"/></svg>',
   nisha:'<svg viewBox="0 0 46 46"><path d="M4 40V6h38v34" fill="none" stroke="#888" stroke-width="3"/><rect x="6" y="8" width="34" height="9" fill="#363435"/></svg>'};
-const STEPS={osh:["Planirovka","O'lcham","Modullar","Uslub","Ariza"],shk:["Turi","O'lcham","Bo'limlar","Uslub","Ariza"]};
+const STEPS=RU?{osh:["Планировка","Размеры","Модули","Стиль","Заявка"],shk:["Тип","Размеры","Секции","Стиль","Заявка"]}:{osh:["Planirovka","O'lcham","Modullar","Uslub","Ariza"],shk:["Turi","O'lcham","Bo'limlar","Uslub","Ariza"]};
 function presetsHTML(map,cur,fn){return `<div class="presets">${Object.entries(map).map(([id,p])=>`<button class="${id===cur?"on":""}" onclick="${fn}('${id}')"><div class="dots">${p.c.map(c=>`<i style="background:${c}"></i>`).join("")}</div><b>${p.n}</b><small>${p.d}</small></button>`).join("")}</div>`;}
 function stripHTML(kind,run,list,title,len){
-  return `<div class="strip"><b>${title}<span>${len} sm</span></b><div class="mods">${list.map((m,i)=>{const on=S.sel&&S.sel.kind===kind&&S.sel.run===run&&S.sel.idx===i;
+  return `<div class="strip"><b>${title}<span>${len} ${SM}</span></b><div class="mods">${list.map((m,i)=>{const on=S.sel&&S.sel.kind===kind&&S.sel.run===run&&S.sel.idx===i;
     const nm=kind==="mod"?SHORT[m.t]:WSHORT[m.t];return `<button class="${on?"on":""} ${kind==="mod"&&isTall(m)?"tall":""}" style="flex:${m.w} 1 0" onclick="pickMod('${kind}','${run}',${i})">${nm}<span>${Math.round(m.w)}</span></button>`;}).join("")}</div></div>`;}
 function render(){
   document.getElementById("tOsh").classList.toggle("on",S.tab==="osh");document.getElementById("tShk").classList.toggle("on",S.tab==="shk");
-  document.getElementById("stTitle").textContent=S.tab==="osh"?"Oshxonangizni loyihalang":"Shkafingizni loyihalang";
+  document.getElementById("stTitle").textContent=S.tab==="osh"?T("Oshxonangizni loyihalang","Спроектируйте кухню"):T("Shkafingizni loyihalang","Спроектируйте шкаф");
   const st=S.step[S.tab],names=STEPS[S.tab];
   let h=`<div class="steps">${names.map((n,i)=>`<button class="${i===st?"on":i<st?"done":""}" onclick="goStep(${i})"><i>${i+1}</i>${n}</button>`).join("")}</div>`;
   h+=S.tab==="osh"?kStep(st):wStep(st);
-  h+=`<div class="nav">${st>0?`<button class="prev" onclick="goStep(${st-1})">‹ Orqaga</button>`:""}${st<4?`<button class="next" onclick="goStep(${st+1})">Keyingi: ${names[st+1]} ›</button>`:""}</div>`;
+  h+=`<div class="nav">${st>0?`<button class="prev" onclick="goStep(${st-1})">‹ ${T("Orqaga","Назад")}</button>`:""}${st<4?`<button class="next" onclick="goStep(${st+1})">${T("Keyingi","Далее")}: ${names[st+1]} ›</button>`:""}</div>`;
   document.getElementById("controls").innerHTML=h;renderOv();sum();
 }
 function kStep(st){const k=S.k;ensureK();
-  if(st===0)return card("Planirovka","Oshxona qaysi devorlar bo'ylab joylashadi?",`<div class="lay">${[["I","To'g'ri"],["L","Burchakli"],["U","P-simon"],["II","Parallel"]].map(([v,n])=>`<button class="${k.lay===v?"on":""}" onclick="kLay('${v}')">${LAYI[v]}${n}</button>`).join("")}</div>`+
-      (k.lay!=="II"?chk(k.orol,"Orol: o'rtada ish stoli, bar stullar va osma chiroqlar","kOrol"):""))+
-    card("Tayyor dizaynlar","Bir bosishda uslubni tanlang — keyin har bir rangni o'zgartirishingiz mumkin.",presetsHTML(KPRE,k.preset,"kPreset"));
-  if(st===1)return card("O'lchamlar","Taxminiy o'lcham yetarli — aniq o'lchamni usta kelib oladi.",sld("H","Shift balandligi",k.H,220,400,5,"kNum")+
-      (k.lay==="II"?sld("A","Devorlar orasidagi masofa",k.A,220,600,10,"kNum"):sld("A","Asosiy devor uzunligi",k.A,150,600,10,"kNum"))+
-      (k.lay!=="I"?sld("B","Chap devor uzunligi",k.B,100,600,10,"kNum"):"")+(k.lay==="U"||k.lay==="II"?sld("C","O'ng devor uzunligi",k.C,100,600,10,"kNum"):"")+
-      sld("lh","Pastki shkaflar balandligi (stoleshnitsa bilan)",k.lh,80,100,1,"kNum"))+
-    card("Qavatlar","",chk(k.upper,"Yuqori (osma) shkaflar","kChk('upper')")+
-      (k.upper?`<div class="f"><label>Yuqori shkaflar balandligi</label>${seg({72:"72 sm",92:"92 sm"},k.uh,"kUh")}</div>`+chk(k.shift,"Shiftgacha antresol (tepasi shiftga taqaladi)","kChk('shift')")+chk(k.niche,"Yuqori shkaflar ostida qora ochiq tokcha qatori","kChk('niche')"):""));
-  if(st===2){const runs=kRuns(k);return card("Modullar","Pastdagi qatordan yoki 3D rasmdan shkafni tanlang: enini o'zgartiring, turini almashtiring (muzlatgich, duxovka, vino kolonnasi…), qo'shing yoki o'chiring.",
+  if(st===0)return card(T("Planirovka","Планировка"),T("Oshxona qaysi devorlar bo'ylab joylashadi?","Вдоль каких стен будет стоять кухня?"),`<div class="lay">${[["I",T("To'g'ri","Прямая")],["L",T("Burchakli","Угловая")],["U",T("P-simon","П-образная")],["II",T("Parallel","Параллельная")]].map(([v,n])=>`<button class="${k.lay===v?"on":""}" onclick="kLay('${v}')">${LAYI[v]}${n}</button>`).join("")}</div>`+
+      (k.lay!=="II"?chk(k.orol,T("Orol: o'rtada ish stoli, bar stullar va osma chiroqlar","Остров: рабочий стол в центре, барные стулья и подвесные светильники"),"kOrol"):""))+
+    card(T("Tayyor dizaynlar","Готовые дизайны"),T("Bir bosishda uslubni tanlang — keyin har bir rangni o'zgartirishingiz mumkin.","Выберите стиль в одно касание — потом можно поменять любой цвет."),presetsHTML(KPRE,k.preset,"kPreset"));
+  if(st===1)return card(T("O'lchamlar","Размеры"),T("Taxminiy o'lcham yetarli — aniq o'lchamni usta kelib oladi.","Достаточно примерных размеров — точные снимет мастер на замере."),sld("H",T("Shift balandligi","Высота потолка"),k.H,220,400,5,"kNum")+
+      (k.lay==="II"?sld("A",T("Devorlar orasidagi masofa","Расстояние между стенами"),k.A,220,600,10,"kNum"):sld("A",T("Asosiy devor uzunligi","Длина основной стены"),k.A,150,600,10,"kNum"))+
+      (k.lay!=="I"?sld("B",T("Chap devor uzunligi","Длина левой стены"),k.B,100,600,10,"kNum"):"")+(k.lay==="U"||k.lay==="II"?sld("C",T("O'ng devor uzunligi","Длина правой стены"),k.C,100,600,10,"kNum"):"")+
+      sld("lh",T("Pastki shkaflar balandligi (stoleshnitsa bilan)","Высота нижних шкафов (со столешницей)"),k.lh,80,100,1,"kNum"))+
+    card(T("Qavatlar","Ярусы"),"",chk(k.upper,T("Yuqori (osma) shkaflar","Верхние (навесные) шкафы"),"kChk('upper')")+
+      (k.upper?`<div class="f"><label>${T("Yuqori shkaflar balandligi","Высота верхних шкафов")}</label>${seg({72:"72 "+SM,92:"92 "+SM},k.uh,"kUh")}</div>`+chk(k.shift,T("Shiftgacha antresol (tepasi shiftga taqaladi)","Антресоль до потолка (верх упирается в потолок)"),"kChk('shift')")+chk(k.niche,T("Yuqori shkaflar ostida qora ochiq tokcha qatori","Ряд чёрных открытых полок под верхними шкафами"),"kChk('niche')"):""));
+  if(st===2){const runs=kRuns(k);return card(T("Modullar","Модули"),T("Pastdagi qatordan yoki 3D rasmdan shkafni tanlang: enini o'zgartiring, turini almashtiring (muzlatgich, duxovka, vino kolonnasi…), qo'shing yoki o'chiring.","Выберите шкаф в ряду ниже или на 3D-картинке: меняйте ширину и тип (холодильник, духовка, винная колонна…), добавляйте или удаляйте."),
       runs.map(r=>stripHTML("mod",r.id,k.mods[r.id],RUNNAME[r.id],r.b-r.a)).join("")+
-      `<div class="row2"><button class="ghost" onclick="kAuto()">Avtomatik joylashtirish</button><button class="ghost" onclick="toggleDims()">${S.dims?"O'lchamlarni yashirish":"Har bir modul enini ko'rsatish"}</button></div>`);}
-  if(st===3)return card("Fasad","",`<div class="f"><label>Fasad turi</label>${seg(FSTYLE,k.style,"kV('style')")}</div><div class="f"><label>Qoplama</label>${seg(FINISH,k.finish,"kV('finish')")}</div><div class="f"><label>Tutqich</label>${seg(KHAND,k.handle,"kV('handle')")}</div>`)+
-    card("Ranglar","",`<div class="f"><label>Pastki shkaflar</label>${sws(COL,k.fl,"kV('fl')")}</div>`+
-      `<div class="f"><label>Yuqori shkaflar va kolonnalar</label>${sws(COL,k.fu,"kV('fu')",`<button class="${k.fu==="same"?"on":""}" onclick="kV('fu')('same')"><i style="background:linear-gradient(135deg,${COL[k.fl][1]} 50%,#fff 50%)"></i>Bir xil</button>`)}</div>`)+
-    card("Stoleshnitsa va fartuk","",`<div class="f"><label>Stoleshnitsa</label>${sws(TOSH,k.tosh,"kV('tosh')")}</div><div class="f"><label>Qalinligi</label>${seg({2:"2 sm (yupqa)",4:"4 sm",6:"6 sm"},k.tt,"kV('tt',1)")}</div><div class="f"><label>Fartuk (devor qismi)</label>${seg(FARTUK,k.fartuk,"kV('fartuk')")}</div>`)+
-    card("Smesitel va xona","",`<div class="f"><label>Smesitel rangi</label>${sws(KRAN,k.kran||"xrom","kV('kran')")}</div><div class="f"><label>Pol</label>${sws(POL,k.pol||"parket","kV('pol',0,1)")}</div><div class="f"><label>Devor rangi</label>${sws(DEVOR,k.devor||"oq","kV('devor',0,1)")}</div>`+
-      chk(k.led,"LED yoritish (shkaflar ostida va shiftda)","kChk('led')")+chk(k.bezak,"Bezaklar (gul, idishlar)","kChk('bezak')"));
+      `<div class="row2"><button class="ghost" onclick="kAuto()">${T("Avtomatik joylashtirish","Расставить автоматически")}</button><button class="ghost" onclick="toggleDims()">${S.dims?T("O'lchamlarni yashirish","Скрыть размеры"):T("Har bir modul enini ko'rsatish","Показать ширину модулей")}</button></div>`);}
+  if(st===3)return card(T("Fasad","Фасад"),"",`<div class="f"><label>${T("Fasad turi","Тип фасада")}</label>${seg(FSTYLE,k.style,"kV('style')")}</div><div class="f"><label>${T("Qoplama","Покрытие")}</label>${seg(FINISH,k.finish,"kV('finish')")}</div><div class="f"><label>${T("Tutqich","Ручки")}</label>${seg(KHAND,k.handle,"kV('handle')")}</div>`)+
+    card(T("Ranglar","Цвета"),"",`<div class="f"><label>${T("Pastki shkaflar","Нижние шкафы")}</label>${sws(COL,k.fl,"kV('fl')")}</div>`+
+      `<div class="f"><label>${T("Yuqori shkaflar va kolonnalar","Верхние шкафы и колонны")}</label>${sws(COL,k.fu,"kV('fu')",`<button class="${k.fu==="same"?"on":""}" onclick="kV('fu')('same')"><i style="background:linear-gradient(135deg,${COL[k.fl][1]} 50%,#fff 50%)"></i>${T("Bir xil","Как нижние")}</button>`)}</div>`)+
+    card(T("Stoleshnitsa va fartuk","Столешница и фартук"),"",`<div class="f"><label>${T("Stoleshnitsa","Столешница")}</label>${sws(TOSH,k.tosh,"kV('tosh')")}</div><div class="f"><label>${T("Qalinligi","Толщина")}</label>${seg({2:T("2 sm (yupqa)","2 см (тонкая)"),4:"4 "+SM,6:"6 "+SM},k.tt,"kV('tt',1)")}</div><div class="f"><label>${T("Fartuk (devor qismi)","Фартук (стеновая панель)")}</label>${seg(FARTUK,k.fartuk,"kV('fartuk')")}</div>`)+
+    card(T("Smesitel va xona","Смеситель и комната"),"",`<div class="f"><label>${T("Smesitel rangi","Цвет смесителя")}</label>${sws(KRAN,k.kran||"xrom","kV('kran')")}</div><div class="f"><label>${T("Pol","Пол")}</label>${sws(POL,k.pol||"parket","kV('pol',0,1)")}</div><div class="f"><label>${T("Devor rangi","Цвет стен")}</label>${sws(DEVOR,k.devor||"oq","kV('devor',0,1)")}</div>`+
+      chk(k.led,T("LED yoritish (shkaflar ostida va shiftda)","LED-подсветка (под шкафами и на потолке)"),"kChk('led')")+chk(k.bezak,T("Bezaklar (gul, idishlar)","Декор (цветы, посуда)"),"kChk('bezak')"));
   return arizaCard();
 }
 function wStep(st){const w=S.w;ensureW();const runs=wRuns(w),rA=runs[0];
-  if(st===0)return card("Shkaf turi","",`<div class="lay" style="grid-template-columns:repeat(3,1fr)">${[["tog","To'g'ri","tog"],["L","Burchakli","wL"],["nisha","Devorlar orasida","nisha"]].map(([v,n,ic])=>`<button class="${w.lay===v?"on":""}" onclick="wLay('${v}')">${LAYI[ic]}${n}</button>`).join("")}</div>`)+
-    card("Tayyor dizaynlar","Bir bosishda uslubni tanlang.",presetsHTML(WPRE,w.preset,"wPreset"));
-  if(st===1)return card("O'lchamlar","Taxminiy o'lcham yetarli — aniq o'lchamni usta kelib oladi.",sld("A","Eni",w.A,80,600,10,"wNum")+(w.lay==="L"?sld("B","Yon qism uzunligi",w.B,80,400,10,"wNum"):"")+
-      sld("H","Shift balandligi",w.H,200,400,5,"wNum")+chk(w.shift,"Shiftgacha (shkaf shiftga taqaladi)","wChk('shift')")+
-      (!w.shift?sld("hw","Shkaf bo'yi",Math.min(w.hw,w.H),180,Math.min(w.H,400),5,"wNum"):"")+
-      `<div class="f"><label>Chuqurligi</label>${seg({45:"45 sm",60:"60 sm",70:"70 sm"},w.D,"wV('D',1)")}</div>`);
-  if(st===2)return card("Eshiklar","",seg({oddiy:"Ochiladigan",kupe:"Kupe (suriladigan)",yoq:"Eshiksiz"},w.door,"wDoor")+(w.door==="kupe"&&w.ant?`<div class="f"><label>Antresol eshiklari</label>${seg({alohida:"Alohida, tutqichli",kupe:"Kupe bilan bir xil"},w.antDoor||"alohida","wV('antDoor')")}</div>`:"")+
-      (w.door==="kupe"?`<div class="f"><label>Eshiklar soni</label>${stp(clamp(w.nd,rA.ndMin,rA.ndMax),rA.ndMin,rA.ndMax,"wNd")}</div>`:""))+
-    card("Bo'limlar","Bo'limni tanlang: enini, ichini (ilgich, tortma, poyabzal, seyf, TV joyi…) va eshigini o'zgartiring, qo'shing yoki o'chiring.",
-      runs.map(r=>stripHTML("sec",r.id,w.secs[r.id],r.id==="B"?"Yon qism":"Asosiy qism",Math.round(r.b-r.a))).join("")+
-      `<div class="row2"><button class="ghost" onclick="toggleDims()">${S.dims?"O'lchamlarni yashirish":"Har bir bo'lim enini ko'rsatish"}</button></div>`);
-  if(st===3)return card("Eshik ko'rinishi","",(w.door!=="yoq"?`<div class="f"><label>Eshik turi</label>${seg(WSTYLE,w.style,"wV('style')")}</div><div class="f"><label>Qoplama</label>${seg(FINISH,w.finish,"wV('finish')")}</div>`:"")+
-      (w.door==="kupe"?`<div class="f"><label>Profil rangi</label>${sws(PROFIL,w.profil,"wV('profil')")}</div>`:"")+(w.door==="oddiy"?`<div class="f"><label>Tutqich</label>${seg(WHAND,w.handle,"wV('handle')")}</div>`:""))+
-    card("Ranglar","",`<div class="f"><label>Korpus (ichki qism)</label>${sws(KORP,w.korpus,"wV('korpus')")}</div><div class="f"><label>Eshiklar</label>${sws(COL,w.fasad,"wV('fasad')")}</div>`)+
-    card("Xona","",`<div class="f"><label>Pol</label>${sws(POL,w.pol||"parket","wV('pol')")}</div><div class="f"><label>Devor rangi</label>${sws(DEVOR,w.devor||"oq","wV('devor')")}</div>`)+
-    card("Qo'shimcha","",chk(w.ant,"Tepasida antresol","wChk('ant')")+chk(w.led,"Ichki LED yoritish","wChk('led')")+(w.lay!=="nisha"?chk(w.yon,"Yon tomonda ochiq tokcha","wChk('yon',1)"):"")+chk(w.bezak,"Bezaklar","wChk('bezak')"));
+  if(st===0)return card(T("Shkaf turi","Тип шкафа"),"",`<div class="lay" style="grid-template-columns:repeat(3,1fr)">${[["tog",T("To'g'ri","Прямой"),"tog"],["L",T("Burchakli","Угловой"),"wL"],["nisha",T("Devorlar orasida","В нише"),"nisha"]].map(([v,n,ic])=>`<button class="${w.lay===v?"on":""}" onclick="wLay('${v}')">${LAYI[ic]}${n}</button>`).join("")}</div>`)+
+    card(T("Tayyor dizaynlar","Готовые дизайны"),T("Bir bosishda uslubni tanlang.","Выберите стиль в одно касание."),presetsHTML(WPRE,w.preset,"wPreset"));
+  if(st===1)return card(T("O'lchamlar","Размеры"),T("Taxminiy o'lcham yetarli — aniq o'lchamni usta kelib oladi.","Достаточно примерных размеров — точные снимет мастер на замере."),sld("A",T("Eni","Ширина"),w.A,80,600,10,"wNum")+(w.lay==="L"?sld("B",T("Yon qism uzunligi","Длина боковой части"),w.B,80,400,10,"wNum"):"")+
+      sld("H",T("Shift balandligi","Высота потолка"),w.H,200,400,5,"wNum")+chk(w.shift,T("Shiftgacha (shkaf shiftga taqaladi)","До потолка (шкаф упирается в потолок)"),"wChk('shift')")+
+      (!w.shift?sld("hw",T("Shkaf bo'yi","Высота шкафа"),Math.min(w.hw,w.H),180,Math.min(w.H,400),5,"wNum"):"")+
+      `<div class="f"><label>${T("Chuqurligi","Глубина")}</label>${seg({45:"45 "+SM,60:"60 "+SM,70:"70 "+SM},w.D,"wV('D',1)")}</div>`);
+  if(st===2)return card(T("Eshiklar","Двери"),"",seg({oddiy:T("Ochiladigan","Распашные"),kupe:T("Kupe (suriladigan)","Купе (раздвижные)"),yoq:T("Eshiksiz","Без дверей")},w.door,"wDoor")+(w.door==="kupe"&&w.ant?`<div class="f"><label>${T("Antresol eshiklari","Двери антресоли")}</label>${seg({alohida:T("Alohida, tutqichli","Отдельные, с ручками"),kupe:T("Kupe bilan bir xil","Как у купе")},w.antDoor||"alohida","wV('antDoor')")}</div>`:"")+
+      (w.door==="kupe"?`<div class="f"><label>${T("Eshiklar soni","Количество дверей")}</label>${stp(clamp(w.nd,rA.ndMin,rA.ndMax),rA.ndMin,rA.ndMax,"wNd")}</div>`:""))+
+    card(T("Bo'limlar","Секции"),T("Bo'limni tanlang: enini, ichini (ilgich, tortma, poyabzal, seyf, TV joyi…) va eshigini o'zgartiring, qo'shing yoki o'chiring.","Выберите секцию: меняйте ширину, наполнение (штанга, ящики, обувь, сейф, место под ТВ…) и дверь, добавляйте или удаляйте."),
+      runs.map(r=>stripHTML("sec",r.id,w.secs[r.id],r.id==="B"?T("Yon qism","Боковая часть"):T("Asosiy qism","Основная часть"),Math.round(r.b-r.a))).join("")+
+      `<div class="row2"><button class="ghost" onclick="toggleDims()">${S.dims?T("O'lchamlarni yashirish","Скрыть размеры"):T("Har bir bo'lim enini ko'rsatish","Показать ширину секций")}</button></div>`);
+  if(st===3)return card(T("Eshik ko'rinishi","Вид дверей"),"",(w.door!=="yoq"?`<div class="f"><label>${T("Eshik turi","Тип двери")}</label>${seg(WSTYLE,w.style,"wV('style')")}</div><div class="f"><label>${T("Qoplama","Покрытие")}</label>${seg(FINISH,w.finish,"wV('finish')")}</div>`:"")+
+      (w.door==="kupe"?`<div class="f"><label>${T("Profil rangi","Цвет профиля")}</label>${sws(PROFIL,w.profil,"wV('profil')")}</div>`:"")+(w.door==="oddiy"?`<div class="f"><label>${T("Tutqich","Ручки")}</label>${seg(WHAND,w.handle,"wV('handle')")}</div>`:""))+
+    card(T("Ranglar","Цвета"),"",`<div class="f"><label>${T("Korpus (ichki qism)","Корпус (внутри)")}</label>${sws(KORP,w.korpus,"wV('korpus')")}</div><div class="f"><label>${T("Eshiklar","Двери")}</label>${sws(COL,w.fasad,"wV('fasad')")}</div>`)+
+    card(T("Xona","Комната"),"",`<div class="f"><label>${T("Pol","Пол")}</label>${sws(POL,w.pol||"parket","wV('pol')")}</div><div class="f"><label>${T("Devor rangi","Цвет стен")}</label>${sws(DEVOR,w.devor||"oq","wV('devor')")}</div>`)+
+    card(T("Qo'shimcha","Дополнительно"),"",chk(w.ant,T("Tepasida antresol","Антресоль сверху"),"wChk('ant')")+chk(w.led,T("Ichki LED yoritish","Внутренняя LED-подсветка"),"wChk('led')")+(w.lay!=="nisha"?chk(w.yon,T("Yon tomonda ochiq tokcha","Открытые полки сбоку"),"wChk('yon',1)"):"")+chk(w.bezak,T("Bezaklar","Декор"),"wChk('bezak')"));
   return arizaCard();
 }
-function arizaCard(){return card("Arizangiz","Usta loyihani Bazis dasturida aniq chizadi, narxini hisoblab sizga qo'ng'iroq qiladi. O'lchov bepul.",
+function arizaCard(){return card(T("Arizangiz","Ваша заявка"),T("Usta loyihani Bazis dasturida aniq chizadi, narxini hisoblab sizga qo'ng'iroq qiladi. O'lchov bepul.","Мастер точно начертит проект в программе Базис, рассчитает цену и позвонит вам. Замер бесплатный."),
   `<img class="snap" id="snapImg" alt=""><div class="sum" id="sum"></div>
-  <div class="f"><label>Ismingiz</label><input id="nm" class="inp" placeholder="Masalan: Dilshod" value="${esc(FORM.name)}" oninput="FORM.name=this.value"></div>
-  <div class="f"><label>Telefon raqamingiz</label><input id="ph" class="inp" type="tel" placeholder="+998 __ ___ __ __" value="${esc(FORM.phone)}" oninput="FORM.phone=this.value"></div>
-  <div class="f"><label>Mebel qachon kerak?</label>${seg({month:"Shu oy ichida",quarter:"1–3 oy ichida",price:"Hozircha narx bilmoqchiman"},FORM.need,"setNeed")}</div>
-  ${FORM.fee&&FORM.need!=="price"?`<label class="chk"><input type="checkbox" id="feeOk" ${FORM.feeOk?"checked":""} onchange="FORM.feeOk=this.checked">O'lchov shartlariga roziman (${FORM.fee.toLocaleString("ru-RU").replace(/,/g," ")} so'm — buyurtma berilsa, narxdan chegiriladi)</label>`:""}
+  <div class="f"><label>${T("Ismingiz","Ваше имя")}</label><input id="nm" class="inp" placeholder="${T("Masalan: Dilshod","Например: Дильшод")}" value="${esc(FORM.name)}" oninput="FORM.name=this.value"></div>
+  <div class="f"><label>${T("Telefon raqamingiz","Ваш телефон")}</label><input id="ph" class="inp" type="tel" placeholder="+998 __ ___ __ __" value="${esc(FORM.phone)}" oninput="FORM.phone=this.value"></div>
+  <div class="f"><label>${T("Mebel qachon kerak?","Когда нужна мебель?")}</label>${seg({month:T("Shu oy ichida","В этом месяце"),quarter:T("1–3 oy ichida","В течение 1–3 месяцев"),price:T("Hozircha narx bilmoqchiman","Пока хочу узнать цену")},FORM.need,"setNeed")}</div>
+  ${FORM.fee&&FORM.need!=="price"?`<label class="chk"><input type="checkbox" id="feeOk" ${FORM.feeOk?"checked":""} onchange="FORM.feeOk=this.checked">${RU?`Согласен с условиями замера (${FORM.fee.toLocaleString("ru-RU").replace(/,/g," ")} сум — при заказе вычитается из цены)`:`O'lchov shartlariga roziman (${FORM.fee.toLocaleString("ru-RU").replace(/,/g," ")} so'm — buyurtma berilsa, narxdan chegiriladi)`}</label>`:""}
   <div class="err" id="err"></div><div id="okBox"></div>
-  <button class="btn" id="sendBtn" onclick="send()">Ustaga yuborish</button>`);}
+  <button class="btn" id="sendBtn" onclick="send()">${T("Ustaga yuborish","Отправить мастеру")}</button>`);}
 function esc(s){return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);}
 function renderOv(){const o=document.getElementById("ovr");
-  let h=`<button class="hq" onclick="showPhoto()">✦ Haqiqiy rasm</button><button class="${S.dims?"on":""}" onclick="toggleDims()">O'lchamlar</button>`;
-  if(S.tab==="shk"&&S.w.door!=="yoq")h=`<button class="${S.w.open?"on":""}" onclick="S.w.open=!S.w.open;renderOv();rebuild(false)">${S.w.open?"Eshiklarni yopish":"Eshiklarni ochish"}</button>`+h;
+  let h=`<button class="hq" onclick="showPhoto()">✦ ${T("Haqiqiy rasm","Реалистичное фото")}</button><button class="${S.dims?"on":""}" onclick="toggleDims()">${T("O'lchamlar","Размеры")}</button>`;
+  if(S.tab==="shk"&&S.w.door!=="yoq")h=`<button class="${S.w.open?"on":""}" onclick="S.w.open=!S.w.open;renderOv();rebuild(false)">${S.w.open?T("Eshiklarni yopish","Закрыть двери"):T("Eshiklarni ochish","Открыть двери")}</button>`+h;
   o.innerHTML=h;}
 function goStep(i){S.step[S.tab]=i;render();if(i===4)snapPic();window.scrollTo({top:0,behavior:"smooth"});}
 /* handlerlar */
@@ -884,19 +919,19 @@ let rt=null;const soon=fit=>{if(rt)return;rt=requestAnimationFrame(()=>{rt=null;
 function setTab(t){S.tab=t;S.sel=null;lastBounds=null;curView="3d";markView("3d");render();rebuild(true);if(S.step[t]===4)snapPic();}
 function kLay(v){snap();S.k.lay=v;S.sel=null;render();rebuild(true);}
 function kOrol(v){snap();S.k.orol=v;rebuild(true);sum();}
-function kPreset(id){snap();Object.assign(S.k,KPRE[id].v);S.k.preset=id;render();rebuild(false);toast(KPRE[id].n+" uslubi qo'llandi");}
-function kNum(v,id){snap(true);S.k[id]=v;document.getElementById("v_"+id).textContent=v+" sm";if(id!=="H"&&id!=="lh")S.sel=null;soon(id!=="lh");}
+function kPreset(id){snap();Object.assign(S.k,KPRE[id].v);S.k.preset=id;render();rebuild(false);toast(RU?"Стиль «"+KPRE[id].n+"» применён":KPRE[id].n+" uslubi qo'llandi");}
+function kNum(v,id){snap(true);S.k[id]=v;document.getElementById("v_"+id).textContent=v+" "+SM;if(id!=="H"&&id!=="lh")S.sel=null;soon(id!=="lh");}
 function kUh(v){snap();S.k.uh=+v;render();rebuild(false);}
 function kChk(key){return v=>{snap();S.k[key]=v;if(key==="upper")render();rebuild(false);sum();};}
 function kV(key,num,keep){return v=>{snap();S.k[key]=num?+v:v;if(key!=="tt"&&!keep)S.k.preset="";render();rebuild(false);};}
-function kAuto(){snap();S.k.modsLay="";S.sel=null;ensureK();render();rebuild(false);toast("Modullar qaytadan joylashtirildi");}
+function kAuto(){snap();S.k.modsLay="";S.sel=null;ensureK();render();rebuild(false);toast(T("Modullar qaytadan joylashtirildi","Модули расставлены заново"));}
 function toggleDims(){S.dims=!S.dims;render();rebuild(false);}
 function wLay(v){snap();S.w.lay=v;S.sel=null;render();rebuild(true);}
 function wPreset(id){snap();const p=WPRE[id];Object.assign(S.w,p.v);if(!("door" in p.v)&&S.w.door==="yoq")S.w.door="oddiy";if(!("antDoor" in p.v))S.w.antDoor="kupe";S.w.preset=id;S.sel=null;
   if(p.open){const r=wRuns(S.w)[0],L=r.b-r.a,side=L>=160?45:0,mid=L-2*side,nm=mid>170?2:1,secs=[];if(side)secs.push({w:side,t:"javon",d:"yoq"});for(let q=0;q<nm;q++)secs.push({w:mid/nm,t:"uzunT",d:"yoq"});if(side)secs.push({w:side,t:"javon",d:"yoq"});S.w.secs={A:secs};S.w.secsKey=S.w.lay;}
   else if(id==="kupeAnt"){const r=wRuns(S.w)[0],L=r.b-r.a,n=Math.max(2,Math.round(L/90));S.w.secs={A:Array.from({length:n},(_,i)=>({w:L/n,t:["uzun","javon","ikki","tortma"][i%4],d:"odatiy"}))};S.w.secsKey=S.w.lay;}
-  render();rebuild(true);toast(p.n+" uslubi qo'llandi");}
-function wNum(v,id){snap(true);S.w[id]=v;document.getElementById("v_"+id).textContent=v+" sm";S.sel=null;soon(true);}
+  render();rebuild(true);toast(RU?"Стиль «"+p.n+"» применён":p.n+" uslubi qo'llandi");}
+function wNum(v,id){snap(true);S.w[id]=v;document.getElementById("v_"+id).textContent=v+" "+SM;S.sel=null;soon(true);}
 function wChk(key,full){return v=>{snap();S.w[key]=v;if(key==="shift"||full){S.sel=null;render();rebuild(true);}else{rebuild(false);sum();}};}
 function wV(key,num){return v=>{snap();S.w[key]=num?+v:v;if(key==="style"||key==="fasad")S.w.open=false;if(key!=="D")S.w.preset="";render();rebuild(false);};}
 function wDoor(v){snap();S.w.door=v;if(v==="kupe"){const r=wRuns(S.w)[0];S.w.nd=clamp(Math.round((r.b-r.a)/100),r.ndMin,r.ndMax);}S.w.open=false;render();rebuild(false);}
@@ -907,25 +942,28 @@ function wNd(d){snap();const r=wRuns(S.w)[0];S.w.nd=clamp(clamp(S.w.nd,r.ndMin,r
    ===================================================================== */
 const FORM={name:"",phone:"",need:"month",fee:0,feeOk:false};
 function summary(){
-  if(S.tab==="osh"){const k=S.k,runs=kRuns(k),LN={I:"to'g'ri",L:"burchakli (L)",U:"P-simon",II:"parallel"};
-    const lens=k.lay==="I"?`${k.A}`:k.lay==="L"?`${k.A} + ${k.B}`:k.lay==="U"?`${k.B} + ${k.A} + ${k.C}`:`${k.B} va ${k.C} (orasi ${k.A})`;
-    let s=`3D: Oshxona — ${LN[k.lay]}${k.orol&&k.lay!=="II"?", orol bilan":""}
-Devorlar: ${lens} sm; shift ${k.H} sm; pastki ${k.lh} sm
-Yuqori: ${k.upper?`${k.uh} sm${k.shift?" + shiftgacha antresol":""}`:"yo'q"}${k.led?"; LED":""}
-Fasad: ${FSTYLE[k.style].toLowerCase()}, ${FINISH[k.finish].toLowerCase()}, ${KHAND[k.handle].toLowerCase()}
-Rang: pastki ${COL[k.fl][0]}, yuqori ${k.fu==="same"?COL[k.fl][0]:COL[k.fu][0]}
-Stoleshnitsa: ${TOSH[k.tosh][0]} ${k.tt} sm; fartuk: ${FARTUK[k.fartuk].toLowerCase()}; smesitel: ${KRAN[k.kran||"xrom"][0].toLowerCase()}${k.niche&&k.upper?"\nYuqori shkaflar ostida qora ochiq tokcha qatori":""}`;
-    runs.forEach(r=>{s+=`\n${RUNNAME[r.id]}: ${k.mods[r.id].map(m=>`${(SHORT[m.t]||m.t).toLowerCase()} ${Math.round(m.w)}`).join(", ")}`;});
-    return s;}
-  const w=S.w,runs=wRuns(w),Hw=w.shift?w.H:Math.min(w.hw,w.H),LN={tog:"to'g'ri",L:"burchakli",nisha:"devorlar orasida"};
-  const dr={oddiy:"ochiladigan",kupe:`kupe ${clamp(w.nd,runs[0].ndMin,runs[0].ndMax)} ta, profil ${PROFIL[w.profil][0].toLowerCase()}`,yoq:"eshiksiz"}[w.door];
-  let s=`3D: Shkaf — ${LN[w.lay]}
-O'lcham: ${w.A}${w.lay==="L"?` + ${w.B}`:""} × ${Hw} × ${w.D} sm${w.shift?" (shiftgacha)":""}
-Eshik: ${dr}${w.door!=="yoq"?", "+WSTYLE[w.style].toLowerCase():""}${w.door==="oddiy"?", "+WHAND[w.handle].toLowerCase():""}
-Antresol: ${w.ant&&Hw>=230?(w.door==="kupe"&&w.antDoor==="alohida"?"bor, alohida eshikli":"bor"):"yo'q"}; LED: ${w.led?"bor":"yo'q"}${w.yon&&w.lay!=="nisha"?"; yon ochiq tokcha":""}
-Rang: korpus ${KORP[w.korpus][0]}, eshik ${COL[w.fasad][0]}`;
-  runs.forEach(r=>{s+=`\n${r.id==="B"?"Yon qism":"Bo'limlar"}: ${w.secs[r.id].map(x=>`${WSHORT[x.t].toLowerCase()} ${Math.round(x.w)}${x.d==="kozgu"&&w.door==="oddiy"?" (ko'zgu)":""}`).join(", ")}`;});
-  return s;
+  const lc=x=>RU?x.toLowerCase():x.toLowerCase();
+  if(S.tab==="osh"){const k=S.k,runs=kRuns(k),LN=RU?{I:"прямая",L:"угловая (L)",U:"П-образная",II:"параллельная"}:{I:"to'g'ri",L:"burchakli (L)",U:"P-simon",II:"parallel"};
+    const lens=k.lay==="I"?`${k.A}`:k.lay==="L"?`${k.A} + ${k.B}`:k.lay==="U"?`${k.B} + ${k.A} + ${k.C}`:`${k.B} ${T("va","и")} ${k.C} (${T("orasi","между")} ${k.A})`;
+    let s=`3D: ${T("Oshxona","Кухня")} — ${LN[k.lay]}${k.orol&&k.lay!=="II"?T(", orol bilan",", с островом"):""}
+${T("Devorlar","Стены")}: ${lens} ${SM}; ${T("shift","потолок")} ${k.H} ${SM}; ${T("pastki","нижние")} ${k.lh} ${SM}
+${T("Yuqori","Верхние")}: ${k.upper?`${k.uh} ${SM}${k.shift?T(" + shiftgacha antresol"," + антресоль до потолка"):""}`:T("yo'q","нет")}${k.led?"; LED":""}
+${T("Fasad","Фасад")}: ${lc(FSTYLE[k.style])}, ${lc(FINISH[k.finish])}, ${lc(KHAND[k.handle])}
+${T("Rang","Цвет")}: ${T("pastki","низ")} ${COL[k.fl][0]}, ${T("yuqori","верх")} ${k.fu==="same"?COL[k.fl][0]:COL[k.fu][0]}
+${T("Stoleshnitsa","Столешница")}: ${TOSH[k.tosh][0]} ${k.tt} ${SM}; ${T("fartuk","фартук")}: ${lc(FARTUK[k.fartuk])}; ${T("smesitel","смеситель")}: ${lc(KRAN[k.kran||"xrom"][0])}${k.niche&&k.upper?"\n"+T("Yuqori shkaflar ostida qora ochiq tokcha qatori","Ряд чёрных открытых полок под верхними шкафами"):""}`;
+    runs.forEach(r=>{s+=`\n${RUNNAME[r.id]}: ${k.mods[r.id].map(m=>`${lc(SHORT[m.t]||m.t)} ${Math.round(m.w)}`).join(", ")}`;});
+    return s+(RU?"\n[Клиент заполнил на русском]":"");}
+  const w=S.w,runs=wRuns(w),Hw=w.shift?w.H:Math.min(w.hw,w.H),LN=RU?{tog:"прямой",L:"угловой",nisha:"в нише"}:{tog:"to'g'ri",L:"burchakli",nisha:"devorlar orasida"};
+  const nd=clamp(w.nd,runs[0].ndMin,runs[0].ndMax);
+  const dr={oddiy:T("ochiladigan","распашные"),kupe:RU?`купе, ${nd} шт., профиль ${lc(PROFIL[w.profil][0])}`:`kupe ${nd} ta, profil ${lc(PROFIL[w.profil][0])}`,yoq:T("eshiksiz","без дверей")}[w.door];
+  const yes=T("bor","есть"),no=T("yo'q","нет");
+  let s=`3D: ${T("Shkaf","Шкаф")} — ${LN[w.lay]}
+${T("O'lcham","Размер")}: ${w.A}${w.lay==="L"?` + ${w.B}`:""} × ${Hw} × ${w.D} ${SM}${w.shift?T(" (shiftgacha)"," (до потолка)"):""}
+${T("Eshik","Двери")}: ${dr}${w.door!=="yoq"?", "+lc(WSTYLE[w.style]):""}${w.door==="oddiy"?", "+lc(WHAND[w.handle]):""}
+${T("Antresol","Антресоль")}: ${w.ant&&Hw>=230?(w.door==="kupe"&&w.antDoor==="alohida"?T("bor, alohida eshikli","есть, с отдельными дверями"):yes):no}; LED: ${w.led?yes:no}${w.yon&&w.lay!=="nisha"?T("; yon ochiq tokcha","; открытые полки сбоку"):""}
+${T("Rang","Цвет")}: ${T("korpus","корпус")} ${KORP[w.korpus][0]}, ${T("eshik","двери")} ${COL[w.fasad][0]}`;
+  runs.forEach(r=>{s+=`\n${r.id==="B"?T("Yon qism","Боковая часть"):T("Bo'limlar","Секции")}: ${w.secs[r.id].map(x=>`${lc(WSHORT[x.t])} ${Math.round(x.w)}${x.d==="kozgu"&&w.door==="oddiy"?T(" (ko'zgu)"," (зеркало)"):""}`).join(", ")}`;});
+  return s+(RU?"\n[Клиент заполнил на русском]":"");
 }
 let busy=false;
 function photo(N){N=N||30;return new Promise(res=>{
@@ -940,7 +978,7 @@ function photo(N){N=N||30;return new Promise(res=>{
       else{const a=Math.random()*Math.PI*2,rr=Math.sqrt(Math.random())*.14;SKY=0;SHDIR=null;SUNJ=norm([SUN[0]+Math.cos(a)*rr,SUN[1],SUN[2]+Math.sin(a)*rr]);}
       draw();gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,buf);
       for(let p=0,q=0;p<buf.length;p+=4,q+=3){acc[q]+=buf[p];acc[q+1]+=buf[p+1];acc[q+2]+=buf[p+2];}i++;}
-    toast("Haqiqiy rasm tayyorlanmoqda… "+Math.round(i/N*100)+"%");
+    toast(T("Haqiqiy rasm tayyorlanmoqda… ","Готовим реалистичное фото… ")+Math.round(i/N*100)+"%");
     if(i<N){requestAnimationFrame(step);return;}
     SUNJ=SHDIR=null;SKY=0;JIT=[0,0];
     const c2=document.createElement("canvas");c2.width=W;c2.height=H;const x=c2.getContext("2d"),img=x.createImageData(W,H),d=img.data;
@@ -950,50 +988,64 @@ function photo(N){N=N||30;return new Promise(res=>{
     S.sel=keepSel;rebuild(false);busy=false;res(url);};
   requestAnimationFrame(step);});}
 async function showPhoto(){const url=await photo(36);if(!url)return;const o=document.getElementById("photoOv");document.getElementById("photoImg").src=url;o.classList.add("show");LASTPHOTO=url;
-  const im=document.getElementById("snapImg");if(im)im.src=url;toast("Tayyor! Rasmni saqlash uchun ustiga uzoq bosing");}
+  const im=document.getElementById("snapImg");if(im)im.src=url;toast(T("Tayyor! Rasmni saqlash uchun ustiga uzoq bosing","Готово! Чтобы сохранить, удерживайте палец на фото"));}
 let LASTPHOTO="";
 function closePhoto(){document.getElementById("photoOv").classList.remove("show");}
-function dlPhoto(){const u=document.getElementById("photoImg").src;if(!u)return;if(TG&&TG.initData){toast("Rasm ustiga uzoq bosib saqlang");return;}const a=document.createElement("a");a.href=u;a.download=(S.tab==="osh"?"oshxona":"shkaf")+"-isofa.jpg";document.body.appendChild(a);a.click();a.remove();}
+function dlPhoto(){const u=document.getElementById("photoImg").src;if(!u)return;if(TG&&TG.initData){toast(T("Rasm ustiga uzoq bosib saqlang","Удерживайте палец на фото, чтобы сохранить"));return;}const a=document.createElement("a");a.href=u;a.download=(S.tab==="osh"?"oshxona":"shkaf")+"-isofa.jpg";document.body.appendChild(a);a.click();a.remove();}
 function sum(){const e=document.getElementById("sum");if(e)e.textContent=summary();}
 function grab(){const keep=S.sel,dims=S.dims;S.sel=null;S.dims=false;rebuild(false);draw();let url="";try{url=gl.canvas.toDataURL("image/jpeg",.88);}catch(e){}S.sel=keep;S.dims=dims;rebuild(false);return url;}
 function snapPic(){if(!gl)return;setTimeout(async()=>{const u=await photo(24),im=document.getElementById("snapImg");if(u){LASTPHOTO=u;if(im)im.src=u;}},80);}
 function savePic(){if(!gl)return;const u=grab();if(!u)return;
-  if(TG&&TG.initData){const im=document.getElementById("snapImg");toast("Rasm «Ariza» bosqichida — ustiga uzoq bosib saqlang");S.step[S.tab]=4;render();setTimeout(()=>{const i=document.getElementById("snapImg");if(i)i.src=u;},50);return;}
+  if(TG&&TG.initData){const im=document.getElementById("snapImg");toast(T("Rasm «Ariza» bosqichida — ustiga uzoq bosib saqlang","Фото на шаге «Заявка» — удерживайте палец, чтобы сохранить"));S.step[S.tab]=4;render();setTimeout(()=>{const i=document.getElementById("snapImg");if(i)i.src=u;},50);return;}
   const a=document.createElement("a");a.href=u;a.download=(S.tab==="osh"?"oshxona":"shkaf")+"-3d.jpg";document.body.appendChild(a);a.click();a.remove();}
 function setNeed(v){FORM.need=v;render();snapPic();}
 const TG=window.Telegram&&window.Telegram.WebApp;
-async function api(url,opt){opt=opt||{};opt.headers=Object.assign({"X-Init-Data":(TG&&TG.initData)||"","X-Lang":"uz"},opt.headers||{});
+async function api(url,opt){opt=opt||{};opt.headers=Object.assign({"X-Init-Data":(TG&&TG.initData)||"","X-Lang":LANG},opt.headers||{});
   if(!(TG&&TG.initData)){let tok="";try{tok=JSON.parse(localStorage.getItem("wtok"))||"";}catch(e){}if(tok)opt.headers["X-Web-Token"]=tok;}
-  const r=await fetch(url,opt);let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||j.message||"Xatolik yuz berdi. Qayta urinib ko'ring.");return j;}
+  const r=await fetch(url,opt);let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||j.message||T("Xatolik yuz berdi. Qayta urinib ko'ring.","Произошла ошибка. Попробуйте ещё раз."));return j;}
 async function send(){
   const err=document.getElementById("err"),btn=document.getElementById("sendBtn");err.style.display="none";
   const name=FORM.name.trim(),phone=FORM.phone.trim();
-  if(name.length<2){err.textContent="Ismingizni kiriting";err.style.display="block";return;}
-  if(phone.replace(/\D/g,"").length<9){err.textContent="Telefon raqamingizni to'liq kiriting";err.style.display="block";return;}
-  if(FORM.fee&&FORM.need!=="price"&&!FORM.feeOk){err.textContent="O'lchov shartlariga rozilikni belgilang";err.style.display="block";return;}
-  btn.disabled=true;btn.textContent="Yuborilmoqda…";
+  if(name.length<2){err.textContent=T("Ismingizni kiriting","Введите ваше имя");err.style.display="block";return;}
+  if(phone.replace(/\D/g,"").length<9){err.textContent=T("Telefon raqamingizni to'liq kiriting","Введите номер телефона полностью");err.style.display="block";return;}
+  if(FORM.fee&&FORM.need!=="price"&&!FORM.feeOk){err.textContent=T("O'lchov shartlariga rozilikni belgilang","Отметьте согласие с условиями замера");err.style.display="block";return;}
+  btn.disabled=true;btn.textContent=T("Yuborilmoqda…","Отправляем…");
   try{
     if(!(TG&&TG.initData)){let tok="";try{tok=JSON.parse(localStorage.getItem("wtok"))||"";}catch(e){}if(!tok){const j=await api("/api/web/session",{method:"POST"});try{localStorage.setItem("wtok",JSON.stringify(j.token));}catch(e){}}}
     const isK=S.tab==="osh",k=S.k,w=S.w,Hw=w.shift?w.H:Math.min(w.hw,w.H);
     const dims=isK?(k.lay==="I"?{w:k.A}:k.lay==="II"?{w:k.B,w2:k.C}:{w:k.A,w2:k.B}):{w:w.A,h:Hw};
     const style=(isK?(k.style==="frezer"||k.preset==="neo"):(w.style==="frezer"||w.preset==="neo"))?"newclassic":"modern";
-    const color=isK?`Pastki: ${COL[k.fl][0]}, yuqori: ${k.fu==="same"?COL[k.fl][0]:COL[k.fu][0]}, stoleshnitsa: ${TOSH[k.tosh][0]}`:`Eshik: ${COL[w.fasad][0]}, korpus: ${KORP[w.korpus][0]}`;
+    const color=isK?`${T("Pastki","Низ")}: ${COL[k.fl][0]}, ${T("yuqori","верх")}: ${k.fu==="same"?COL[k.fl][0]:COL[k.fu][0]}, ${T("stoleshnitsa","столешница")}: ${TOSH[k.tosh][0]}`:`${T("Eshik","Двери")}: ${COL[w.fasad][0]}, ${T("korpus","корпус")}: ${KORP[w.korpus][0]}`;
     const payload={kinds:[isK?"kitchen":"wardrobe"],kind:isK?"kitchen":"wardrobe",style,dims,need_when:FORM.need,repair:"",fee_ok:FORM.need!=="price"&&(!FORM.fee||FORM.feeOk),
       measure_visit:FORM.need!=="price",color,note:summary().slice(0,1000),name,phone,source:"3d"};
     const fd=new FormData();fd.append("data",JSON.stringify(payload));
     const u=(await photo(30))||grab();if(u){const b=await (await fetch(u)).blob();fd.append("photo",b,"3d.jpg");}
     const res=await api("/api/custom/request",{method:"POST",body:fd});
-    document.getElementById("okBox").innerHTML=`<div class="ok"><b>Arizangiz qabul qilindi${res.request&&res.request.id?` (№${res.request.id})`:""}!</b><br>Usta tez orada siz bilan bog'lanadi. Arizani «O'lchamga buyurtma» bo'limidagi «Arizalarim»da kuzatishingiz mumkin.</div>`;
-    btn.textContent="Yuborildi";if(TG&&TG.HapticFeedback)TG.HapticFeedback.notificationOccurred("success");
-  }catch(e){err.textContent=e.message||String(e);err.style.display="block";btn.disabled=false;btn.textContent="Ustaga yuborish";}
+    document.getElementById("okBox").innerHTML=`<div class="ok"><b>${T("Arizangiz qabul qilindi","Заявка принята")}${res.request&&res.request.id?` (№${res.request.id})`:""}!</b><br>${T("Usta tez orada siz bilan bog'lanadi. Arizani «O'lchamga buyurtma» bo'limidagi «Arizalarim»da kuzatishingiz mumkin.","Мастер скоро свяжется с вами. Заявку можно отслеживать в разделе «Мебель на заказ» → «Мои заявки».")}</div>`;
+    btn.textContent=T("Yuborildi","Отправлено");if(TG&&TG.HapticFeedback)TG.HapticFeedback.notificationOccurred("success");
+  }catch(e){err.textContent=e.message||String(e);err.style.display="block";btn.disabled=false;btn.textContent=T("Ustaga yuborish","Отправить мастеру");}
 }
-async function loadCfg(){try{const r=await fetch("/api/custom/config?lang=uz");if(r.ok){const j=await r.json();FORM.fee=j.measure_fee||0;}}catch(e){}}
+async function loadCfg(){try{const r=await fetch("/api/custom/config?lang="+LANG);if(r.ok){const j=await r.json();FORM.fee=j.measure_fee||0;}}catch(e){}}
 
+/* til almashtirish: holat saqlanib, sahifa qayta yuklanadi */
+function setLang(l){if(l===LANG)return;try{localStorage.setItem("lang",JSON.stringify(l));sessionStorage.setItem("k3d",JSON.stringify({k:S.k,w:S.w,tab:S.tab,step:S.step,form:{name:FORM.name,phone:FORM.phone,need:FORM.need}}));}catch(e){}
+  const q=new URLSearchParams(location.search);q.set("lang",l);q.delete("t");location.replace(location.pathname+"?"+q.toString());}
+function applyStatic(){
+  document.documentElement.lang=LANG;document.querySelectorAll("#langsw button").forEach(b=>b.classList.toggle("on",b.dataset.l===LANG));
+  const back=document.getElementById("backBtn");back.href="/custom?lang="+LANG;
+  if(!RU)return;
+  document.title="3D-конструктор — iSofa";back.textContent="‹ Назад";
+  document.getElementById("tOsh").textContent="Кухня";document.getElementById("tShk").textContent="Шкаф";
+  document.getElementById("vOld").textContent="Спереди";document.getElementById("vReja").textContent="План";
+  document.getElementById("undoTx").textContent="Отменить";document.getElementById("pSave").textContent="Сохранить";document.getElementById("pBack").textContent="Назад к 3D";
+  document.getElementById("hint").innerHTML="Вращайте пальцем, приближайте двумя пальцами. <b>Нажмите на шкаф</b> — сможете изменить ширину и тип, добавить или удалить.";}
 /* ishga tushirish */
 (function(){
-  if(TG){try{TG.ready();TG.expand();if(TG.BackButton){TG.BackButton.show();TG.BackButton.onClick(()=>{location.href="/custom";});}}catch(e){}}
-  const q=new URLSearchParams(location.search);if(q.get("t")==="shk")S.tab="shk";
-  try{const u=TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user;if(u&&u.first_name)FORM.name=u.first_name;}catch(e){}
+  applyStatic();
+  try{const sv=JSON.parse(sessionStorage.getItem("k3d")||"null");if(sv){sessionStorage.removeItem("k3d");if(sv.k)S.k=sv.k;if(sv.w)S.w=sv.w;if(sv.tab)S.tab=sv.tab;if(sv.step)S.step=sv.step;if(sv.form)Object.assign(FORM,sv.form);}}catch(e){}
+  if(TG){try{TG.ready();TG.expand();if(TG.BackButton){TG.BackButton.show();TG.BackButton.onClick(()=>{location.href="/custom?lang="+LANG;});}}catch(e){}}
+  const q=new URLSearchParams(location.search);if(q.get("t")==="shk")S.tab="shk";if(q.get("t")==="osh")S.tab="osh";
+  try{const u=TG&&TG.initDataUnsafe&&TG.initDataUnsafe.user;if(u&&u.first_name&&!FORM.name)FORM.name=u.first_name;}catch(e){}
   loadCfg().then(()=>{if(S.step[S.tab]===4)render();});
   const ok=initGL();render();if(ok)rebuild(true);updUndo();
 })();
