@@ -405,7 +405,7 @@ const I18N = {
     send: "Ustani chaqirish", sending: "Yuborilmoqda…", back: "Orqaga",
     e_kind: "Nima kerakligini tanlang", e_num: "O'lchamni raqam bilan yozing (10–2000 sm)", e_note: "Qanday mebel kerakligini yozing",
     e_name: "Ismingizni kiriting", e_phone: "Telefon raqamni to'g'ri kiriting",
-    done_t: "Arizangiz qabul qilindi!", done_tg: "Menejer tez orada qo'ng'iroq qilib, usta kelish vaqtini kelishadi. Holatni «Arizalarim»da va botda ko'rasiz.",
+    tg_btn: "Telegram'da davom etish", tg_sub: "Rasm va savollarni botga yozing — tezroq javob beramiz.", done_t: "Arizangiz qabul qilindi!", done_tg: "Menejer tez orada qo'ng'iroq qilib, usta kelish vaqtini kelishadi. Holatni «Arizalarim»da va botda ko'rasiz.",
     done_web: "Menejer tez orada qo'ng'iroq qilib, usta kelish vaqtini kelishadi. Holatni shu sahifadagi «Arizalarim»da ko'rasiz.",
     new_req: "Yana ariza berish", to_mine: "Arizalarimni ko'rish", no_req: "Hali ariza yubormagansiz", start: "Ariza berish",
     price: "Narx", prepay: "Oldindan to'lov", due: "Muddat", ask: "Savollar bo'yicha adminga yozing: {a}",
@@ -441,7 +441,7 @@ const I18N = {
     send: "Вызвать мастера", sending: "Отправляем…", back: "Назад",
     e_kind: "Выберите, что нужно", e_num: "Укажите размер числом (10–2000 см)", e_note: "Опишите, какая мебель нужна",
     e_name: "Введите имя", e_phone: "Введите правильный номер телефона",
-    done_t: "Заявка принята!", done_tg: "Менеджер скоро позвонит и согласует время замера. Статус — в «Моих заявках» и в боте.",
+    tg_btn: "Продолжить в Telegram", tg_sub: "Фото и вопросы пишите в бот — ответим быстрее.", done_t: "Заявка принята!", done_tg: "Менеджер скоро позвонит и согласует время замера. Статус — в «Моих заявках» и в боте.",
     done_web: "Менеджер скоро позвонит и согласует время замера. Статус — в разделе «Мои заявки» на этой странице.",
     new_req: "Новая заявка", to_mine: "Мои заявки", no_req: "Вы ещё не отправляли заявок", start: "Оставить заявку",
     price: "Цена", prepay: "Предоплата", due: "Срок", ask: "По вопросам пишите администратору: {a}",
@@ -739,6 +739,11 @@ function contactHTML() {
   const a = S.cfg.shop.admin;
   return a ? `<div class="section small">${t("ask", { a: `<a href="https://t.me/${esc(a)}" onclick="openUrl(this.href); return false">@${esc(a)}</a>` })}</div>` : "";
 }
+function tgHTML() {
+  const b = S.cfg.shop.bot;
+  if (!b || IN_TG) return "";
+  return `<div class="section" style="text-align:center"><a class="btn" style="width:100%;display:block" href="https://t.me/${esc(b)}?start=custom" onclick="px('Contact',{content_name:'telegram'}); openUrl(this.href); return false">✈️ ${t("tg_btn")}</a><div class="small muted" style="margin-top:6px">${t("tg_sub")}</div></div>`;
+}
 function openUrl(u) { if (IN_TG && tg.openTelegramLink && /t\.me\//.test(u)) tg.openTelegramLink(u); else window.open(u, "_blank"); }
 
 /* ---------------- admin ---------------- */
@@ -987,7 +992,7 @@ function refresh() {
   document.title = t("title");
   const v = $("#view");
   if (!S.cfg) return;
-  if (S.view === "styles") { v.innerHTML = stylesHTML(); bar(""); }
+  if (S.view === "styles") { v.innerHTML = stylesHTML() + tgHTML(); bar(""); }
   else if (S.view === "style") {
     if (!styleOf(S.style)) { S.view = "styles"; return refresh(); }
     v.innerHTML = styleHTML();
@@ -998,7 +1003,7 @@ function refresh() {
   } else if (S.view === "done") {
     const r = S.done;
     v.innerHTML = `<div class="done"><div class="big">📨</div><h2>${t("done_t")}</h2><p class="muted">№ ${r.id} · ${esc(r.kind_name)}${r.style_name ? " · " + esc(r.style_name) : ""}</p>
-      <p class="muted small">${IN_TG ? t("done_tg") : t("done_web")}</p></div>` + contactHTML();
+      <p class="muted small">${IN_TG ? t("done_tg") : t("done_web")}</p></div>` + tgHTML() + contactHTML();
     bar(`<button class="btn soft grow" onclick="go('mine')">${t("to_mine")}</button><button class="btn grow" onclick="go('styles')">${t("new_req")}</button>`);
   } else if (S.view === "mine") {
     if (!S.mine) { v.innerHTML = `<div class="skeleton"></div>`; loadMine(); bar(""); return; }
