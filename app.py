@@ -1356,32 +1356,58 @@ def _prepare(datas: list, kind: str, fixed: bool) -> list:
     return out
 
 
-async def multilang_caption(text: str) -> str:
+async def _tr_retry(make, tries=(0, 5, 20, 60)):
+    """Tarjima xizmati band bo'lsa (429 va h.k.) bir necha marta kutib qayta urinadi."""
+    last = None
+    for wait in tries:
+        if wait:
+            await asyncio.sleep(wait)
+        try:
+            out = await make()
+            if out:
+                return out
+        except Exception as e:  # noqa: BLE001
+            last = e
+    if last:
+        log.warning("tarjima %s urinishdan keyin ham bo'lmadi: %s", len(tries), last)
+    return ""
+
+
+async def multilang_caption(text: str) -> tuple:
     """Post izohini o'zbek, rus va ingliz tillarida beradi: admin yozgan til joyida qoladi, qolganlari tarjima.
-    Tarjima ishlamasa — asl matn o'zi qaytadi (post baribir chiqadi)."""
+    (izoh, to'liqmi) qaytaradi — tarjima bo'lmasa ham asl matn bilan qaytadi."""
     text = (text or "").strip()
     if not text:
-        return text
-    try:
-        src = await detect(http(), text) or "uz"
-        if src not in {c for c, _ in soc.CAPTION_LANGS}:
-            src = "uz"
-        parts = []
-        for code, flag in soc.CAPTION_LANGS:
-            body = text if code == src else await translate(http(), text, src, code)
-            if body:
-                parts.append(f"{flag} {body}")
-        return "\n\n".join(parts) if len(parts) > 1 else text
-    except Exception as e:  # noqa: BLE001
-        log.warning("post izohi tarjima qilinmadi: %s", e)
-        return text
+        return text, True
+    src = await _tr_retry(lambda: detect(http(), text)) or "uz"
+    if src not in {c for c, _ in soc.CAPTION_LANGS}:
+        src = "uz"
+    parts, full = [], True
+    for code, flag in soc.CAPTION_LANGS:
+        body = text if code == src else await _tr_retry(lambda c=code: translate(http(), text, src, c))
+        if body:
+            parts.append(f"{flag} {body}")
+        else:
+            full = False
+    return ("\n\n".join(parts) if len(parts) > 1 else text), full
 
 
-async def social_publish(item: dict) -> dict:
+_tr_deferred: dict = {}  # post id -> necha marta tarjima kutib qoldirildi
+
+
+async def social_publish(item: dict, can_defer: bool = False) -> dict:
     ss.set(item["id"], status="posting")
-    body = await multilang_caption(item["caption"] or social_footer())
+    body, full = await multilang_caption(item["caption"] or social_footer())
+    if not full and can_defer and _tr_deferred.get(item["id"], 0) < 4:
+        # navbatdagi post uch tilsiz chiqmasin: 15 daqiqadan keyin yana urinamiz (ko'pi bilan 4 marta ≈ 1 soat)
+        _tr_deferred[item["id"]] = _tr_deferred.get(item["id"], 0) + 1
+        ss.set(item["id"], status="queued", scheduled_at=int(time.time()) + 15 * 60)
+        return {"deferred": _tr_deferred[item["id"]]}
+    _tr_deferred.pop(item["id"], None)
     res = await soc.publish(meta, item, social_url, ss.full_caption(body, social_footer(), SHOP["bot"]))
     good = soc.ok(res)
+    if not full:
+        res["tarjima"] = "xato: tarjima xizmati band edi — izoh to'liq uch tilda chiqmadi"
     ss.set(item["id"], status="posted" if good else "failed", posted_at=int(time.time()), result=res,
            error="" if good else "; ".join(str(v) for v in res.values())[:500])
     return res
@@ -1655,8 +1681,14 @@ async def social_loop():
             continue
         for it in ss.due():
             try:
-                res = await social_publish(it)
-                text = f"📲 Navbatdagi #{it['id']} ({soc.KINDS[it['kind']]}):\n" + soc.result_text(res)
+                res = await social_publish(it, can_defer=True)
+                if "deferred" in res:
+                    if res["deferred"] > 1:
+                        continue  # adminni har safar bezovta qilmaymiz
+                    text = (f"⏳ Navbatdagi #{it['id']}: tarjima xizmati hozir band — post uch tilda chiqishi uchun "
+                            "15 daqiqadan keyin qayta urinaman.")
+                else:
+                    text = f"📲 Navbatdagi #{it['id']} ({soc.KINDS[it['kind']]}):\n" + soc.result_text(res)
             except Exception as e:  # noqa: BLE001
                 log.exception("social_loop")
                 ss.set(it["id"], status="failed", error=str(e)[:500])
