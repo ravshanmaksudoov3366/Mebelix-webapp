@@ -682,7 +682,7 @@ def start_suffix(arg: str) -> str:
     return f"?p={arg[1:]}" if re.fullmatch(r"p\d{1,9}", arg or "") else ""
 
 
-async def fee_line(lang: str) -> str:
+def fee_line(lang: str) -> str:
     """O'lchov puli (admin panelda o'zgartiriladi) — 0 bo'lsa hech narsa yozilmaydi."""
     fee = cs.measure_fee()
     return tx(lang, "fee_line", fee=fmt_price(fee, lang)) if fee else tx(lang, "fee_free")
