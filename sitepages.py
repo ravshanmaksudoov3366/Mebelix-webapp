@@ -829,6 +829,39 @@ def page_offer(ctx: dict, offer_html: str) -> str:
                   "/oferta" + ("?lang=ru" if lang == "ru" else ""))
 
 
+PRIVACY = {
+    "uz": ("Maxfiylik siyosati", [
+        ("Qanday ma'lumot yig'amiz", "Ariza qoldirganingizda: ismingiz, telefon raqamingiz, Telegram profilingiz, kerakli mebel turi, "
+         "o'lchamlar va siz yuborgan rasmlar. Instagram va Facebook'dagi ariza formasi orqali ham xuddi shu ma'lumotlar keladi."),
+        ("Nima uchun ishlatamiz", "Faqat siz bilan bog'lanish, o'lchov vaqtini kelishish, narxni hisoblash va buyurtmani bajarish uchun."),
+        ("Kimga beramiz", "Ma'lumotlaringiz uchinchi shaxslarga sotilmaydi va berilmaydi. Ularni faqat iSofa menejerlari va ustalari ko'radi."),
+        ("Saqlash va o'chirish", "Ma'lumotlar himoyalangan serverda saqlanadi. O'chirishni so'rasangiz, Telegram bot yoki telefon orqali "
+         "murojaat qiling — 3 ish kunida o'chiramiz."),
+        ("Reklama va statistika", "Saytda Meta Pixel ishlatiladi: u reklamamiz samarasini o'lchash uchun anonim statistika yig'adi."),
+    ]),
+    "ru": ("Политика конфиденциальности", [
+        ("Какие данные мы собираем", "Когда вы оставляете заявку: имя, телефон, профиль Telegram, вид мебели, размеры и отправленные фото. "
+         "Те же данные приходят через форму заявки в Instagram и Facebook."),
+        ("Зачем мы их используем", "Только чтобы связаться с вами, согласовать замер, рассчитать цену и выполнить заказ."),
+        ("Кому передаём", "Мы не продаём и не передаём ваши данные третьим лицам. Их видят только менеджеры и мастера iSofa."),
+        ("Хранение и удаление", "Данные хранятся на защищённом сервере. Чтобы удалить их, напишите в Telegram-бот или позвоните — "
+         "удалим в течение 3 рабочих дней."),
+        ("Реклама и статистика", "На сайте работает Meta Pixel: он собирает обезличенную статистику для оценки эффективности рекламы."),
+    ]),
+}
+
+
+def page_privacy(ctx: dict) -> str:
+    lang = ctx["lang"] if ctx["lang"] in PRIVACY else "uz"
+    title, items = PRIVACY[lang]
+    shop = ctx["shop"]
+    contact = " · ".join(x for x in (shop.get("phone"), ("@" + ctx["bot"]) if ctx.get("bot") else "") if x)
+    body = (f'<section class="sec"><div class="wrap doc"><h1>{e(title)}</h1>'
+            + "".join(f"<h2>{e(h)}</h2><p>{e(t)}</p>" for h, t in items)
+            + (f"<p><b>{e(shop['name'])}</b> — {e(contact)}</p>" if contact else "") + "</div></section>")
+    return layout(ctx, f"{title} — {shop['name']}", title, body, "/privacy" + ("?lang=ru" if lang == "ru" else ""))
+
+
 def page_404(ctx: dict) -> str:
     lang = ctx["lang"]
     home = "/" if lang == "uz" else "/?lang=ru"

@@ -2582,6 +2582,10 @@ async def page_offer(request):
                                                             shop.warranty_years())))
 
 
+async def page_privacy(request):
+    return html_page(sitepages.page_privacy(site_ctx(request)))
+
+
 async def page_not_found(request):
     return html_page(sitepages.page_404(site_ctx(request)), 404)
 
@@ -3607,6 +3611,7 @@ def make_app() -> web.Application:
     app.router.add_get("/chiqish", page_logout)
     app.router.add_get("/p/{slug}", page_product)
     app.router.add_get("/oferta", page_offer)
+    app.router.add_get("/privacy", page_privacy)
     app.router.add_get("/sitemap.xml", page_sitemap)
     app.router.add_get("/feed/meta.csv", page_meta_feed)
     app.router.add_get("/robots.txt", page_robots)
