@@ -80,9 +80,9 @@ T = {
         "ch_call": "Qo'ng'iroq qilish", "ch_write": "Telegramda yozish",
         "warranty": "Kafolat", "wy_n": "{n} yil",
         # --- katalog yopiq paytdagi (faqat o'lchamga buyurtma) matnlar
-        "c_eyebrow": "Buyurtma asosida · o'lchov · o'rnatish",
+        "c_eyebrow": "Buyurtma asosida · bepul o'lchov · o'rnatish",
         "c_title": "Oshxona, shkaf va garderob&nbsp;—<br><em>xonangiz o'lchamida</em>",
-        "c_text": "Premium mebelni buyurtma asosida tayyorlaymiz: usta uyingizga kelib o'lchaydi, dizayn va materialni "
+        "c_text": "Premium mebelni buyurtma asosida tayyorlaymiz: usta uyingizga kelib bepul o'lchaydi, dizayn va materialni "
                   "birga tanlaymiz, tayyor mebelni yetkazib, o'rnatib beramiz.",
         "c_cta": "Ariza qoldirish", "c_tg": "Telegram botda buyurtma",
         "c_f1": "O'lchov uyingizda", "c_f1t": "Usta kelib aniq o'lchaydi",
@@ -103,6 +103,7 @@ T = {
         "c_a_contract": "Narx o'lchovdan keyin aniqlanadi. Buyurtma iSofa va mijoz o'rtasida ikki tomonlama shartnoma bilan "
                         "rasmiylashtiriladi: narx, tayyor bo'lish muddati va olingan avans shartnomada ko'rsatiladi.",
         "c_q_fee": "O'lchov qancha turadi?",
+        "c_a_fee0": "O'lchov bepul. Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha takliflar beradi.",
         "c_a_fee": "O'lchov va maslahat — {fee}. Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha maslahat beradi. "
                    "Shartnoma tuzilsa, bu summa mebel narxidan to'liq ayiriladi.",
         "c_q_when": "Qancha vaqtda tayyor bo'ladi?",
@@ -181,9 +182,9 @@ T = {
         "ch_call": "Позвонить", "ch_write": "Написать в Telegram",
         "warranty": "Гарантия", "wy_n": "{n} года",
         # --- каталог скрыт: только мебель на заказ
-        "c_eyebrow": "На заказ · замер · установка",
+        "c_eyebrow": "На заказ · бесплатный замер · установка",
         "c_title": "Кухни, шкафы и гардеробные&nbsp;—<br><em>точно по размерам</em>",
-        "c_text": "Изготавливаем премиальную мебель на заказ: мастер приедет на замер, вместе подберём дизайн и материалы, "
+        "c_text": "Изготавливаем премиальную мебель на заказ: мастер бесплатно приедет на замер, вместе подберём дизайн и материалы, "
                   "доставим и установим готовую мебель.",
         "c_cta": "Оставить заявку", "c_tg": "Заказать в Telegram-боте",
         "c_f1": "Замер у вас дома", "c_f1t": "Мастер приедет и всё точно измерит",
@@ -203,6 +204,7 @@ T = {
         "c_a_contract": "Цена определяется после замера. Заказ оформляется двусторонним договором между iSofa и клиентом: "
                         "цена, срок изготовления и внесённый аванс прописываются в договоре.",
         "c_q_fee": "Сколько стоит замер?",
+        "c_a_fee0": "Замер бесплатный. Мастер приедет, сделает замер и подскажет по материалам, цвету и дизайну.",
         "c_a_fee": "Замер и консультация — {fee}. Мастер приедет, сделает замер и проконсультирует по материалам, цвету и дизайну. "
                    "При заключении договора сумма полностью вычитается из цены мебели.",
         "c_q_when": "Сколько времени занимает изготовление?",
@@ -524,7 +526,8 @@ def page_home_custom(ctx: dict) -> str:
             "{p}", f'<a href="tel:{e(re.sub(r"[^0-9+]", "", shop["phone"]))}">{e(shop["phone"])}</a>')
     fee = int(ctx.get("measure_fee") or 0)
     fee_s = (f"{fee:,}".replace(",", " ") + (" сум" if lang == "ru" else " so'm")) if fee else ""
-    faq = [("c_q_order", e(tr(lang, "c_a_order")))] + ([("c_q_fee", e(tr(lang, "c_a_fee", fee=fee_s)))] if fee else []) + [
+    faq = [("c_q_order", e(tr(lang, "c_a_order"))),
+           ("c_q_fee", e(tr(lang, "c_a_fee", fee=fee_s) if fee else tr(lang, "c_a_fee0")))] + [
            ("c_q_contract", e(tr(lang, "c_a_contract"))),
            ("c_q_when", e(tr(lang, "c_a_when"))), ("q_ask", ask)]
     faq_html = "".join(f'<details{" open" if i == 0 else ""}><summary>{e(tr(lang, q))}</summary><p>{a}</p></details>'

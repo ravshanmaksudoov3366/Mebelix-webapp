@@ -381,7 +381,7 @@ const I18N = {
     intro_t: "Qaysi uslub sizga yoqadi?", intro_p: "Uslubni tanlang — namuna ishlar va taxminiy narxlarni ko'rasiz.",
     rev_t: "⭐ Mijozlarimiz fikri", open_s: "Ko'rish ›", feats_t: "Uslub xususiyatlari", wy: "{n} yil kafolat · rasmiy shartnoma asosida",
     how1: "Uslubni tanlaysiz", how2: "Usta uyingizga kelib o'lchaydi", how3: "Narx va shartnoma joyida",
-    visit_note: "Xohlasangiz, o'lchovni o'zimiz olamiz va sizga qulay takliflar, maslahatlar beramiz.",
+    visit_note: "O'lchov bepul: usta uyingizga kelib o'lchaydi va sizga qulay takliflar, maslahatlar beradi.", mb_free: "O'lchov — <b>bepul</b>.",
     visit_note_fee: "Xohlasangiz, o'lchovni o'zimiz olamiz va qulay takliflar, maslahatlar beramiz. O'lchov xizmati {f}, shartnoma tuzsangiz narxdan to'liq ayiriladi.",
     mb_t: "Xohlasangiz, o'lchovni o'zimiz olamiz", mb_1: "Usta uyingizga kelib o'lchaydi va sizga qulay takliflar, material va rang bo'yicha maslahatlar beradi.",
     mb_2: "O'lchov xizmati — <b>{f}</b>.", mb_3: "Shartnoma tuzsangiz, bu summa mebel narxidan <b>to'liq ayiriladi</b>.",
@@ -417,7 +417,7 @@ const I18N = {
     intro_t: "Какой стиль вам нравится?", intro_p: "Выберите стиль — увидите примеры работ и примерные цены.",
     rev_t: "⭐ Отзывы клиентов", open_s: "Смотреть ›", feats_t: "Особенности стиля", wy: "Гарантия {n} года · по официальному договору",
     how1: "Выбираете стиль", how2: "Мастер приезжает на замер", how3: "Цена и договор на месте",
-    visit_note: "Если хотите, замер мы возьмём на себя и подскажем удобные решения.",
+    visit_note: "Замер бесплатный: мастер приедет, сделает замер и подскажет удобные решения.", mb_free: "Замер — <b>бесплатно</b>.",
     visit_note_fee: "Если хотите, замер мы возьмём на себя и подскажем удобные решения. Замер — {f}, при заключении договора сумма полностью вычитается из цены.",
     mb_t: "Если хотите, замер мы возьмём на себя", mb_1: "Мастер приедет, сделает замер, предложит удобные решения и подскажет по материалам и цвету.",
     mb_2: "Стоимость замера — <b>{f}</b>.", mb_3: "При заключении договора эта сумма <b>полностью вычитается</b> из цены мебели.",
@@ -520,7 +520,8 @@ function measureBox() {
   const rows = [
     [ic('<rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/>'), t("mb_1")],
     ...(fee ? [[ic('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>'), t("mb_2", { f: money(fee) })],
-               [ic('<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="m9 11 3 3 8-8"/>'), t("mb_3")]] : []),
+               [ic('<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="m9 11 3 3 8-8"/>'), t("mb_3")]]
+          : [[ic('<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="m9 11 3 3 8-8"/>'), t("mb_free")]]),
   ];
   return `<div class="mbox"><b>${t("mb_t")}</b>${rows.map(([i, txt]) => `<div class="mrow"><span>${i}</span><div>${txt}</div></div>`).join("")}</div>`;
 }

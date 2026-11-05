@@ -247,6 +247,8 @@ TX = {
                         "Oshxona, shkaf va garderoblarni xonangiz o'lchamiga moslab tayyorlaymiz 👇",
         "custom_only_hint": "\n\n📐 <b>O'lchamga buyurtma</b> — ariza qoldiring, menejer qo'ng'iroq qilib, "
                             "narx va o'lchov vaqtini kelishadi.",
+        "fee_free": "\n\n📏 <b>O'lchov — bepul.</b> Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha "
+                    "takliflar beradi.",
         "fee_line": "\n\n📏 <b>O'lchov va maslahat — {fee}</b>\nUsta uyingizga kelib o'lchaydi, material, rang va dizayn "
                     "bo'yicha maslahat beradi. Shartnoma tuzilsa, bu summa mebel narxidan to'liq ayiriladi.",
         "menu_custom": "📐 Buyurtma",
@@ -264,6 +266,8 @@ TX = {
                         "Изготовим кухню, шкаф или гардероб точно под размеры вашей комнаты 👇",
         "custom_only_hint": "\n\n📐 <b>Мебель на заказ</b> — оставьте заявку, менеджер позвонит, "
                             "сориентирует по цене и согласует время замера.",
+        "fee_free": "\n\n📏 <b>Замер — бесплатно.</b> Мастер приедет, сделает замер и подскажет по материалам, "
+                    "цвету и дизайну.",
         "fee_line": "\n\n📏 <b>Замер и консультация — {fee}</b>\nМастер приедет, сделает замер и проконсультирует "
                     "по материалам, цвету и дизайну. При заключении договора сумма полностью вычитается из цены мебели.",
         "menu_custom": "📐 Заказать",
@@ -681,7 +685,7 @@ def start_suffix(arg: str) -> str:
 async def fee_line(lang: str) -> str:
     """O'lchov puli (admin panelda o'zgartiriladi) — 0 bo'lsa hech narsa yozilmaydi."""
     fee = cs.measure_fee()
-    return tx(lang, "fee_line", fee=fmt_price(fee, lang)) if fee else ""
+    return tx(lang, "fee_line", fee=fmt_price(fee, lang)) if fee else tx(lang, "fee_free")
 
 
 async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
@@ -2412,7 +2416,7 @@ async def notify_custom_new(r: dict):
         return
     try:
         lang = r.get("lang") or lang_of(r["user_id"])
-        await bot.send_message(r["user_id"], tx(lang, "custom_sent", id=r["id"]) + (fee_line(lang) if r.get("fee_ok") else ""))
+        await bot.send_message(r["user_id"], tx(lang, "custom_sent", id=r["id"]) + (fee_line(lang) if r.get("fee_ok") or not cs.measure_fee() else ""))
     except TelegramAPIError as e:
         log.warning("mijozga yuborilmadi: %s", e)
 
@@ -3616,10 +3620,10 @@ async def main():
         log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
     await bot.set_chat_menu_button(menu_button=menu_button("uz"))
     app_tasks.append(asyncio.create_task(sync_menu_buttons()))
-    if shop.settings().get("fee_set_2026_11") != "1":  # egasi so'radi: o'lchov puli hamma joyda 1 000 000 so'm (bir marta)
-        cs.save_measure_fee(1_000_000)
-        shop.set_setting("fee_set_2026_11", "1")
-        log.info("o'lchov puli 1 000 000 so'mga o'rnatildi")
+    if shop.settings().get("fee_free_2026_11") != "1":  # egasi so'radi: o'lchov bepul (bir marta)
+        cs.save_measure_fee(0)
+        shop.set_setting("fee_free_2026_11", "1")
+        log.info("o'lchov bepul qilindi (o'lchov puli 0)")
     if shop.settings().get("wy_reset_2026_11") != "1":  # egasi so'radi: 3 yil kafolat va'dasi olib tashlansin (bir marta)
         shop.set_setting("warranty_years", "0")
         shop.set_setting("wy_reset_2026_11", "1")

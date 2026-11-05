@@ -112,7 +112,7 @@ PRICE_UNITS = {
              "hint_uz": "divan uzunligi bo'yicha", "hint_ru": "по длине дивана", "hidden": True},
 }
 # O'lchov va konsultatsiya narxi (admin o'zgartiradi; shartnoma tuzilsa narxdan chegiriladi)
-MEASURE_FEE_DEFAULT = 1_000_000
+MEASURE_FEE_DEFAULT = 0  # egasi: o'lchov bepul
 # «Qo'ng'iroq qilish» tugmasidagi admin raqami (admin paneldan o'zgartiriladi)
 CALL_PHONE_DEFAULT = "+998 99 333 33 66"
 # Saralash savollari: mijoz qanchalik tayyor (usta avval 🔥 issiq arizalarga boradi)
