@@ -1621,10 +1621,10 @@ def _due_nudge(row: dict, now: int) -> int:
     return n + 1
 
 
-async def _nudge(msgs: list, text: str, kb=None):
+async def _nudge(msgs: list, text: str, kb=None, chats=None):
     """Eslatma — guruhdagi asl xabarga javob (reply) sifatida, shunda tugmalari yonida bo'ladi."""
     by_chat = {e[0]: e[1] for e in msgs or [] if len(e) > 1}
-    for chat in NOTIFY_CHATS:
+    for chat in chats or NOTIFY_CHATS:
         try:
             await bot.send_message(chat, text, reply_markup=kb, reply_to_message_id=by_chat.get(chat),
                                    allow_sending_without_reply=True)
@@ -1698,13 +1698,24 @@ async def followup_loop():
                 mins = (now - r["created"]) // 60
                 ago = f"{mins} daqiqa" if mins < 120 else f"{mins // 60} soat"
                 ln = cust.lead_name(r)
-                text = (f"⏰ <b>Ariza #{r['id']} {ago}dan beri javobsiz!</b>" + (f" — {ln}" if ln else "")
-                        + f"\n👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n"
+                ad = bool(r.get("meta_lead"))
+                head = ((f"📱 <b>Reklama lidi #{r['id']} — {ago}dan beri qo'ng'iroq qilinmadi!</b>\n"
+                         "Reklamadan kelgan mijoz tez sovuydi — hoziroq qo'ng'iroq qiling.") if ad else
+                        f"⏰ <b>Ariza #{r['id']} {ago}dan beri javobsiz!</b>" + (f" — {ln}" if ln else ""))
+                text = (head + f"\n👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n"
                         + ("Mijozga qo'ng'iroq qilib, o'lchov vaqtini kelishing va «➡️ O'lchov» ni bosing."
                            if r.get("need_when") != "price" else "Mijoz narx so'ramoqda — qo'ng'iroq qilib maslahat bering."))
                 cs.db.execute("UPDATE custom_requests SET nudged=?, nudged_at=? WHERE id=?", (n, now, r["id"]))
                 cs.db.commit()
-                await _nudge(r.get("admin_msgs"), text, custom_kb(r))
+                await _nudge(r.get("admin_msgs"), text, custom_kb(r), lead_chats(r))
+                if n == len(NUDGE_AFTER):  # oxirgi eslatma — egasiga shaxsan ham
+                    for aid in ADMIN_IDS:
+                        if aid in lead_chats(r):
+                            continue
+                        try:
+                            await bot.send_message(aid, "🔔 <b>Diqqat:</b> quyidagi ariza hali ham qo'ng'iroqsiz turibdi.\n\n" + text)
+                        except TelegramAPIError:
+                            pass
             for o in shop.orders("new"):
                 n = _due_nudge(o, now)
                 if not n:
