@@ -194,7 +194,8 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    # hamkor ustaxona va unga to'lanadigan narx — FAQAT admin uchun, mijozga hech qachon yuborilmaydi
                    "workshop": "TEXT DEFAULT ''", "workshop_cost": "INTEGER DEFAULT 0",
                    # qo'ng'iroqlar: [[vaqt, natija, kim, izoh]], qayta qo'ng'iroq vaqti, rad etish sababi
-                   "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''"}
+                   "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''",
+                   "meta_lead": "TEXT DEFAULT ''"}  # Instagram/Facebook ariza formasidagi lid ID (takrorlanmasin)
 CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
                 "rejected": "❌ Rad etdi"}
 LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",
@@ -593,6 +594,38 @@ class CustomStore:
         self.db.commit()
         return self.get(cur.lastrowid)
 
+    def create_from_meta(self, lead: dict, uid: int) -> dict | None:
+        """Instagram/Facebook reklamasidagi «moment forma» lididan ariza. Allaqachon olingan bo'lsa — None."""
+        lid = str(lead.get("id") or "")
+        if not lid or self.db.execute("SELECT 1 FROM custom_requests WHERE meta_lead=?", (lid,)).fetchone():
+            return None
+        fields = {}
+        for f in lead.get("field_data") or []:
+            fields[str(f.get("name") or "").lower()] = ", ".join(str(v) for v in (f.get("values") or []))
+        name = (fields.pop("full_name", "") or fields.pop("first_name", "") or "Instagram mijozi").strip()[:80]
+        raw_phone = fields.pop("phone_number", "") or fields.pop("phone", "")
+        try:
+            phone = normalize_phone(raw_phone)
+        except ShopError:
+            phone = (raw_phone or "—")[:30]
+        answers = " | ".join(v for v in fields.values() if v)
+        low = answers.lower()
+        kinds = [k for k, words in (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")))
+                 if any(w in low for w in words)] or ["other"]
+        plat = str(lead.get("platform") or "").lower()
+        source = "ig" if plat.startswith("ig") or "instagram" in plat else ("fb" if plat else "ads")
+        note = ("📋 Reklama formasi" + (f": {answers}" if answers else "")
+                + (f"\nReklama: {lead.get('ad_name')}" if lead.get("ad_name") else ""))[:1000]
+        now = int(time.time())
+        cur = self.db.execute(
+            "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
+            "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
+            "kinds,source,meta_lead) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, "", name, phone, "", "", kinds[0], None, "", "{}", 1, "", "", note, "[]", 0, 0, "new",
+             json.dumps([["new", now, "reklama formasi"]]), "uz", now, now, json.dumps(kinds), source, lid))
+        self.db.commit()
+        return self.get(cur.lastrowid)
+
     def set_status(self, rid: int, status: str, who: str = "") -> dict:
         if status not in STAGES:
             raise ShopError("Noto'g'ri bosqich")
@@ -784,7 +817,9 @@ def public(r: dict, lang: str = "uz") -> dict:
 def admin_text(r: dict) -> str:
     e = html.escape
     when = time.strftime("%d.%m.%Y %H:%M", time.gmtime(r["created"] + 5 * 3600))
-    if r["user_id"] < 0:
+    if r.get("meta_lead"):
+        who = "📱 Instagram/Facebook reklama formasidan — telefon qiling"
+    elif r["user_id"] < 0:
         who = "🌐 saytdan — Telegram'i yo'q, telefon qiling"
     elif r.get("username"):
         who = "@" + e(r["username"])

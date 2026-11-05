@@ -276,6 +276,22 @@ class Meta:
         self._ig_id, self.ig_username = ig.get("id", ""), ig.get("username", "")
         return {"page": self.page_name, "instagram": self.ig_username}
 
+    async def leads_since(self, since: int) -> list:
+        """Sahifadagi barcha moment formalardan `since` (unix) dan keyingi lidlar. leads_retrieval ruxsati kerak."""
+        await self._ready()
+        tok = self._page_token or self.token
+        forms = (await self._call("GET", f"{self.page_id}/leadgen_forms", fields="id,name,status", limit=50,
+                                  _token=tok)).get("data") or []
+        out = []
+        flt = json.dumps([{"field": "time_created", "operator": "GREATER_THAN", "value": int(since)}])
+        for f in forms:
+            d = await self._call("GET", f"{f['id']}/leads", fields="id,created_time,field_data,ad_name,platform",
+                                 filtering=flt, limit=100, _token=tok)
+            for ld in d.get("data") or []:
+                ld["form_name"] = f.get("name", "")
+                out.append(ld)
+        return out
+
     async def _ready(self):
         if not self._page_token:
             await self.connect()

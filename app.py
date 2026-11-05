@@ -3,6 +3,7 @@ Mebel do'koni: Telegram bot + Mini App serveri (bitta jarayonda).
 Ishga tushirish:  python app.py   (sozlamalar .env faylida)
 """
 import asyncio
+from datetime import datetime
 import hashlib
 import hmac
 import html
@@ -1700,6 +1701,53 @@ async def followup_loop():
                              "Chekni tekshirib, buyurtmani qabul qiling — mijoz kutyapti.")
         except Exception:  # noqa: BLE001 — sikl to'xtamasin
             log.exception("followup_loop")
+
+
+def _meta_ts(s: str) -> int:
+    """Meta vaqti: 2026-11-05T18:50:12+0000 → unix."""
+    try:
+        return int(datetime.strptime(s, "%Y-%m-%dT%H:%M:%S%z").timestamp())
+    except (TypeError, ValueError):
+        return 0
+
+
+async def meta_leads_loop():
+    """Instagram/Facebook reklamasidagi telefon formasi lidlarini har 2 daqiqada olib, ariza qilib saqlaydi
+    va menejerlar guruhiga yuboradi (oddiy arizalar bilan bir xil: holat, qo'ng'iroq, usta va h.k.)."""
+    await asyncio.sleep(20)
+    warned = ""
+    while True:
+        try:
+            if soc.configured():
+                since = int(shop.settings().get("meta_leads_ts") or (time.time() - 3 * 86400))
+                newest, added = since, 0
+                for ld in sorted(await meta.leads_since(since - 120), key=lambda x: x.get("created_time") or ""):
+                    uid = -(WEB_ID_BASE + int.from_bytes(os.urandom(6), "big"))
+                    r = cs.create_from_meta(ld, uid)
+                    if r:
+                        added += 1
+                        asyncio.create_task(notify_custom_new(r))
+                    newest = max(newest, _meta_ts(ld.get("created_time")))
+                if newest != since:
+                    shop.set_setting("meta_leads_ts", str(newest))
+                if added:
+                    log.info("reklama formasidan %s ta yangi ariza", added)
+                warned = ""
+        except soc.MetaError as e:
+            log.warning("reklama formasi lidlari olinmadi: %s", e)
+            if str(e) != warned and bot:
+                warned = str(e)
+                for aid in ADMIN_IDS:
+                    try:
+                        await bot.send_message(aid, "⚠️ Reklama formasidagi telefon raqamlarni olib bo'lmadi:\n"
+                                               f"<code>{esc(str(e))}</code>\n\nMeta tokeniga «leads_retrieval» ruxsati "
+                                               "kerak bo'lishi mumkin. Raqamlar baribir Meta Business Suite → "
+                                               "«Центр лидов»da turibdi.")
+                    except TelegramAPIError:
+                        pass
+        except Exception:  # noqa: BLE001
+            log.exception("meta_leads_loop")
+        await asyncio.sleep(120)
 
 
 async def social_loop():
@@ -3684,6 +3732,7 @@ async def main():
     app_tasks.append(asyncio.create_task(translation_loop()))
     if bot:
         app_tasks.append(asyncio.create_task(social_loop()))
+        app_tasks.append(asyncio.create_task(meta_leads_loop()))
         app_tasks.append(asyncio.create_task(followup_loop()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
