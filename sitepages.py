@@ -102,6 +102,9 @@ T = {
         "c_q_contract": "Narx va to'lov qanday kelishiladi?",
         "c_a_contract": "Narx o'lchovdan keyin aniqlanadi. Buyurtma iSofa va mijoz o'rtasida ikki tomonlama shartnoma bilan "
                         "rasmiylashtiriladi: narx, tayyor bo'lish muddati va olingan avans shartnomada ko'rsatiladi.",
+        "c_q_fee": "O'lchov qancha turadi?",
+        "c_a_fee": "O'lchov va maslahat — {fee}. Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha maslahat beradi. "
+                   "Shartnoma tuzilsa, bu summa mebel narxidan to'liq ayiriladi.",
         "c_q_when": "Qancha vaqtda tayyor bo'ladi?",
         "c_a_when": "Muddat mebel turi va hajmiga bog'liq va shartnomada aniq yozib qo'yiladi.",
         "c_nav_how": "Qanday ishlaymiz", "c_nav_info": "Savollar",
@@ -199,6 +202,9 @@ T = {
         "c_q_contract": "Как согласуются цена и оплата?",
         "c_a_contract": "Цена определяется после замера. Заказ оформляется двусторонним договором между iSofa и клиентом: "
                         "цена, срок изготовления и внесённый аванс прописываются в договоре.",
+        "c_q_fee": "Сколько стоит замер?",
+        "c_a_fee": "Замер и консультация — {fee}. Мастер приедет, сделает замер и проконсультирует по материалам, цвету и дизайну. "
+                   "При заключении договора сумма полностью вычитается из цены мебели.",
         "c_q_when": "Сколько времени занимает изготовление?",
         "c_a_when": "Срок зависит от вида и объёма мебели и точно фиксируется в договоре.",
         "c_nav_how": "Как мы работаем", "c_nav_info": "Вопросы",
@@ -516,7 +522,10 @@ def page_home_custom(ctx: dict) -> str:
     if shop.get("phone") and nick:
         ask += e(tr(lang, "a_ask_phone", phone="{p}")).replace(
             "{p}", f'<a href="tel:{e(re.sub(r"[^0-9+]", "", shop["phone"]))}">{e(shop["phone"])}</a>')
-    faq = [("c_q_order", e(tr(lang, "c_a_order"))), ("c_q_contract", e(tr(lang, "c_a_contract"))),
+    fee = int(ctx.get("measure_fee") or 0)
+    fee_s = (f"{fee:,}".replace(",", " ") + (" сум" if lang == "ru" else " so'm")) if fee else ""
+    faq = [("c_q_order", e(tr(lang, "c_a_order")))] + ([("c_q_fee", e(tr(lang, "c_a_fee", fee=fee_s)))] if fee else []) + [
+           ("c_q_contract", e(tr(lang, "c_a_contract"))),
            ("c_q_when", e(tr(lang, "c_a_when"))), ("q_ask", ask)]
     faq_html = "".join(f'<details{" open" if i == 0 else ""}><summary>{e(tr(lang, q))}</summary><p>{a}</p></details>'
                        for i, (q, a) in enumerate(faq))

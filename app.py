@@ -247,6 +247,8 @@ TX = {
                         "Oshxona, shkaf va garderoblarni xonangiz o'lchamiga moslab tayyorlaymiz 👇",
         "custom_only_hint": "\n\n📐 <b>O'lchamga buyurtma</b> — ariza qoldiring, menejer qo'ng'iroq qilib, "
                             "narx va o'lchov vaqtini kelishadi.",
+        "fee_line": "\n\n📏 <b>O'lchov va maslahat — {fee}</b>\nUsta uyingizga kelib o'lchaydi, material, rang va dizayn "
+                    "bo'yicha maslahat beradi. Shartnoma tuzilsa, bu summa mebel narxidan to'liq ayiriladi.",
         "menu_custom": "📐 Buyurtma",
         "sent": "Xabaringiz menejerga yuborildi. Tez orada javob beramiz 🙏",
         "manager": "💬 <b>Menejer:</b>",
@@ -262,6 +264,8 @@ TX = {
                         "Изготовим кухню, шкаф или гардероб точно под размеры вашей комнаты 👇",
         "custom_only_hint": "\n\n📐 <b>Мебель на заказ</b> — оставьте заявку, менеджер позвонит, "
                             "сориентирует по цене и согласует время замера.",
+        "fee_line": "\n\n📏 <b>Замер и консультация — {fee}</b>\nМастер приедет, сделает замер и проконсультирует "
+                    "по материалам, цвету и дизайну. При заключении договора сумма полностью вычитается из цены мебели.",
         "menu_custom": "📐 Заказать",
         "ask": "\n\n❓ Если есть вопросы, пишите администратору: {contact}",
         "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n❓ Если есть вопросы, пишите администратору: {contact}",
@@ -674,13 +678,19 @@ def start_suffix(arg: str) -> str:
     return f"?p={arg[1:]}" if re.fullmatch(r"p\d{1,9}", arg or "") else ""
 
 
+async def fee_line(lang: str) -> str:
+    """O'lchov puli (admin panelda o'zgartiriladi) — 0 bo'lsa hech narsa yozilmaydi."""
+    fee = cs.measure_fee()
+    return tx(lang, "fee_line", fee=fmt_price(fee, lang)) if fee else ""
+
+
 async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
     text = tx(lang, "hello" if READY_CATALOG else "hello_custom", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
     if SHOP["phone"]:
         text += f"\n\n📞 {esc(SHOP['phone'])}"
     if SHOP["address"]:
         text += f"\n📍 {esc(SHOP['address'])}"
-    text += tx(lang, "custom_hint" if READY_CATALOG else "custom_only_hint") + tx(lang, "ask", contact=admin_contact())
+    text += tx(lang, "custom_hint" if READY_CATALOG else "custom_only_hint") + fee_line(lang) + tx(lang, "ask", contact=admin_contact())
     await bot.send_message(chat_id, text, reply_markup=two_doors(lang))
     if suffix and READY_CATALOG:
         try:
@@ -2402,7 +2412,7 @@ async def notify_custom_new(r: dict):
         return
     try:
         lang = r.get("lang") or lang_of(r["user_id"])
-        await bot.send_message(r["user_id"], tx(lang, "custom_sent", id=r["id"]))
+        await bot.send_message(r["user_id"], tx(lang, "custom_sent", id=r["id"]) + (fee_line(lang) if r.get("fee_ok") else ""))
     except TelegramAPIError as e:
         log.warning("mijozga yuborilmadi: %s", e)
 
@@ -2479,7 +2489,7 @@ def site_ctx(request) -> dict:
             "prepay_pct": shop.prepay_info()["pct"], "assembly_pct": int(st.get("assembly_pct") or 0),
             "warranty_years": shop.warranty_years(), "reviews": rs.public(9), "reviews_sum": rs.summary(),
             "base": site_base(request), "v": ASSET_V, "path": request.path, "year": time.gmtime().tm_year,
-            "ready": READY_CATALOG}
+            "ready": READY_CATALOG, "measure_fee": cs.measure_fee()}
 
 
 def html_page(text: str, status: int = 200) -> web.Response:
@@ -3606,6 +3616,10 @@ async def main():
         log.warning("bot nomini o'zgartirib bo'lmadi: %s", e)
     await bot.set_chat_menu_button(menu_button=menu_button("uz"))
     app_tasks.append(asyncio.create_task(sync_menu_buttons()))
+    if shop.settings().get("fee_set_2026_11") != "1":  # egasi so'radi: o'lchov puli hamma joyda 1 000 000 so'm (bir marta)
+        cs.save_measure_fee(1_000_000)
+        shop.set_setting("fee_set_2026_11", "1")
+        log.info("o'lchov puli 1 000 000 so'mga o'rnatildi")
     if shop.settings().get("wy_reset_2026_11") != "1":  # egasi so'radi: 3 yil kafolat va'dasi olib tashlansin (bir marta)
         shop.set_setting("warranty_years", "0")
         shop.set_setting("wy_reset_2026_11", "1")

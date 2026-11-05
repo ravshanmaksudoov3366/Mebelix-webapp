@@ -900,7 +900,7 @@ function wStep(st){const w=S.w;ensureW();const runs=wRuns(w),rA=runs[0];
     card(T("Qo'shimcha","Дополнительно"),"",chk(w.ant,T("Tepasida antresol","Антресоль сверху"),"wChk('ant')")+chk(w.led,T("Ichki LED yoritish","Внутренняя LED-подсветка"),"wChk('led')")+(w.lay!=="nisha"?chk(w.yon,T("Yon tomonda ochiq tokcha","Открытые полки сбоку"),"wChk('yon',1)"):"")+chk(w.bezak,T("Bezaklar","Декор"),"wChk('bezak')"));
   return arizaCard();
 }
-function arizaCard(){return card(T("Arizangiz","Ваша заявка"),T("Usta loyihani Bazis dasturida aniq chizadi, narxini hisoblab sizga qo'ng'iroq qiladi. O'lchov bepul.","Мастер точно начертит проект в программе Базис, рассчитает цену и позвонит вам. Замер бесплатный."),
+function arizaCard(){return card(T("Arizangiz","Ваша заявка"),T("Usta loyihani Bazis dasturida aniq chizadi, narxini hisoblab sizga qo'ng'iroq qiladi."+(FORM.fee?" O'lchov va maslahat — "+FORM.fee.toLocaleString("ru-RU").replace(/,/g," ")+" so'm, shartnoma tuzilsa narxdan ayiriladi.":""),"Мастер точно начертит проект в программе Базис, рассчитает цену и позвонит вам."+(FORM.fee?" Замер и консультация — "+FORM.fee.toLocaleString("ru-RU").replace(/,/g," ")+" сум, при заключении договора вычитается из цены.":"")),
   `<img class="snap" id="snapImg" alt=""><div class="sum" id="sum"></div>
   <div class="f"><label>${T("Ismingiz","Ваше имя")}</label><input id="nm" class="inp" placeholder="${T("Masalan: Dilshod","Например: Дильшод")}" value="${esc(FORM.name)}" oninput="FORM.name=this.value"></div>
   <div class="f"><label>${T("Telefon raqamingiz","Ваш телефон")}</label><input id="ph" class="inp" type="tel" placeholder="+998 __ ___ __ __" value="${esc(FORM.phone)}" oninput="FORM.phone=this.value"></div>

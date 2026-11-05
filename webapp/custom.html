@@ -317,6 +317,9 @@ body.fs::before { background: var(--char); }
 .how span svg { margin: 0 auto; }
 .fee { background: var(--char); color: #f6f2ea; } .fee b { color: var(--gold); } .fee .small { color: #d8d1c5; }
 .fee .check { background: #f6f2ea; color: var(--text); }
+.fee { border: 1px solid rgba(214,184,122,.35); padding: 18px 16px; }
+.fee-k { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.fee-n { font-family: var(--serif); font-size: 30px; font-weight: 600; line-height: 1.15; margin: 4px 0 8px; color: #fff; }
 .ptable .row b { white-space: nowrap; }
 .rev .s { color: #c9a24a; }
 .k3d { display: flex; align-items: center; gap: 12px; margin: 12px 12px 0; padding: 14px; border-radius: 18px; background: var(--char); color: #f6f2ea; text-decoration: none; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
@@ -381,12 +384,12 @@ const I18N = {
     visit_note: "Xohlasangiz, o'lchovni o'zimiz olamiz va sizga qulay takliflar, maslahatlar beramiz.",
     visit_note_fee: "Xohlasangiz, o'lchovni o'zimiz olamiz va qulay takliflar, maslahatlar beramiz. O'lchov xizmati {f}, shartnoma tuzsangiz narxdan to'liq ayiriladi.",
     mb_t: "Xohlasangiz, o'lchovni o'zimiz olamiz", mb_1: "Usta uyingizga kelib o'lchaydi va sizga qulay takliflar, material va rang bo'yicha maslahatlar beradi.",
-    mb_2: "O'lchov xizmati — <b>{f}</b>.", mb_3: "Shartnoma tuzsangiz, bu summa mebel narxidan <b>to'liq ayiriladi</b> — ya'ni o'lchov sizga <b>bepul</b> bo'ladi.",
+    mb_2: "O'lchov xizmati — <b>{f}</b>.", mb_3: "Shartnoma tuzsangiz, bu summa mebel narxidan <b>to'liq ayiriladi</b>.",
     calc_t: "Taxminiy narxni hisoblang", calc_len: "Oshxona uzunligi", calc_w: "Eni", calc_h: "Balandligi", m: "metr",
     calc_res: "Taxminan", calc_note: "Aniq narx o'lchov, material va furnituradan keyin aytiladi.", calc_none: "Bu uslub uchun narxni menejer aytadi.",
     f_need: "Mebel qachon kerak?", f_repair: "Ta'mir holati?", e_need: "Mebel qachon kerakligini tanlang", e_repair: "Ta'mir holatini tanlang",
     fee_t: "O'lchov va maslahat — {f}", fee_p: "Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha maslahat beradi. Shartnoma tuzsangiz, bu summa mebel narxidan to'liq chegiriladi.",
-    fee_ok: "Shartlarga roziman", e_fee: "O'lchov shartlariga rozilikni belgilang",
+    fee_k: "O'lchov va maslahat", fee_ok: "Shartlarga roziman", e_fee: "O'lchov shartlariga rozilikni belgilang",
     price_only: "Menejer qo'ng'iroq qilib, narx bo'yicha maslahat beradi. Taxminiy narxni uslub sahifasidagi kalkulyatorda ham ko'rishingiz mumkin.",
     send_call: "Menejer qo'ng'iroq qilsin", call: "Qo'ng'iroq qilish", call_q: "Savolingiz bormi? Qo'ng'iroq qiling:",
     from: "dan", agreed: "kelishiladi", see: "Namunalar va narxlar", photos_cnt: "{n} ta namuna",
@@ -417,12 +420,12 @@ const I18N = {
     visit_note: "Если хотите, замер мы возьмём на себя и подскажем удобные решения.",
     visit_note_fee: "Если хотите, замер мы возьмём на себя и подскажем удобные решения. Замер — {f}, при заключении договора сумма полностью вычитается из цены.",
     mb_t: "Если хотите, замер мы возьмём на себя", mb_1: "Мастер приедет, сделает замер, предложит удобные решения и подскажет по материалам и цвету.",
-    mb_2: "Стоимость замера — <b>{f}</b>.", mb_3: "При заключении договора эта сумма <b>полностью вычитается</b> из цены мебели — то есть замер для вас <b>бесплатный</b>.",
+    mb_2: "Стоимость замера — <b>{f}</b>.", mb_3: "При заключении договора эта сумма <b>полностью вычитается</b> из цены мебели.",
     calc_t: "Рассчитайте примерную цену", calc_len: "Длина кухни", calc_w: "Ширина", calc_h: "Высота", m: "м",
     calc_res: "Примерно", calc_note: "Точная цена — после замера и выбора материалов и фурнитуры.", calc_none: "Цену для этого стиля назовёт менеджер.",
     f_need: "Когда нужна мебель?", f_repair: "Состояние ремонта?", e_need: "Выберите, когда нужна мебель", e_repair: "Выберите состояние ремонта",
     fee_t: "Замер и консультация — {f}", fee_p: "Мастер приедет, сделает замер и проконсультирует по материалам, цвету и дизайну. При заключении договора эта сумма полностью вычитается из цены мебели.",
-    fee_ok: "Согласен с условиями", e_fee: "Отметьте согласие с условиями замера",
+    fee_k: "Замер и консультация", fee_ok: "Согласен с условиями", e_fee: "Отметьте согласие с условиями замера",
     price_only: "Менеджер позвонит и проконсультирует по цене. Примерную цену можно посчитать и в калькуляторе на странице стиля.",
     send_call: "Пусть менеджер позвонит", call: "Позвонить", call_q: "Есть вопросы? Позвоните:",
     from: "от", agreed: "договорная", see: "Примеры и цены", photos_cnt: "примеров: {n}",
@@ -650,7 +653,7 @@ function formHTML() {
       <label class="f">${t("phone")}</label><input class="in" type="tel" inputmode="tel" value="${esc(F.phone)}" placeholder="+998 90 123 45 67" autocomplete="tel" oninput="F.phone=this.value; saveDraft()">
       <label class="f">${t("city")}</label><input class="in" value="${esc(F.city)}" placeholder="${t("city_ph")}" oninput="F.city=this.value; saveDraft()">
     </div>
-    ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><b>${t("fee_t", { f: money(S.cfg.measure_fee) })}</b><div class="small">${t("fee_p")}</div>
+    ${F.need !== "price" && S.cfg.measure_fee ? `<div class="fee"><span class="fee-k">${t("fee_k")}</span><div class="fee-n">${money(S.cfg.measure_fee)}</div><div class="small">${t("fee_p")}</div>
       <label class="check"><input type="checkbox" ${F.fee ? "checked" : ""} onchange="F.fee=this.checked; err=''; saveDraft()"><span>${t("fee_ok")}</span></label></div>` : ""}
     <div class="section"><details class="more-f"${F.photos.length || (!hasKind("other") && F.note) || F.color ? " open" : ""}><summary>${t("f_more")}</summary>
       ${!hasKind("other") ? noteF : ""}
