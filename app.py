@@ -1563,6 +1563,23 @@ async def cmd_tags(m: Message):
     await m.answer("✅ Heshteglar saqlandi:\n" + (esc(v) or "— (heshtegsiz)"))
 
 
+@dp.message(Command("lidguruh"))
+async def cmd_lead_group(m: Message):
+    """Admin yangi guruhda /lidguruh yozadi — reklama formasidan kelgan raqamlar endi shu guruhga tushadi.
+    /lidguruh off — yana asosiy guruhga."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = ((m.text or "").split(maxsplit=1) + [""])[1].strip().lower()
+    if arg in ("off", "0", "ochir", "o'chir"):
+        shop.set_setting("lead_chat", "")
+        return await m.answer("✅ Reklama formasidagi raqamlar yana asosiy guruhga tushadi.")
+    if m.chat.type == "private":
+        return await m.answer("Bu buyruqni lidlar keladigan <b>guruhning o'zida</b> yozing (botni avval guruhga qo'shing).")
+    shop.set_setting("lead_chat", str(m.chat.id))
+    await m.answer("✅ Tayyor! Instagram/Facebook reklama formasidan kelgan telefon raqamlar endi shu guruhga tushadi.\n"
+                   "Bot va saytdan kelgan arizalar avvalgidek asosiy guruhda qoladi.\n\nQaytarish: /lidguruh off")
+
+
 @dp.message(Command("cta"))
 async def cmd_cta(m: Message):
     """Har bir post oxiriga qo'shiladigan Telegram botga chaqiruv matni."""
@@ -2502,11 +2519,19 @@ async def remind_callbacks(now: int):
                      f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}", custom_kb(r))
 
 
+def lead_chats(r: dict) -> list:
+    """Reklama formasidan kelgan lidlar — alohida guruhga (/lidguruh bilan tanlanadi), qolganlari — asosiy guruhga."""
+    lc = shop.settings().get("lead_chat") or ""
+    if r.get("meta_lead") and lc.lstrip("-").isdigit():
+        return [int(lc)]
+    return NOTIFY_CHATS
+
+
 async def notify_custom_new(r: dict):
     if not bot:
         return
     msgs = []
-    for chat in NOTIFY_CHATS:
+    for chat in lead_chats(r):
         try:
             photos = [os.path.join(cs.photo_dir, p) for p in r["photos"]]
             if r.get("sample_image"):  # mijoz tanlagan namuna — birinchi rasm
