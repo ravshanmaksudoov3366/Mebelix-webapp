@@ -85,6 +85,8 @@ T = {
         "c_text": "Premium mebelni buyurtma asosida tayyorlaymiz: usta uyingizga kelib bepul o'lchaydi, dizayn va materialni "
                   "birga tanlaymiz, tayyor mebelni yetkazib, o'rnatib beramiz.",
         "c_cta": "Ariza qoldirish", "c_tg": "Telegram botda buyurtma",
+        "c_cta_tg": "Telegram'da ariza qoldirish", "c_cta_web": "yoki saytda ariza to'ldirish",
+        "c_cta_note": "1 daqiqa · o'lchov bepul · menejer o'zi qo'ng'iroq qiladi",
         "c_f1": "O'lchov uyingizda", "c_f1t": "Usta kelib aniq o'lchaydi",
         "c_f2": "Sizning o'lchamingizda", "c_f2t": "Rang, material va dizaynni o'zingiz tanlaysiz",
         "c_f3": "Ikki tomonlama shartnoma", "c_f3t": "Narx, muddat va avans hujjatda",
@@ -187,6 +189,8 @@ T = {
         "c_text": "Изготавливаем премиальную мебель на заказ: мастер бесплатно приедет на замер, вместе подберём дизайн и материалы, "
                   "доставим и установим готовую мебель.",
         "c_cta": "Оставить заявку", "c_tg": "Заказать в Telegram-боте",
+        "c_cta_tg": "Оставить заявку в Telegram", "c_cta_web": "или заполнить заявку на сайте",
+        "c_cta_note": "1 минута · замер бесплатный · менеджер сам позвонит",
         "c_f1": "Замер у вас дома", "c_f1t": "Мастер приедет и всё точно измерит",
         "c_f2": "По вашим размерам", "c_f2t": "Цвет, материал и дизайн выбираете вы",
         "c_f3": "Двусторонний договор", "c_f3t": "Цена, сроки и аванс — в документе",
@@ -412,6 +416,16 @@ def boot_json(ctx: dict) -> str:
     return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
 
 
+def tg_fab(ctx: dict) -> str:
+    """Katalog yopiq paytda har sahifada pastki burchakda «Telegram'da ariza» tugmasi — asosiy yo'l bot."""
+    bot = ctx.get("bot") or ""
+    if ctx.get("ready", True) or not bot:
+        return ""
+    lang = ctx["lang"]
+    return (f'<a class="tg-fab" href="https://t.me/{e(bot)}?start=site" target="_blank" rel="noopener">'
+            f'{ICONS["tg"]}<span>{e(tr(lang, "c_cta_tg"))}</span></a>')
+
+
 def layout(ctx: dict, title: str, desc: str, body: str, canonical: str, og_image: str = "", jsonld=None,
            og_type: str = "website", noindex: bool = False) -> str:
     lang, base, v = ctx["lang"], ctx["base"], ctx.get("v", "1")
@@ -462,6 +476,7 @@ try{{if(!/[?&]lang=/.test(s)&&document.documentElement.lang==="uz"&&JSON.parse(l
 {header(ctx)}
 <main>{body}</main>
 {footer(ctx)}
+{tg_fab(ctx)}
 {cart_drawer(lang)}
 <script id="boot" type="application/json">{boot_json(ctx)}</script>
 <script src="/s/site.js?v={v}" defer></script>
@@ -510,8 +525,8 @@ def page_home_custom(ctx: dict) -> str:
     u faqat tayyor mebellarga tegishli; buyurtmada narx, muddat va avans shartnomada kelishiladi."""
     lang, shop, st = ctx["lang"], ctx["shop"], ctx["settings"]
     bot = ctx.get("bot") or ""
-    tg_link = f"https://t.me/{bot}" if bot else ""
-    custom = f"/custom?lang={lang}"
+    tg_link = f"https://t.me/{bot}?start=site" if bot else ""  # saytdan kelganlar botda «Manba: Sayt» bo'lib ko'rinadi
+    custom = f"/custom?lang={lang}&src=site"
     feats = [("pin", "c_f1", "c_f1t"), ("tool", "c_f2", "c_f2t"), ("check", "c_f3", "c_f3t"), ("truck", "c_f4", "c_f4t")]
     feats_html = "".join(f'<div class="feat"><span class="feat-ic">{ICONS[ic]}</span><div><b>{e(tr(lang, a))}</b>'
                          f'<small>{e(tr(lang, b))}</small></div></div>' for ic, a, b in feats)
@@ -532,6 +547,13 @@ def page_home_custom(ctx: dict) -> str:
            ("c_q_when", e(tr(lang, "c_a_when"))), ("q_ask", ask)]
     faq_html = "".join(f'<details{" open" if i == 0 else ""}><summary>{e(tr(lang, q))}</summary><p>{a}</p></details>'
                        for i, (q, a) in enumerate(faq))
+    if tg_link:  # asosiy yo'l — Telegram bot; sayt formasi zaxira sifatida
+        cta_block = (f'<div class="hero-cta"><a class="btn" href="{tg_link}" target="_blank" rel="noopener">'
+                     f'{ICONS["tg"]}{e(tr(lang, "c_cta_tg"))}</a>'
+                     f'<a class="btn ghost" href="{custom}">{e(tr(lang, "c_cta_web"))}</a></div>'
+                     f'<p class="cta-note">{e(tr(lang, "c_cta_note"))}</p>')
+    else:
+        cta_block = f'<div class="hero-cta"><a class="btn" href="{custom}">{e(tr(lang, "c_cta"))}</a></div>'
     tg_band = ""
     if tg_link:
         tg_band = f"""<section class="band"><div class="wrap band-in">
@@ -545,15 +567,14 @@ def page_home_custom(ctx: dict) -> str:
     <div class="eyebrow">{e(tr(lang, 'c_eyebrow'))}</div>
     <h1>{tr(lang, 'c_title')}</h1>
     <p class="lead">{e(tr(lang, 'c_text'))}</p>
-    <div class="hero-cta"><a class="btn" href="{custom}">{e(tr(lang, 'c_cta'))}</a>
-      {f'<a class="btn ghost" href="{tg_link}" target="_blank" rel="noopener">{ICONS["tg"]}{e(tr(lang, "c_tg"))}</a>' if tg_link else ''}</div>
+    {cta_block}
   </div>
   <div class="hero-art">{SOFA_ART}<div class="hero-sun"></div></div>
 </div>
 <div class="wrap feats">{feats_html}</div></section>
 
 <section class="sec how" id="qanday"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'c_how_title'))}</h2><ol class="steps">{steps}</ol>
-  <p style="text-align:center;margin-top:24px"><a class="btn" href="{custom}">{e(tr(lang, 'c_cta'))} →</a></p></div></section>
+  <div class="cta-c" style="margin-top:24px">{cta_block}</div></div></section>
 
 {reviews_html(ctx)}
 

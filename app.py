@@ -234,7 +234,9 @@ TX = {
         "hello": "Assalomu alaykum, <b>{name}</b>! 👋\n\n<b>{shop}</b> ga xush kelibsiz.\n"
                  "Tayyor mebellar katalogini ko'ring va bir necha bosishda buyurtma bering 👇",
         "ask": "\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
-        "no_chat": "Bu botga xabar yozib bo'lmaydi 🙏\n\n❓ Savollaringiz bo'lsa, adminga yozing: {contact}",
+        "no_chat": "Bu botga xabar yozib bo'lmaydi 🙏\n\n📐 Eng tez yo'l — pastdagi tugma orqali <b>ariza qoldiring</b>: "
+                   "menejer o'zi qo'ng'iroq qilib, barcha savollaringizga javob beradi. O'lchov bepul.\n\n"
+                   "❓ Boshqa savollar bo'lsa: {contact}",
         "open": "🛋 Katalogni ochish",
         "open_ready": "🛋 Tayyor mebellar",
         "open_custom": "📐 O'lchamga buyurtma",
@@ -244,9 +246,15 @@ TX = {
                        "o'lchov vaqtini kelishadi. Ariza holatini «O'lchamga buyurtma» → «Arizalarim»da ko'rasiz.",
         "menu": "🛋 Do'kon",
         "hello_custom": "Assalomu alaykum, <b>{name}</b>! 👋\n\n<b>{shop}</b> ga xush kelibsiz.\n"
-                        "Oshxona, shkaf va garderoblarni xonangiz o'lchamiga moslab tayyorlaymiz 👇",
-        "custom_only_hint": "\n\n📐 <b>O'lchamga buyurtma</b> — ariza qoldiring, menejer qo'ng'iroq qilib, "
-                            "narx va o'lchov vaqtini kelishadi.",
+                        "Oshxona, shkaf va garderoblarni xonangiz o'lchamiga moslab tayyorlaymiz.",
+        "open_apply": "📐 Ariza qoldirish · bepul o'lchov",
+        "nudge": "Assalomu alaykum! 👋 <b>{shop}</b>dan.\n\nOshxona, shkaf yoki garderob kerakmi? Ariza qoldirish "
+                 "<b>1 daqiqa</b> oladi: menejer o'zi qo'ng'iroq qiladi, usta uyingizga kelib <b>bepul o'lchaydi</b> "
+                 "va narxini aytadi. Hech narsaga majbur emassiz 🙂\n\n👇 Pastdagi tugmani bosing",
+        "custom_only_hint": "\n\n<b>Ariza qoldirish — atigi 1 daqiqa:</b>\n"
+                            "1️⃣ Pastdagi «📐 Ariza qoldirish» tugmasini bosing\n"
+                            "2️⃣ Mebel turini tanlang, ism va telefoningizni yozing\n"
+                            "3️⃣ Menejer qo'ng'iroq qilib, o'lchov vaqtini kelishadi",
         "fee_free": "\n\n📏 <b>O'lchov — bepul.</b> Usta uyingizga kelib o'lchaydi, material, rang va dizayn bo'yicha "
                     "takliflar beradi.",
         "fee_line": "\n\n📏 <b>O'lchov va maslahat — {fee}</b>\nUsta uyingizga kelib o'lchaydi, material, rang va dizayn "
@@ -263,16 +271,24 @@ TX = {
         "hello": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
                  "Смотрите каталог готовой мебели и оформляйте заказ в пару нажатий 👇",
         "hello_custom": "Здравствуйте, <b>{name}</b>! 👋\n\nДобро пожаловать в <b>{shop}</b>.\n"
-                        "Изготовим кухню, шкаф или гардероб точно под размеры вашей комнаты 👇",
-        "custom_only_hint": "\n\n📐 <b>Мебель на заказ</b> — оставьте заявку, менеджер позвонит, "
-                            "сориентирует по цене и согласует время замера.",
+                        "Изготовим кухню, шкаф или гардероб точно под размеры вашей комнаты.",
+        "open_apply": "📐 Оставить заявку · замер бесплатно",
+        "nudge": "Здравствуйте! 👋 Это <b>{shop}</b>.\n\nНужна кухня, шкаф или гардероб? Заявка занимает "
+                 "<b>1 минуту</b>: менеджер сам позвонит, мастер приедет и <b>бесплатно сделает замер</b>, "
+                 "назовёт цену. Ни к чему не обязывает 🙂\n\n👇 Нажмите кнопку ниже",
+        "custom_only_hint": "\n\n<b>Заявка — всего 1 минута:</b>\n"
+                            "1️⃣ Нажмите кнопку «📐 Оставить заявку» ниже\n"
+                            "2️⃣ Выберите вид мебели, укажите имя и телефон\n"
+                            "3️⃣ Менеджер позвонит и согласует время замера",
         "fee_free": "\n\n📏 <b>Замер — бесплатно.</b> Мастер приедет, сделает замер и подскажет по материалам, "
                     "цвету и дизайну.",
         "fee_line": "\n\n📏 <b>Замер и консультация — {fee}</b>\nМастер приедет, сделает замер и проконсультирует "
                     "по материалам, цвету и дизайну. При заключении договора сумма полностью вычитается из цены мебели.",
         "menu_custom": "📐 Заказать",
         "ask": "\n\n❓ Если есть вопросы, пишите администратору: {contact}",
-        "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n❓ Если есть вопросы, пишите администратору: {contact}",
+        "no_chat": "В этот бот нельзя писать сообщения 🙏\n\n📐 Быстрее всего — <b>оставьте заявку</b> кнопкой ниже: "
+                   "менеджер сам позвонит и ответит на все вопросы. Замер бесплатный.\n\n"
+                   "❓ Другие вопросы: {contact}",
         "open": "🛋 Открыть каталог",
         "open_ready": "🛋 Готовая мебель",
         "open_custom": "📐 Мебель на заказ",
@@ -626,10 +642,13 @@ def shop_button(text="", suffix="", lang="uz") -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=text or tx(lang, "open"), web_app=WebAppInfo(url=f"{APP_URL}{suffix}{sep}lang={lang}"))]])
 
 
-def two_doors(lang="uz") -> InlineKeyboardMarkup:
-    """Ikki eshik: tayyor mebellar katalogi va o'lchamga buyurtma — mijoz chalkashmasligi uchun alohida ilovalar."""
+def two_doors(lang="uz", src="") -> InlineKeyboardMarkup:
+    """Ikki eshik: tayyor mebellar katalogi va o'lchamga buyurtma — mijoz chalkashmasligi uchun alohida ilovalar.
+    Katalog yopiq paytda bitta katta «Ariza qoldirish · bepul o'lchov» tugmasi. src — mijoz qayerdan kelgani (ig, fb, site)."""
     lang = norm_lang(lang)
-    custom = [InlineKeyboardButton(text=tx(lang, "open_custom"), web_app=WebAppInfo(url=f"{CUSTOM_URL}?lang={lang}"))]
+    q = f"?lang={lang}" + (f"&src={src}" if src else "")
+    custom = [InlineKeyboardButton(text=tx(lang, "open_custom" if READY_CATALOG else "open_apply"),
+                                   web_app=WebAppInfo(url=f"{CUSTOM_URL}{q}"))]
     if not READY_CATALOG:  # katalog vaqtincha yopiq — faqat o'lchamga buyurtma
         return InlineKeyboardMarkup(inline_keyboard=[custom])
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -675,6 +694,7 @@ def lang_keyboard() -> InlineKeyboardMarkup:
 
 
 _start_args: dict = {}   # til tanlanguncha saqlab turiladigan /start parametri (masalan saytdan p12)
+_start_src: dict = {}    # /start ig|fb|site|ads|tg — mijoz qayerdan kelgani (arizada «Manba» bo'lib ko'rinadi)
 
 
 def start_suffix(arg: str) -> str:
@@ -688,14 +708,14 @@ def fee_line(lang: str) -> str:
     return tx(lang, "fee_line", fee=fmt_price(fee, lang)) if fee else tx(lang, "fee_free")
 
 
-async def send_welcome(chat_id: int, user, lang: str, suffix: str = ""):
+async def send_welcome(chat_id: int, user, lang: str, suffix: str = "", src: str = ""):
     text = tx(lang, "hello" if READY_CATALOG else "hello_custom", name=esc(user.first_name or ""), shop=esc(SHOP["name"]))
     if SHOP["phone"]:
         text += f"\n\n📞 {esc(SHOP['phone'])}"
     if SHOP["address"]:
         text += f"\n📍 {esc(SHOP['address'])}"
     text += tx(lang, "custom_hint" if READY_CATALOG else "custom_only_hint") + fee_line(lang) + tx(lang, "ask", contact=admin_contact())
-    await bot.send_message(chat_id, text, reply_markup=two_doors(lang))
+    await bot.send_message(chat_id, text, reply_markup=two_doors(lang, src))
     if suffix and READY_CATALOG:
         try:
             p = shop.localize_product(shop.product(int(suffix.split("=")[1])), lang)
@@ -717,12 +737,16 @@ async def cmd_start(m: Message):
     await register_user(m.from_user.model_dump())
     lang = shop.user_lang(m.from_user.id)
     parts = (m.text or "").split(maxsplit=1)
-    suffix = start_suffix(parts[1].strip() if len(parts) > 1 else "")
+    arg = parts[1].strip().lower() if len(parts) > 1 else ""
+    suffix = start_suffix(arg)
+    src = arg if arg in cust.SOURCES else ""
     if not lang:  # birinchi marta — avval tilni tanlaydi
         if suffix:
             _start_args[m.from_user.id] = suffix
+        if src:
+            _start_src[m.from_user.id] = src
         return await m.answer(LANG_PICK, reply_markup=lang_keyboard())
-    await send_welcome(m.chat.id, m.from_user, lang, suffix)
+    await send_welcome(m.chat.id, m.from_user, lang, suffix, src)
 
 
 @dp.message(Command("lang", "til", "language"))
@@ -738,7 +762,8 @@ async def cb_lang(c: CallbackQuery):
         await c.message.edit_text(tx(lang, "lang_set"))
     except TelegramAPIError:
         pass
-    await send_welcome(c.message.chat.id, c.from_user, lang, _start_args.pop(c.from_user.id, ""))
+    await send_welcome(c.message.chat.id, c.from_user, lang, _start_args.pop(c.from_user.id, ""),
+                       _start_src.pop(c.from_user.id, ""))
 
 
 @dp.message(Command("admin"))
@@ -1637,6 +1662,10 @@ async def followup_loop():
             await remind_carts(now)
         except Exception:  # noqa: BLE001
             log.exception("remind_carts")
+        try:
+            await nudge_apply(now)
+        except Exception:  # noqa: BLE001
+            log.exception("nudge_apply")
         try:
             await remind_callbacks(now)
         except Exception:  # noqa: BLE001
@@ -2683,6 +2712,22 @@ CART_TX = {
     "ru": ("🛒 <b>В вашей корзине осталась мебель</b>\n\n{lines}\n\n<b>Итого: {total}</b>\n\nЧтобы оформить заказ, нажмите "
            "кнопку ниже. Есть вопросы — позвоните: {phone}", "🛒 Открыть корзину"),
 }
+
+
+async def nudge_apply(now: int):
+    """/start bosib, 3 soat ichida ariza qoldirmagan yangi mijozga bitta muloyim eslatma (faqat bir marta)."""
+    if READY_CATALOG or shop.settings().get("apply_nudge") == "0":
+        return
+    for u in shop.users_to_nudge(now):
+        shop.mark_nudged(u["id"])
+        if is_admin(u["id"]):
+            continue
+        lang = norm_lang(u["lang"] or "uz")
+        try:
+            await bot.send_message(u["id"], tx(lang, "nudge", shop=esc(SHOP["name"])), reply_markup=two_doors(lang))
+        except TelegramAPIError as e:
+            log.info("ariza eslatmasi yuborilmadi %s: %s", u["id"], e)
+        await asyncio.sleep(0.05)
 
 
 async def remind_carts(now: int):

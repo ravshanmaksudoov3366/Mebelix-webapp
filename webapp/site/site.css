@@ -474,3 +474,13 @@ p { margin: 0; }
 .hero h1 em { color: #a8862f; }
 .badge.sale { background: var(--dark); color: var(--gold); }
 @media (max-width: 900px) { .top .menu { background: var(--dark); } }
+
+/* Telegram — asosiy ariza yo'li (katalog yopiq paytda) */
+.cta-c .hero-cta { justify-content: center; margin-top: 0; }
+.cta-note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.cta-c .cta-note { text-align: center; }
+.tg-fab { position: fixed; right: 16px; bottom: 16px; z-index: 40; display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 18px; border-radius: 999px; background: #2aabee; color: #fff; font-weight: 600; font-size: 14px;
+  text-decoration: none; box-shadow: 0 8px 24px rgba(42,171,238,.35); }
+.tg-fab svg { width: 20px; height: 20px; }
+@media (max-width: 640px) { .tg-fab { left: 16px; right: 16px; justify-content: center; } main { padding-bottom: 72px; } }

@@ -200,7 +200,8 @@ PRODUCT_COLUMNS = {"delivery_days": "TEXT DEFAULT ''", "name_ru": "TEXT DEFAULT 
                    "assembly": "INTEGER DEFAULT 0"}  # 1 — yig'iladigan mahsulot (mijozdan yig'ib berish so'raladi)
 PRIVATE_PRODUCT_FIELDS = ("supplier_id", "cost", "supplier_sku")
 CATEGORY_COLUMNS = {"name_ru": "TEXT DEFAULT ''", "tr_src": "TEXT DEFAULT ''"}
-USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER", "lang": "TEXT DEFAULT ''"}
+USER_COLUMNS = {"last_name": "TEXT DEFAULT ''", "last_seen": "INTEGER", "lang": "TEXT DEFAULT ''",
+                "apply_nudged": "INTEGER DEFAULT 0"}  # ariza qoldirmaganlarga eslatma yuborilganmi
 ORDER_COLUMNS = {"lat": "REAL", "lon": "REAL", "prepay": "INTEGER DEFAULT 0", "receipt": "TEXT DEFAULT ''",
                  "assembly": "INTEGER DEFAULT 0", "assembly_fee": "INTEGER DEFAULT 0",
                  "offer_ver": "TEXT DEFAULT ''", "offer_ts": "INTEGER",          # ommaviy ofertaga rozilik
@@ -679,6 +680,18 @@ class Shop:
         self.db.commit()
 
     # ------------------------------------------------ foydalanuvchilar
+    def users_to_nudge(self, now: int) -> list:
+        """/start bosgan, lekin 3 soatda ariza qoldirmagan yangi mijozlar (2 kundan eskilariga yozmaymiz)."""
+        rows = self.db.execute(
+            "SELECT id, lang FROM users WHERE id>0 AND COALESCE(apply_nudged,0)=0 AND created BETWEEN ? AND ? "
+            "AND id NOT IN (SELECT user_id FROM custom_requests WHERE user_id IS NOT NULL) LIMIT 50",
+            (now - 48 * 3600, now - 3 * 3600)).fetchall()
+        return [{"id": r[0], "lang": r[1] or ""} for r in rows]
+
+    def mark_nudged(self, uid: int):
+        self.db.execute("UPDATE users SET apply_nudged=1 WHERE id=?", (uid,))
+        self.db.commit()
+
     def touch_user(self, user: dict) -> bool:
         """Mijozni saqlaydi/yangilaydi. Birinchi marta qo'shilgan bo'lsa True qaytaradi."""
         now = int(time.time())

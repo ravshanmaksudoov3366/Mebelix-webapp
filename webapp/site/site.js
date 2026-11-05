@@ -101,6 +101,12 @@
     clearTimeout(tt); tt = setTimeout(() => t.classList.remove("on"), 1800);
   }
 
+  /* Telegram botga o'tish — Meta Pixel'da «Contact» hodisasi (reklama qaysi mijozni botga olib kelganini ko'rish uchun) */
+  document.addEventListener("click", e => {
+    const a = e.target.closest('a[href*="t.me/"]');
+    if (a) { try { if (window.fbq) fbq("track", "Contact", { content_name: "telegram_bot" }); } catch (err) {} }
+  });
+
   /* ---------------- menyu ---------------- */
   const menu = $("#menu"), burger = $("#burger");
   burger.onclick = () => menu.classList.toggle("on");

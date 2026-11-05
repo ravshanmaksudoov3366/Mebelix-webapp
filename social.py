@@ -35,10 +35,15 @@ STATUS = {"queued": "🗓 navbatda", "posting": "⏳ joylanmoqda", "posted": "�
 DEFAULT_TIME = "19:00"
 # Har bir postga qo'shiladigan Telegram botga chaqiruv ({bot} — botning manzili bilan almashtiriladi).
 # Asosiy savdo botda bo'ladi, Instagram/Facebook — mijoz jalb qiluvchi manba.
-DEFAULT_CTA = ("📲 Narxini bilish va buyurtma berish uchun Telegram botimizga yozing\n"
-               "📲 Узнать цену и заказать — пишите в наш Telegram-бот\n"
-               "📲 For prices and orders, message our Telegram bot\n"
+DEFAULT_CTA = ("📐 Telegram botimizda 1 daqiqada ariza qoldiring — o'lchov BEPUL, menejer o'zi qo'ng'iroq qiladi\n"
+               "📐 Оставьте заявку в нашем Telegram-боте за 1 минуту — замер БЕСПЛАТНО, менеджер сам позвонит\n"
+               "📐 Apply in our Telegram bot in 1 minute — FREE measurement, our manager will call you\n"
                "👉 t.me/{bot}")
+# avvalgi standart matn — bazada shu turgan bo'lsa yangisiga almashtiriladi
+OLD_CTAS = ("📲 Narxini bilish va buyurtma berish uchun Telegram botimizga yozing\n"
+            "📲 Узнать цену и заказать — пишите в наш Telegram-бот\n"
+            "📲 For prices and orders, message our Telegram bot\n"
+            "👉 t.me/{bot}",)
 # Post izohi shu tillarda va shu tartibda chiqadi (admin istalgan tilda yozadi, qolganlari tarjima qilinadi).
 CAPTION_LANGS = (("uz", "🇺🇿"), ("ru", "🇷🇺"), ("en", "🇬🇧"))
 DEFAULT_TAGS = "#isofa #mebel #mebeltoshkent #oshxonamebeli #shkaf #garderob #toshkent #мебель #мебельназаказ #ташкент"
@@ -155,7 +160,7 @@ class SocialStore:
 
     def cta(self) -> str:
         v = self.shop.settings().get("social_cta")
-        return DEFAULT_CTA if v is None else v
+        return DEFAULT_CTA if v is None or v in OLD_CTAS else v
 
     def set_cta(self, s: str) -> str:
         v = (s or "").strip()[:400]
