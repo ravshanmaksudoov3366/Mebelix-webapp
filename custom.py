@@ -753,10 +753,11 @@ def source_text(r: dict) -> str:
 
 
 def lead(r: dict) -> str:
-    """🔥 issiq: shu oy kerak va ta'mir tugagan/ketyapti, o'lchovga rozi. ❄️ sovuq: faqat narx so'raydi."""
+    """🔥 issiq: shu oy kerak va ta'mir tugagan/ketyapti. ❄️ sovuq: faqat narx so'raydi.
+    (O'lchov pullik bo'lsa, rozilik ariza yuborilganda tekshiriladi — bu yerda talab qilinmaydi, o'lchov bepul ham bo'lishi mumkin.)"""
     if r.get("need_when") == "price":
         return "cold"
-    if r.get("need_when") == "month" and r.get("repair") in ("done", "going") and r.get("fee_ok"):
+    if r.get("need_when") == "month" and r.get("repair") in ("done", "going"):
         return "hot"
     return "warm" if r.get("need_when") else ""
 
