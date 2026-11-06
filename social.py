@@ -29,6 +29,8 @@ FB_PAGE_ID = os.getenv("FB_PAGE_ID", "").strip()
 AD_ACCOUNT_ID = os.getenv("AD_ACCOUNT_ID", "443748099027278").strip().removeprefix("act_")
 API_VERSION = os.getenv("META_API_VERSION", "").strip().strip("/")
 GRAPH = "https://graph.facebook.com/" + (API_VERSION + "/" if API_VERSION else "")
+# Ads API eski versiyalarni rad etadi (#2635) — reklama so'rovlari doim aniq versiya bilan boradi.
+ADS_V = "" if API_VERSION else os.getenv("META_ADS_VERSION", "v26.0").strip().strip("/") + "/"
 
 KINDS = {"post": "📸 Post", "story": "⭕ Stories", "both": "📸 Post + ⭕ Stories", "carousel": "🖼 Karusel (bitta post)"}
 STATUS = {"queued": "🗓 navbatda", "posting": "⏳ joylanmoqda", "posted": "✅ joylandi", "failed": "⚠️ xato",
@@ -296,17 +298,17 @@ class Meta:
     async def campaigns(self) -> list:
         """Reklama hisobidagi ishlayotgan (yoki tekshiruvdagi) kampaniyalar. ads_management/ads_read ruxsati kerak."""
         flt = json.dumps(["ACTIVE", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"])
-        d = await self._call("GET", f"act_{AD_ACCOUNT_ID}/campaigns",
+        d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
                              fields="id,name,effective_status,daily_budget,lifetime_budget",
                              effective_status=flt, limit=50)
         return d.get("data") or []
 
     async def campaign_spend(self, cid: str) -> dict:
-        d = await self._call("GET", f"{cid}/insights", fields="spend,impressions,clicks", date_preset="today")
+        d = await self._call("GET", ADS_V + f"{cid}/insights", fields="spend,impressions,clicks", date_preset="today")
         return (d.get("data") or [{}])[0]
 
     async def set_campaign_status(self, cid: str, status: str = "PAUSED") -> None:
-        await self._call("POST", cid, status=status)
+        await self._call("POST", ADS_V + cid, status=status)
 
     async def _ready(self):
         if not self._page_token:
