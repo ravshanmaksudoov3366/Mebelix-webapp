@@ -491,7 +491,7 @@ async def notify_new_order(o: dict):
         return
     msgs = []
     media = {"photos": order_photos(o), "receipt": shop.receipt_path(o)}
-    for aid in NOTIFY_CHATS:
+    for aid in ([lead_chat_id()] if lead_chat_id() else NOTIFY_CHATS):
         try:
             msgs.append(await send_order_to(aid, o, media))
         except TelegramAPIError as e:
@@ -1611,20 +1611,20 @@ async def cmd_lead_group(m: Message):
     arg = ((m.text or "").split(maxsplit=1) + [""])[1].strip().lower()
     if arg in ("off", "0", "ochir", "o'chir"):
         shop.set_setting("lead_chat", "")
-        return await m.answer("✅ Reklama formasidagi raqamlar yana asosiy guruhga tushadi.")
+        return await m.answer("✅ Arizalar yana avvalgi guruh(lar)ga tushadi.")
     if m.chat.type == "private":
         return await m.answer("Bu buyruqni lidlar keladigan <b>guruhning o'zida</b> yozing (botni avval guruhga qo'shing).")
     shop.set_setting("lead_chat", str(m.chat.id))
-    await m.answer("✅ Tayyor! Instagram/Facebook reklama formasidan kelgan telefon raqamlar endi <b>faqat</b> shu guruhga "
-                   "tushadi (boshqa guruh va shaxsiy chatlarga yuborilmaydi).\n"
-                   "Bot va saytdan kelgan arizalar avvalgidek asosiy guruhda qoladi.\n\nQaytarish: /lidguruh off")
+    await m.answer("✅ Tayyor! Endi <b>hamma</b> arizalar — Telegram bot, sayt va Instagram/Facebook reklama formasi — "
+                   "<b>faqat</b> shu guruhga tushadi. Boshqa guruhlarga va shaxsiy chatlarga yuborilmaydi.\n\n"
+                   "Qaytarish: /lidguruh off")
     # hali qo'ng'iroq qilinmagan reklama lidlarini shu guruhga ko'chiramiz
     ids = [row[0] for row in cs.db.execute(
-        "SELECT id FROM custom_requests WHERE meta_lead IS NOT NULL AND meta_lead!='' AND status='new' ORDER BY id")]
+        "SELECT id FROM custom_requests WHERE status='new' ORDER BY id")]
     for rid in ids:
         await notify_custom_new(cs.get(rid))
     if ids:
-        await m.answer(f"📥 Hali qo'ng'iroq qilinmagan {len(ids)} ta reklama lidi shu guruhga yuborildi.")
+        await m.answer(f"📥 Hali qo'ng'iroq qilinmagan {len(ids)} ta ariza shu guruhga yuborildi.")
 
 
 @dp.message(Command("lidlar"))
@@ -1795,7 +1795,7 @@ async def followup_loop():
                 cs.db.commit()
                 await _nudge(r.get("admin_msgs"), text, custom_kb(r), lead_chats(r))
                 # oxirgi eslatma — egasiga shaxsan ham; reklama lidlari uchun alohida guruh bo'lsa — faqat o'sha guruhga
-                if n == len(NUDGE_AFTER) and not (r.get("meta_lead") and lead_chat_id()):
+                if n == len(NUDGE_AFTER) and not lead_chat_id():
                     for aid in ADMIN_IDS:
                         if aid in lead_chats(r):
                             continue
@@ -1813,7 +1813,8 @@ async def followup_loop():
                 shop.db.commit()
                 await _nudge(o.get("admin_msgs"), f"⏰ <b>Buyurtma #{o['id']} {ago}dan beri tasdiqlanmagan!</b>\n"
                              f"👤 {esc(o['name'])} · 📞 {esc(o['phone'])} · {fmt_price(o['total'])}\n"
-                             "Chekni tekshirib, buyurtmani qabul qiling — mijoz kutyapti.")
+                             "Chekni tekshirib, buyurtmani qabul qiling — mijoz kutyapti.",
+                             chats=[lead_chat_id()] if lead_chat_id() else None)
         except Exception:  # noqa: BLE001 — sikl to'xtamasin
             log.exception("followup_loop")
 
@@ -2623,12 +2624,10 @@ def lead_chat_id() -> int:
 
 
 def lead_chats(r: dict) -> list:
-    """Reklama formasidan kelgan lidlar — FAQAT alohida guruhga (/lidguruh bilan tanlanadi): boshqa guruh va
-    adminlarning shaxsiy chatiga yuborilmaydi. Bot/sayt arizalari — asosiy guruhga."""
+    """Lidlar guruhi tanlangan bo'lsa (/lidguruh) — HAMMA arizalar (bot, sayt, Instagram/Facebook formasi)
+    FAQAT o'sha guruhga boradi: boshqa guruh va adminlarning shaxsiy chatiga yuborilmaydi."""
     lc = lead_chat_id()
-    if r.get("meta_lead") and lc:
-        return [lc]
-    return NOTIFY_CHATS
+    return [lc] if lc else NOTIFY_CHATS
 
 
 async def notify_custom_new(r: dict):
