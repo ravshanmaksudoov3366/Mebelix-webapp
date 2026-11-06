@@ -18,6 +18,7 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime, timezone
 
 import aiohttp
 
@@ -296,12 +297,40 @@ class Meta:
         return out
 
     async def campaigns(self) -> list:
-        """Reklama hisobidagi ishlayotgan (yoki tekshiruvdagi) kampaniyalar. ads_management/ads_read ruxsati kerak."""
-        flt = json.dumps(["ACTIVE", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"])
+        """Hozir rostdan ishlayotgan kampaniyalar. ads_management/ads_read ruxsati kerak.
+        Kampaniya darajasidagi effective_status muddati tugaganlarni ham ACTIVE ko'rsatadi,
+        shuning uchun ad set'lar (holati + tugash vaqti) bo'yicha ham tekshiramiz."""
+        live = {"ACTIVE", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"}
+        now = datetime.now(timezone.utc)
+        sets = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/adsets",
+                                fields="campaign_id,effective_status,end_time", limit=500)
+        running = set()
+        for a in sets.get("data") or []:
+            if a.get("effective_status") not in live:
+                continue
+            end = a.get("end_time")
+            if end:
+                try:
+                    if datetime.strptime(end, "%Y-%m-%dT%H:%M:%S%z") <= now:
+                        continue
+                except ValueError:
+                    pass
+            running.add(a.get("campaign_id"))
         d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
-                             fields="id,name,effective_status,daily_budget,lifetime_budget",
-                             effective_status=flt, limit=50)
-        return d.get("data") or []
+                             fields="id,name,effective_status,daily_budget,lifetime_budget,stop_time", limit=500)
+        out = []
+        for c in d.get("data") or []:
+            if c.get("effective_status") not in live or c.get("id") not in running:
+                continue
+            stop = c.get("stop_time")
+            if stop:
+                try:
+                    if datetime.strptime(stop, "%Y-%m-%dT%H:%M:%S%z") <= now:
+                        continue
+                except ValueError:
+                    pass
+            out.append(c)
+        return out
 
     async def campaign_spend(self, cid: str) -> dict:
         d = await self._call("GET", ADS_V + f"{cid}/insights", fields="spend,impressions,clicks", date_preset="today")
