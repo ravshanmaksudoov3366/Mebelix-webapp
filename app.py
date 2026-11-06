@@ -1619,6 +1619,43 @@ async def cmd_lead_group(m: Message):
                    "Bot va saytdan kelgan arizalar avvalgidek asosiy guruhda qoladi.\n\nQaytarish: /lidguruh off")
 
 
+@dp.message(Command("lidlar"))
+async def cmd_leads_check(m: Message):
+    """Admin: reklama formalaridagi lidlarni Meta'dan to'g'ridan-to'g'ri tekshiradi, botda yo'qlarini qo'shadi
+    va oxirgi raqamlarni shu yerning o'zida ko'rsatadi."""
+    if not is_admin(m.from_user.id):
+        return
+    if not soc.configured():
+        return await m.answer("Meta ulanmagan.")
+    wait = await m.answer("⏳ Meta'dan reklama formasi lidlarini tekshiryapman...")
+    try:
+        forms = await meta.leads_report()
+    except soc.MetaError as ex:
+        return await wait.edit_text(f"⚠️ Meta xatosi:\n<code>{esc(str(ex))}</code>")
+    lines, added, rows = [], 0, []
+    for f in forms:
+        lines.append(f"📋 <b>{esc(f.get('name') or f['id'])}</b> — {esc(f.get('status') or '')}, "
+                     f"Meta hisobida: {f.get('leads_count', '?')} ta, olindi: {len(f['leads'])} ta"
+                     + (f"\n   ⚠️ <code>{esc(f['error'])}</code>" if f.get("error") else ""))
+        for ld in f["leads"]:
+            uid = -(WEB_ID_BASE + int.from_bytes(os.urandom(6), "big"))
+            r = cs.create_from_meta(ld, uid)
+            if r:
+                added += 1
+                asyncio.create_task(notify_custom_new(r))
+            fd = {x.get("name"): ", ".join(x.get("values") or []) for x in ld.get("field_data") or []}
+            name = fd.get("full_name") or fd.get("first_name") or "—"
+            phone = fd.get("phone_number") or fd.get("phone") or "—"
+            rows.append((ld.get("created_time") or "", name, phone))
+    rows.sort(reverse=True)
+    out = ["🔎 <b>Reklama formasi lidlari</b>", ""] + (lines or ["Sahifada forma topilmadi."])
+    if rows:
+        out += ["", "<b>Oxirgi raqamlar:</b>"] + [f"• {esc(t[:16].replace('T', ' '))} — {esc(n)} — <code>{esc(ph)}</code>"
+                                                for t, n, ph in rows[:15]]
+    out += ["", f"➕ Botga yangi qo'shildi: {added} ta" if added else "Botda hammasi bor edi (yangi qo'shilmadi)."]
+    await wait.edit_text("\n".join(out))
+
+
 @dp.message(Command("cta"))
 async def cmd_cta(m: Message):
     """Har bir post oxiriga qo'shiladigan Telegram botga chaqiruv matni."""

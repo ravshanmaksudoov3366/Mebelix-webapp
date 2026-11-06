@@ -296,6 +296,23 @@ class Meta:
                 out.append(ld)
         return out
 
+    async def leads_report(self) -> list:
+        """Tekshiruv uchun: har bir forma, uning lidlar soni va oxirgi lidlari (filtrsiz)."""
+        await self._ready()
+        tok = self._page_token or self.token
+        forms = (await self._call("GET", f"{self.page_id}/leadgen_forms", fields="id,name,status,leads_count",
+                                  limit=50, _token=tok)).get("data") or []
+        for f in forms:
+            try:
+                d = await self._call("GET", f"{f['id']}/leads", fields="id,created_time,field_data,ad_name,platform",
+                                     limit=50, _token=tok)
+                f["leads"] = d.get("data") or []
+            except MetaError as ex:
+                f["leads"], f["error"] = [], str(ex)
+            for ld in f["leads"]:
+                ld["form_name"] = f.get("name", "")
+        return forms
+
     async def campaigns(self) -> list:
         """Hozir rostdan ishlayotgan kampaniyalar. ads_management/ads_read ruxsati kerak.
         Kampaniya darajasidagi effective_status muddati tugaganlarni ham ACTIVE ko'rsatadi,
