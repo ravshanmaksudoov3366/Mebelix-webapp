@@ -1646,7 +1646,9 @@ async def cmd_leads_check(m: Message):
             fd = {x.get("name"): ", ".join(x.get("values") or []) for x in ld.get("field_data") or []}
             name = fd.get("full_name") or fd.get("first_name") or "—"
             phone = fd.get("phone_number") or fd.get("phone") or "—"
-            rows.append((ld.get("created_time") or "", name, phone))
+            extra = " | ".join(v.replace("_", " ") for k, v in fd.items()
+                               if v and k not in ("full_name", "first_name", "phone_number", "phone"))
+            rows.append((ld.get("created_time") or "", name, phone + (f" — {extra}" if extra else "")))
     rows.sort(reverse=True)
     out = ["🔎 <b>Reklama formasi lidlari</b>", ""] + (lines or ["Sahifada forma topilmadi."])
     if rows:

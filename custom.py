@@ -608,7 +608,8 @@ class CustomStore:
             phone = normalize_phone(raw_phone)
         except ShopError:
             phone = (raw_phone or "—")[:30]
-        answers = " | ".join(v for v in fields.values() if v)
+        # Meta variantlarni «oshxona_/_кухня» ko'rinishida qaytaradi — o'qiladigan qilamiz
+        answers = " | ".join(v.replace("_", " ").replace("  ", " ") for v in fields.values() if v)
         low = answers.lower()
         kinds = [k for k, words in (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")))
                  if any(w in low for w in words)] or ["other"]
