@@ -322,8 +322,8 @@ class Meta:
         live = {"ACTIVE", "IN_PROCESS", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"}
         now = datetime.now(timezone.utc)
         sets = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/adsets",
-                                fields="campaign_id,effective_status,end_time", limit=500)
-        running = set()
+                                fields="campaign_id,effective_status,end_time,targeting{geo_locations}", limit=500)
+        running, geo = set(), {}
         for a in sets.get("data") or []:
             if a.get("effective_status") not in live:
                 continue
@@ -335,6 +335,12 @@ class Meta:
                 except ValueError:
                     pass
             running.add(a.get("campaign_id"))
+            g = (a.get("targeting") or {}).get("geo_locations") or {}
+            parts = [x.get("name", "") + (f" +{x['radius']} km" if x.get("radius") else "")
+                     for k in ("cities", "regions", "zips", "custom_locations") for x in g.get(k) or []]
+            parts += [c for c in g.get("countries") or []]
+            if parts:
+                geo.setdefault(a.get("campaign_id"), set()).update(p for p in parts if p)
         d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
                              fields="id,name,effective_status,daily_budget,lifetime_budget,stop_time", limit=500)
         out = []
@@ -348,6 +354,7 @@ class Meta:
                         continue
                 except ValueError:
                     pass
+            c["geo"] = ", ".join(sorted(geo.get(c.get("id"), ())))
             out.append(c)
         return out
 

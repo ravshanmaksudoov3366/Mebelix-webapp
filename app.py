@@ -1567,7 +1567,7 @@ def _camp_line(c: dict) -> str:
     b = c.get("daily_budget") or c.get("lifetime_budget")
     budget = f"${int(b) / 100:.0f}" + ("/kun" if c.get("daily_budget") else " (umumiy)") if b else "guruh byudjeti"
     st = {"ACTIVE": "🟢", "IN_PROCESS": "🟡", "WITH_ISSUES": "⚠️", "PENDING_REVIEW": "🕒"}.get(c.get("effective_status"), "•")
-    return f"{st} <b>{esc(c.get('name', ''))}</b> — {budget}"
+    return f"{st} <b>{esc(c.get('name', ''))}</b> — {budget}" + (f"\n    📍 {esc(c['geo'])}" if c.get("geo") else "")
 
 
 @dp.message(Command("reklama"))
