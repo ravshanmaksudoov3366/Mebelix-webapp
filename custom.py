@@ -784,8 +784,15 @@ def visit_text(r: dict, lang: str = "uz") -> str:
 
 
 def source_text(r: dict) -> str:
+    """Ariza qayerdan keldi: kanal (reklama formasi / sayt / Telegram bot) + qaysi manbadan o'tgani (Instagram, Facebook...)."""
     s = r.get("source") or ""
-    return SOURCES.get(s, s)
+    origin = SOURCES.get(s, s)
+    if r.get("meta_lead"):
+        plat = "📸 Instagram" if s == "ig" else ("📘 Facebook" if s == "fb" else "Instagram/Facebook")
+        return f"📣 Reklama formasi · {plat}"
+    if (r.get("user_id") or 0) < 0:
+        return "🌐 Sayt" + (f" ← {origin}" if s and s != "site" else "")
+    return "✈️ Telegram bot" + (f" ← {origin}" if s and s != "tg" else "")
 
 
 def lead(r: dict) -> str:
@@ -832,8 +839,7 @@ def admin_text(r: dict) -> str:
     lines = [f"📐 <b>Individual ariza #{r['id']}</b> — {stage_name(r['status'])}" + (f"\n<b>{ln}</b>" if ln else ""),
              f"🕒 {when}", "",
              f"👤 {e(r['name'])} ({who})", f"📞 {e(r['phone'])}"]
-    if r.get("source"):
-        lines.append(f"📍 Manba: {e(source_text(r))}")
+    lines.append(f"📍 Manba: <b>{e(source_text(r))}</b>")
     place = ", ".join(e(x) for x in (r.get("city"), r.get("address")) if x)
     if place:
         lines.append(f"🏠 {place}")
