@@ -613,6 +613,8 @@ class CustomStore:
         low = answers.lower()
         kinds = [k for k, words in (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")))
                  if any(w in low for w in words)] or ["other"]
+        need_when = ("quarter" if ("1-3" in low or "1–3" in low) else
+                     "month" if any(w in low for w in ("hozir", "срочно", "1 oy", "течение месяца")) else "")
         plat = str(lead.get("platform") or "").lower()
         source = "ig" if plat.startswith("ig") or "instagram" in plat else ("fb" if plat else "ads")
         note = ("📋 Reklama formasi" + (f": {answers}" if answers else "")
@@ -621,9 +623,9 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "kinds,source,meta_lead) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "kinds,source,meta_lead,need_when) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (uid, "", name, phone, "", "", kinds[0], None, "", "{}", 1, "", "", note, "[]", 0, 0, "new",
-             json.dumps([["new", now, "reklama formasi"]]), "uz", now, now, json.dumps(kinds), source, lid))
+             json.dumps([["new", now, "reklama formasi"]]), "uz", now, now, json.dumps(kinds), source, lid, need_when))
         self.db.commit()
         return self.get(cur.lastrowid)
 
