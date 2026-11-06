@@ -1563,6 +1563,45 @@ async def cmd_tags(m: Message):
     await m.answer("✅ Heshteglar saqlandi:\n" + (esc(v) or "— (heshtegsiz)"))
 
 
+def _camp_line(c: dict) -> str:
+    b = c.get("daily_budget") or c.get("lifetime_budget")
+    budget = f"${int(b) / 100:.0f}" + ("/kun" if c.get("daily_budget") else " (umumiy)") if b else "guruh byudjeti"
+    st = {"ACTIVE": "🟢", "IN_PROCESS": "🟡", "WITH_ISSUES": "⚠️", "PENDING_REVIEW": "🕒"}.get(c.get("effective_status"), "•")
+    return f"{st} <b>{esc(c.get('name', ''))}</b> — {budget}"
+
+
+@dp.message(Command("reklama"))
+async def cmd_ads(m: Message):
+    """Ishlayotgan Meta reklamalari ro'yxati va har birini to'xtatish tugmasi (brauzersiz, telefondan)."""
+    if not is_admin(m.from_user.id):
+        return
+    try:
+        camps = await meta.campaigns()
+    except soc.MetaError as e:
+        return await m.answer("⚠️ Reklama hisobiga ulanib bo'lmadi:\n<code>" + esc(str(e)) + "</code>\n\n"
+                              "Meta tokeniga <b>ads_management</b> (va <b>ads_read</b>) ruxsati kerak bo'lishi mumkin.")
+    if not camps:
+        return await m.answer("Hozir ishlayotgan reklama yo'q.")
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=f"⏸ To'xtatish: {c.get('name', '')[:40]}", callback_data=f"adp:{c['id']}")] for c in camps])
+    await m.answer("📣 <b>Ishlayotgan reklamalar:</b>\n\n" + "\n".join(_camp_line(c) for c in camps), reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("adp:"))
+async def cb_ad_pause(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return await c.answer()
+    cid = c.data.split(":", 1)[1]
+    if not cid.isdigit():
+        return await c.answer()
+    try:
+        await meta.set_campaign_status(cid, "PAUSED")
+    except soc.MetaError as e:
+        return await c.answer(("Bo'lmadi: " + str(e))[:190], show_alert=True)
+    await c.answer("⏸ To'xtatildi")
+    await c.message.answer(f"⏸ Kampaniya to'xtatildi (ID {cid}). Ro'yxatni yangilash: /reklama")
+
+
 @dp.message(Command("lidguruh"))
 async def cmd_lead_group(m: Message):
     """Admin yangi guruhda /lidguruh yozadi — reklama formasidan kelgan raqamlar endi shu guruhga tushadi.
