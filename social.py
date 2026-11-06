@@ -297,7 +297,9 @@ class Meta:
         return out
 
     async def leads_report(self) -> list:
-        """Tekshiruv uchun: har bir forma, uning lidlar soni va oxirgi lidlari (filtrsiz)."""
+        """Tekshiruv uchun: har bir forma, uning lidlar soni va oxirgi lidlari (filtrsiz).
+        Sahifa tokeni qayta olinadi — Business Manager'da ruxsatlar o'zgargan bo'lsa, yangisi kuchga kirsin."""
+        self._page_token = ""
         await self._ready()
         tok = self._page_token or self.token
         forms = (await self._call("GET", f"{self.page_id}/leadgen_forms", fields="id,name,status,leads_count",
