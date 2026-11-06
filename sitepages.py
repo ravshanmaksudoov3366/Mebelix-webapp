@@ -81,7 +81,19 @@ T = {
         "warranty": "Kafolat", "wy_n": "{n} yil",
         # --- katalog yopiq paytdagi (faqat o'lchamga buyurtma) matnlar
         "c_eyebrow": "Buyurtma asosida · bepul o'lchov · o'rnatish",
-        "c_title": "Oshxona, shkaf va garderob&nbsp;—<br><em>xonangiz o'lchamida</em>",
+        "c_title": "Har qanday mebel&nbsp;—<br><em>xonangiz o'lchamida</em>",
+        "c_tag_free": "O'lchov — bepul", "c_tag_full": "Uyni to'liq jihozlaymiz", "c_tag_price": "Hamyonbop narxlar",
+        "c_cat_title": "Nimalarni yasaymiz",
+        "c_cat_sub": "Oshxonadan yotoqxonagacha — har qanday mebelni xonangiz o'lchamida va xohishingizga ko'ra yasaymiz.",
+        "c_cat_kitchen": "Oshxonalar", "c_cat_wardrobe": "Shkaf va garderoblar", "c_cat_living": "Mehmonxona va TV devor",
+        "c_cat_bedroom": "Yotoqxona mebeli", "c_cat_go": "Ariza qoldirish",
+        "c_full_title": "Yangi uyingizni to'liq jihozlaymiz",
+        "c_full_text": "Oshxona, shkaf, mehmonxona va yotoqxona — barcha mebelni bitta jamoa, bitta shartnoma bilan tayyorlab, "
+                       "uyingizga o'rnatib beramiz. Narxlar hamyonbop, o'lchov olish bepul.",
+        "c_full_l1": "Bitta shartnoma — barcha xonalar", "c_full_l2": "Kelishilgan muddatda tayyor va o'rnatilgan",
+        "c_full_l3": "Dizaynni birga tanlaymiz",
+        "c_gal_title": "Uslublar va g'oyalar",
+        "c_gal_sub": "Shunga o'xshash yoki butunlay o'zingiz xohlagan dizaynni yasab beramiz. Rasmni bosib kattalashtiring.",
         "c_text": "Premium mebelni buyurtma asosida tayyorlaymiz: usta uyingizga kelib bepul o'lchaydi, dizayn va materialni "
                   "birga tanlaymiz, tayyor mebelni yetkazib, o'rnatib beramiz.",
         "c_cta": "Ariza qoldirish", "c_tg": "Telegram botda buyurtma",
@@ -185,7 +197,19 @@ T = {
         "warranty": "Гарантия", "wy_n": "{n} года",
         # --- каталог скрыт: только мебель на заказ
         "c_eyebrow": "На заказ · бесплатный замер · установка",
-        "c_title": "Кухни, шкафы и гардеробные&nbsp;—<br><em>точно по размерам</em>",
+        "c_title": "Любая мебель&nbsp;—<br><em>точно по размерам</em>",
+        "c_tag_free": "Замер — бесплатно", "c_tag_full": "Обставим весь дом", "c_tag_price": "Доступные цены",
+        "c_cat_title": "Что мы делаем",
+        "c_cat_sub": "От кухни до спальни — любую мебель по размерам вашей комнаты и вашему вкусу.",
+        "c_cat_kitchen": "Кухни", "c_cat_wardrobe": "Шкафы и гардеробные", "c_cat_living": "Гостиная и ТВ-стена",
+        "c_cat_bedroom": "Спальная мебель", "c_cat_go": "Оставить заявку",
+        "c_full_title": "Полностью обставим новую квартиру",
+        "c_full_text": "Кухня, шкафы, гостиная и спальня — всю мебель изготовит и установит одна команда по одному договору. "
+                       "Цены доступные, замер бесплатный.",
+        "c_full_l1": "Один договор — все комнаты", "c_full_l2": "Готово и установлено в оговорённый срок",
+        "c_full_l3": "Дизайн подбираем вместе",
+        "c_gal_title": "Стили и идеи",
+        "c_gal_sub": "Сделаем похожую или полностью вашу мебель. Нажмите на фото, чтобы увеличить.",
         "c_text": "Изготавливаем премиальную мебель на заказ: мастер бесплатно приедет на замер, вместе подберём дизайн и материалы, "
                   "доставим и установим готовую мебель.",
         "c_cta": "Оставить заявку", "c_tg": "Заказать в Telegram-боте",
@@ -520,6 +544,19 @@ def reviews_html(ctx: dict) -> str:
             f'{head}<div class="revs">{cards}</div></div></section>')
 
 
+# Galereya rasmlari (webapp/site/w/<nom>-1200.webp va -640.webp)
+WORKS = [("kitchen-green", "kitchen"), ("living-tv", "living"), ("kitchen-olive", "kitchen"), ("wardrobe-white", "wardrobe"),
+         ("bedroom-cream", "bedroom"), ("kitchen-navy", "kitchen"), ("bed-black", "bedroom"), ("kitchen-walnut", "kitchen"),
+         ("kitchen-grey", "kitchen"), ("bed-rose", "bedroom")]
+CAT_COVER = [("kitchen", "kitchen-grey"), ("wardrobe", "wardrobe-white"), ("living", "living-tv"), ("bedroom", "bed-black")]
+
+
+def wimg(name: str, alt: str, sizes: str = "(max-width: 640px) 100vw, 50vw", eager: bool = False) -> str:
+    load = 'fetchpriority="high"' if eager else 'loading="lazy"'
+    return (f'<img src="/s/w/{name}-1200.webp" srcset="/s/w/{name}-640.webp 640w, /s/w/{name}-1200.webp 1200w" '
+            f'sizes="{sizes}" alt="{e(alt)}" decoding="async" {load}>')
+
+
 def page_home_custom(ctx: dict) -> str:
     """Katalog yopiq paytdagi bosh sahifa: faqat o'lchamga buyurtma. 10% oldindan to'lov bu yerda umuman yo'q —
     u faqat tayyor mebellarga tegishli; buyurtmada narx, muddat va avans shartnomada kelishiladi."""
@@ -554,6 +591,15 @@ def page_home_custom(ctx: dict) -> str:
                      f'<p class="cta-note">{e(tr(lang, "c_cta_note"))}</p>')
     else:
         cta_block = f'<div class="hero-cta"><a class="btn" href="{custom}">{e(tr(lang, "c_cta"))}</a></div>'
+    go = tg_link or custom
+    go_attr = ' target="_blank" rel="noopener"' if tg_link else ""
+    cats_html = "".join(
+        f'<a class="cat-v" href="{go}"{go_attr}>{wimg(img, tr(lang, "c_cat_" + c), "(max-width: 640px) 50vw, 25vw")}'
+        f'<span class="cat-v-t"><b>{e(tr(lang, "c_cat_" + c))}</b><small>{e(tr(lang, "c_cat_go"))} →</small></span></a>'
+        for c, img in CAT_COVER)
+    gal_html = "".join(
+        f'<a class="gal-i" href="/s/w/{n}-1200.webp" data-lb>{wimg(n, tr(lang, "c_cat_" + c), "(max-width: 640px) 50vw, 33vw")}'
+        f'<span>{e(tr(lang, "c_cat_" + c))}</span></a>' for n, c in WORKS)
     tg_band = ""
     if tg_link:
         tg_band = f"""<section class="band"><div class="wrap band-in">
@@ -569,12 +615,35 @@ def page_home_custom(ctx: dict) -> str:
     <p class="lead">{e(tr(lang, 'c_text'))}</p>
     {cta_block}
   </div>
-  <div class="hero-art">{SOFA_ART}<div class="hero-sun"></div></div>
+  <div class="hero-collage n3">
+    <figure class="hero-tile t0">{wimg("living-tv", tr(lang, "c_cat_living"), "(max-width: 900px) 60vw, 30vw", True)}
+      <figcaption class="hero-tag"><span>{e(tr(lang, "c_tag_full"))}</span><b>{e(tr(lang, "c_tag_free"))}</b></figcaption></figure>
+    <figure class="hero-tile t1">{wimg("kitchen-green", tr(lang, "c_cat_kitchen"), "(max-width: 900px) 40vw, 22vw", True)}
+      <figcaption class="hero-tag"><b>{e(tr(lang, "c_cat_kitchen"))}</b></figcaption></figure>
+    <figure class="hero-tile t2">{wimg("wardrobe-white", tr(lang, "c_cat_wardrobe"), "(max-width: 900px) 40vw, 22vw", True)}
+      <figcaption class="hero-tag"><b>{e(tr(lang, "c_tag_price"))}</b></figcaption></figure>
+  </div>
 </div>
 <div class="wrap feats">{feats_html}</div></section>
 
+<section class="sec" id="mebel"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'c_cat_title'))}</h2>
+  <p class="sec-sub">{e(tr(lang, 'c_cat_sub'))}</p>
+  <div class="cats-v">{cats_html}</div></div></section>
+
+<section class="full"><div class="wrap full-in">
+  <div class="full-img">{wimg("kitchen-walnut", tr(lang, "c_cat_kitchen"), "(max-width: 900px) 100vw, 45vw")}</div>
+  <div class="full-txt"><div class="eyebrow">{e(tr(lang, 'c_tag_free'))} · {e(tr(lang, 'c_tag_price'))}</div>
+    <h2>{e(tr(lang, 'c_full_title'))}</h2><p>{e(tr(lang, 'c_full_text'))}</p>
+    <ul class="ticks"><li>{e(tr(lang, 'c_full_l1'))}</li><li>{e(tr(lang, 'c_full_l2'))}</li><li>{e(tr(lang, 'c_full_l3'))}</li></ul>
+    {cta_block}</div>
+</div></section>
+
 <section class="sec how" id="qanday"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'c_how_title'))}</h2><ol class="steps">{steps}</ol>
   <div class="cta-c" style="margin-top:24px">{cta_block}</div></div></section>
+
+<section class="sec" id="galereya"><div class="wrap"><h2 class="sec-t">{e(tr(lang, 'c_gal_title'))}</h2>
+  <p class="sec-sub">{e(tr(lang, 'c_gal_sub'))}</p>
+  <div class="gal">{gal_html}</div></div></section>
 
 {reviews_html(ctx)}
 

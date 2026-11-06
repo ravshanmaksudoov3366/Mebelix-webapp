@@ -194,3 +194,35 @@
 
   paint();
 })();
+
+// Galereya: rasmni kattalashtirib ko'rish (lightbox)
+(function () {
+  const items = [...document.querySelectorAll("a[data-lb]")];
+  if (!items.length) return;
+  const box = document.createElement("div");
+  box.className = "lb";
+  box.innerHTML = '<img alt=""><button class="x" aria-label="Yopish">×</button>' +
+    '<button class="pv" aria-label="Oldingi">‹</button><button class="nx" aria-label="Keyingi">›</button>';
+  document.body.appendChild(box);
+  const img = box.querySelector("img");
+  let i = 0;
+  const show = n => { i = (n + items.length) % items.length; img.src = items[i].href; img.alt = items[i].querySelector("img")?.alt || ""; };
+  const close = () => { box.classList.remove("on"); document.body.style.overflow = ""; };
+  items.forEach((a, n) => a.addEventListener("click", ev => {
+    ev.preventDefault(); show(n); box.classList.add("on"); document.body.style.overflow = "hidden";
+  }));
+  box.querySelector(".x").onclick = close;
+  box.querySelector(".pv").onclick = ev => { ev.stopPropagation(); show(i - 1); };
+  box.querySelector(".nx").onclick = ev => { ev.stopPropagation(); show(i + 1); };
+  box.addEventListener("click", ev => { if (ev.target === box) close(); });
+  let x0 = null;
+  box.addEventListener("touchstart", ev => { x0 = ev.touches[0].clientX; }, { passive: true });
+  box.addEventListener("touchend", ev => {
+    if (x0 === null) return; const dx = ev.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 40) show(i + (dx < 0 ? 1 : -1));
+  });
+  document.addEventListener("keydown", ev => {
+    if (!box.classList.contains("on")) return;
+    if (ev.key === "Escape") close(); else if (ev.key === "ArrowLeft") show(i - 1); else if (ev.key === "ArrowRight") show(i + 1);
+  });
+})();
