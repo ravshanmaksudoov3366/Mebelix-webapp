@@ -66,6 +66,7 @@ from shop import (
     ShopError,
     check_init_data,
     fmt_price,
+    normalize_phone,
     order_text,
 )
 from translate import detect, translate, translate_many
