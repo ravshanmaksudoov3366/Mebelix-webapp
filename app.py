@@ -252,6 +252,9 @@ TX = {
         "nudge": "Assalomu alaykum! 👋 <b>{shop}</b>dan.\n\nOshxona, shkaf yoki garderob kerakmi? Ariza qoldirish "
                  "<b>1 daqiqa</b> oladi: menejer o'zi qo'ng'iroq qiladi, usta uyingizga kelib <b>bepul o'lchaydi</b> "
                  "va narxini aytadi. Hech narsaga majbur emassiz 🙂\n\n👇 Pastdagi tugmani bosing",
+        "revive": "Assalomu alaykum{name}! 👋 <b>{shop}</b>dan.\n\nYaqinda {kind} bo'yicha murojaat qilgan edingiz. "
+                  "Hali ham kerak bo'lsa — usta uyingizga kelib <b>bepul o'lchaydi</b> va aniq narxini aytadi. "
+                  "Hech narsaga majbur emassiz 🙂\n\n👇 Pastdagi tugmani bosing yoki shu yerga yozing",
         "custom_only_hint": "\n\n<b>Ariza qoldirish — atigi 1 daqiqa:</b>\n"
                             "1️⃣ Pastdagi «📐 Ariza qoldirish» tugmasini bosing\n"
                             "2️⃣ Mebel turini tanlang, ism va telefoningizni yozing\n"
@@ -277,6 +280,9 @@ TX = {
         "nudge": "Здравствуйте! 👋 Это <b>{shop}</b>.\n\nНужна кухня, шкаф или гардероб? Заявка занимает "
                  "<b>1 минуту</b>: менеджер сам позвонит, мастер приедет и <b>бесплатно сделает замер</b>, "
                  "назовёт цену. Ни к чему не обязывает 🙂\n\n👇 Нажмите кнопку ниже",
+        "revive": "Здравствуйте{name}! 👋 Это <b>{shop}</b>.\n\nНедавно вы обращались к нам по поводу: {kind}. "
+                  "Если ещё актуально — мастер приедет и <b>бесплатно сделает замер</b>, назовёт точную цену. "
+                  "Ни к чему не обязывает 🙂\n\n👇 Нажмите кнопку ниже или напишите сюда",
         "custom_only_hint": "\n\n<b>Заявка — всего 1 минута:</b>\n"
                             "1️⃣ Нажмите кнопку «📐 Оставить заявку» ниже\n"
                             "2️⃣ Выберите вид мебели, укажите имя и телефон\n"
@@ -1177,6 +1183,55 @@ async def cb_capital_delete(c: CallbackQuery):
     await c.answer()
 
 
+def lost_report_text(ym: str) -> str:
+    a, b = fin.month_range(ym)
+    st = cs.lost_stats(a, b)
+    pct = lambda n, d: f"{round(100 * n / d)}%" if d else "—"  # noqa: E731
+    lines = [f"📉 <b>Arizalar va rad etish sabablari — {fin.month_name(ym)}</b>", "",
+             f"📥 Jami arizalar: <b>{st['total']}</b>" + (f" (reklama formasidan: {st['ads']})" if st["ads"] else ""),
+             f"📏 O'lchovgacha yetdi: <b>{st['measure']}</b> ({pct(st['measure'], st['total'])})",
+             f"📝 Shartnomagacha yetdi: <b>{st['contract']}</b> ({pct(st['contract'], st['total'])})",
+             f"⏳ Hali jarayonda: {st['active']}",
+             f"❌ Rad etildi / bekor: <b>{st['cancelled']}</b>"]
+    if st["reasons"]:
+        lines += ["", "<b>Rad etish sabablari:</b>"]
+        known = sum(st["reasons"].values())
+        for k, n in sorted(st["reasons"].items(), key=lambda x: -x[1]):
+            ad = st["reasons_ads"].get(k, 0)
+            lines.append(f"• {esc(cust.LOST_REASONS.get(k, k))} — <b>{n}</b> ({pct(n, known)})"
+                         + (f", shundan reklamadan {ad}" if ad else ""))
+    if st["no_reason"]:
+        lines.append(f"• Sababi yozilmagan — {st['no_reason']}")
+    top = max(st["reasons"].items(), key=lambda x: x[1])[0] if st["reasons"] else ""
+    tip = {"price": "Ko'pchilik narxdan qaytyapti — reklamada narx oralig'ini ochiq yozish «tomosha qiluvchi» "
+                    "lidlarni kamaytiradi.",
+           "fee": "O'lchov puli to'sqinlik qilyapti — o'lchov bepul ekanini reklama va qo'ng'iroqda aniq ayting.",
+           "later": "Ko'pchilik «keyinroq» deyapti — bot ularga 10 kundan keyin o'zi eslatma yuboradi.",
+           "think": "Ko'pchilik «o'ylab ko'raman» deyapti — bot ularga 10 kundan keyin o'zi eslatma yuboradi.",
+           "other_shop": "Mijozlar boshqa joydan olyapti — tezroq qo'ng'iroq qilish va ishlar rasmlarini "
+                         "yuborish yordam beradi.",
+           "no_request": "Ko'p odam «ariza qoldirmaganman» deyapti — reklama formasiga tasdiqlash savoli qo'shish kerak."
+           }.get(top)
+    if tip and st["cancelled"] >= 3:
+        lines += ["", "💡 " + tip]
+    if not st["total"]:
+        lines.append("\nBu oyda ariza yo'q.")
+    lines.append("\nBoshqa oy: <code>/sabablar 2026-10</code>")
+    return "\n".join(lines)
+
+
+@dp.message(Command("sabablar"))
+async def cmd_lost_reasons(m: Message):
+    """Admin: oy bo'yicha arizalar voronkasi va rad etish sabablari."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = (m.text or "").split(maxsplit=1)[1:] or [""]
+    ym = arg[0].strip() or time.strftime("%Y-%m", time.gmtime(time.time() + 5 * 3600))
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", ym):
+        return await m.answer("Oyni shunday yozing: <code>/sabablar 2026-10</code>")
+    await m.answer(lost_report_text(ym))
+
+
 @dp.message(Command("hisobot"))
 async def cmd_report(m: Message):
     """Admin istalgan joyda, sherik esa sherik guruhida so'rashi mumkin."""
@@ -1777,6 +1832,10 @@ async def followup_loop():
             await remind_callbacks(now)
         except Exception:  # noqa: BLE001
             log.exception("remind_callbacks")
+        try:
+            await revive_lost(now)
+        except Exception:  # noqa: BLE001
+            log.exception("revive_lost")
         try:
             for r in cs.list("new"):
                 if r.get("calls"):  # menejer allaqachon qo'ng'iroq qilgan — «javobsiz» emas
@@ -2666,6 +2725,39 @@ async def remind_callbacks(now: int):
             f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}", custom_kb(r)))
 
 
+REVIVE_PER_RUN = 3  # bir daqiqada ko'pi bilan shuncha — guruh va mijozlarga to'lqin bo'lib tushmasin
+
+
+async def revive_lost(now: int):
+    """«Keyinroq oladi» / «O'ylab ko'radi» deb yopilgan arizalar: 10 kundan keyin bir marta mijozga bot orqali
+    eslatma (Telegram mijozi bo'lsa) va lidlar guruhiga «qayta qo'ng'iroq qiling» xabari."""
+    if shop.settings().get("revive") == "0":
+        return
+    for r in cs.revive_due(now)[:REVIVE_PER_RUN]:
+        cs.mark_revived(r["id"])  # avval belgilaymiz — xato bo'lsa ham ikki marta yozilmasin
+        days = (now - cs.lost_at(r)) // 86400
+        sent_to_client = False
+        if r.get("user_id") and int(r["user_id"]) > 0 and not is_web(r["user_id"]):
+            lang = r.get("lang") or lang_of(r["user_id"])
+            nm = (r.get("name") or "").strip().split(" ")[0]
+            try:
+                await bot.send_message(r["user_id"], tx(lang, "revive", shop=esc(SHOP["name"]),
+                                                        name=(", " + esc(nm)) if nm else "",
+                                                        kind=esc(cust.kinds_name(r, lang).lower())),
+                                       reply_markup=two_doors(lang))
+                sent_to_client = True
+            except TelegramAPIError as e:
+                log.warning("ariza #%s: qayta eslatma mijozga yuborilmadi: %s", r["id"], e)
+        why = cust.LOST_REASONS.get(r.get("lost_reason") or "", "")
+        text = (f"🔁 <b>Qayta urinish — ariza #{r['id']}</b>\n"
+                f"{days} kun oldin «{esc(why)}» deb yopilgan edi.\n"
+                f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}\n\n"
+                + ("✉️ Mijozga botda eslatma yuborildi. " if sent_to_client else "")
+                + "Qo'ng'iroq qilib so'rang: hali kerakmi? Rozi bo'lsa — «🔄 Qayta ochish» ni bosing.")
+        track_custom_extra(r["id"], await _nudge(r.get("admin_msgs"), text, custom_kb(r), lead_chats(r)))
+        log.info("ariza #%s: qayta eslatma (mijozga: %s)", r["id"], sent_to_client)
+
+
 def lead_chat_id() -> int:
     lc = shop.settings().get("lead_chat") or ""
     return int(lc) if lc.lstrip("-").isdigit() else 0
@@ -3544,6 +3636,8 @@ ADMIN_MENU = [
      ("📲 Instagram / Facebook", "cmd_meta", "/meta", "Instagram va Facebook ulanishi")],
     [("🗓 Navbatdagi postlar", "cmd_queue", "/navbat", "Navbatdagi postlar"),
      ("⏰ Post vaqti", "cmd_post_time", "/post_vaqti", "Postlar chiqadigan vaqt")],
+    [("📉 Rad sabablari", "cmd_lost_reasons", "/sabablar", "Arizalar voronkasi va rad etish sabablari (oy bo'yicha)"),
+     ("🔎 Reklama lidlari", "cmd_leads_check", "/lidlar", "Reklama formasidagi lidlarni tekshirish")],
     [("#️⃣ Heshteglar", "cmd_tags", "/heshteg", "Postlardagi heshteglar"),
      ("⭐ Mijozlar fikri", "cmd_reviews", "/fikrlar", "Mijozlar fikrlari")],
     [("🔁 Guruhga qayta yuborish", "cmd_resend_roles", "/guruhga", "Buyurtmani kuryer/yig'uvchilarga qayta yuborish"),

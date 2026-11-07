@@ -196,7 +196,8 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    # qo'ng'iroqlar: [[vaqt, natija, kim, izoh]], qayta qo'ng'iroq vaqti, rad etish sababi
                    "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''",
                    "meta_lead": "TEXT DEFAULT ''",  # Instagram/Facebook ariza formasidagi lid ID (takrorlanmasin)
-                   "meta_crm": "TEXT DEFAULT ''"}  # Meta'ga yuborilgan CRM bosqichlari (vergul bilan)
+                   "meta_crm": "TEXT DEFAULT ''",  # Meta'ga yuborilgan CRM bosqichlari (vergul bilan)
+                   "revived": "INTEGER DEFAULT 0"}  # «keyinroq» degan mijozga qayta eslatma yuborilganmi
 CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
                 "rejected": "❌ Rad etdi"}
 LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",
@@ -204,6 +205,10 @@ LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi"
                 "no_request": "Ariza qoldirmaganman deydi", "other": "Boshqa sabab"}
 # shu sabab bilan yopilgan reklama lidi Meta'ga «sifatsiz lid» deb yuboriladi
 BAD_LEAD_REASONS = ("no_request",)
+# shu sabab bilan yopilgan arizaga REVIVE_AFTER dan keyin bir marta qayta eslatma (mijozga va lidlar guruhiga)
+REVIVE_REASONS = ("later", "think")
+REVIVE_AFTER = 10 * 86400
+REVIVE_MAX_AGE = 45 * 86400  # juda eski arizalarga yozilmaydi
 PRIVATE_FIELDS = ("admin_msgs", "admin_note", "photos", "user_id", "username", "workshop", "workshop_cost",
                   "calls", "callback_at", "lost_reason",
                   "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair")
@@ -701,6 +706,55 @@ class CustomStore:
         rows = self.db.execute("SELECT * FROM custom_requests WHERE callback_at>0 AND callback_at<=? "
                                "AND status NOT IN ('cancelled','done')", (now,)).fetchall()
         return [self._row(x) for x in rows]
+
+    @staticmethod
+    def lost_at(r: dict) -> int:
+        """Ariza bekor qilingan vaqt (oxirgi «cancelled» hodisasi)."""
+        for ev in reversed(r.get("events") or []):
+            if ev and ev[0] == "cancelled" and len(ev) > 1:
+                return int(ev[1] or 0)
+        return int(r.get("updated") or 0)
+
+    def revive_due(self, now: int) -> list:
+        """«Keyinroq oladi» / «O'ylab ko'radi» deb yopilgan, qayta eslatma vaqti kelgan arizalar."""
+        rows = self.db.execute(
+            f"SELECT * FROM custom_requests WHERE status='cancelled' AND revived=0 "
+            f"AND lost_reason IN ({','.join('?' * len(REVIVE_REASONS))})", REVIVE_REASONS).fetchall()
+        out = []
+        for x in rows:
+            r = self._row(x)
+            age = now - self.lost_at(r)
+            if REVIVE_AFTER <= age <= REVIVE_MAX_AGE:
+                out.append(r)
+        return out
+
+    def mark_revived(self, rid: int):
+        self.db.execute("UPDATE custom_requests SET revived=1 WHERE id=?", (rid,))
+        self.db.commit()
+
+    def lost_stats(self, a: int, b: int) -> dict:
+        """[a, b) oralig'ida tushgan arizalar: jami, o'lchovga yetgani, shartnomagacha yetgani, rad sabablari."""
+        rows = [self._row(x) for x in self.db.execute(
+            "SELECT * FROM custom_requests WHERE created>=? AND created<?", (a, b)).fetchall()]
+        reached = lambda r, sts: r["status"] in sts or any(e and e[0] in sts for e in r["events"])  # noqa: E731
+        st = {"total": len(rows), "ads": sum(1 for r in rows if r.get("meta_lead")),
+              "measure": sum(1 for r in rows if reached(r, ("measure", "design", "contract", "production",
+                                                             "ready", "delivered", "done"))),
+              "contract": sum(1 for r in rows if reached(r, ("contract", "production", "ready", "delivered", "done"))),
+              "active": sum(1 for r in rows if r["status"] in ACTIVE),
+              "reasons": {}, "reasons_ads": {}, "no_reason": 0, "cancelled": 0}
+        for r in rows:
+            if r["status"] != "cancelled":
+                continue
+            st["cancelled"] += 1
+            k = r.get("lost_reason") or ""
+            if not k:
+                st["no_reason"] += 1
+                continue
+            st["reasons"][k] = st["reasons"].get(k, 0) + 1
+            if r.get("meta_lead"):
+                st["reasons_ads"][k] = st["reasons_ads"].get(k, 0) + 1
+        return st
 
     def clear_callback(self, rid: int):
         self.db.execute("UPDATE custom_requests SET callback_at=0 WHERE id=?", (rid,))
