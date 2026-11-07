@@ -1625,6 +1625,171 @@ def _camp_line(c: dict) -> str:
     return f"{st} <b>{esc(c.get('name', ''))}</b> — {budget}" + (f"\n    📍 {esc(c['geo'])}" if c.get("geo") else "")
 
 
+# ------------------------------------------------------------------ reklama nazoratchisi
+ADS_WATCH_EVERY = 30 * 60
+# Bugun shuncha $ sarflab, 0 ta lid bergan lid-kampaniya to'xtatiladi (kamida bittasi doim yoqiq qoladi)
+ADS_PAUSE_SPEND = float(os.getenv("ADS_PAUSE_SPEND", "15") or 15)
+ADS_DAILY_LIMIT = 50  # egasi belgilagan kunlik chegara — nazoratchi byudjetni HECH QACHON o'zgartirmaydi
+ADS_REPORT_HOUR = 21  # Toshkent vaqti bilan kechki qisqa hisobot
+LEAD_OBJECTIVES = ("OUTCOME_LEADS", "LEAD_GENERATION")
+ACCOUNT_STATUS = {2: "o'chirilgan (disabled)", 3: "to'lov qarzi bor (unsettled)", 7: "risk tekshiruvida",
+                  8: "to'lov kutilmoqda", 9: "imtiyozli davrda", 100: "yopilish arafasida", 101: "yopilgan",
+                  201: "faol emas", 202: "yopilgan"}
+
+
+def _ads_state() -> dict:
+    try:
+        st = json.loads(shop.settings().get("ads_watch") or "{}")
+    except ValueError:
+        st = {}
+    return st if isinstance(st, dict) else {}
+
+
+async def _ads_alert(st: dict, key: str, text: str):
+    """Bitta ogohlantirish kuniga bir marta (kalit bo'yicha) — egasining telefoniga, shaxsiy chatga."""
+    if key in st.setdefault("sent", []):
+        return
+    st["sent"].append(key)
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError as e:
+            log.warning("reklama ogohlantirishi yuborilmadi %s: %s", aid, e)
+
+
+async def ads_watch_once(now: int):
+    st = _ads_state()
+    today = time.strftime("%Y-%m-%d", time.gmtime(now + 5 * 3600))
+    if st.get("day") != today:
+        st = {"day": today, "sent": [], "running": st.get("running") or {}}
+    try:
+        try:
+            acc = await meta.ad_account_info()
+            code = int(acc.get("account_status") or 1)
+            if code != 1:
+                await _ads_alert(st, f"acc{code}",
+                                 f"🚨 <b>Reklama hisobi ishlamayapti</b> — {ACCOUNT_STATUS.get(code, f'holat {code}')}.\n"
+                                 "Barcha reklamalar to'xtab qolgan bo'lishi mumkin. Ads Manager → «Счета и оплата»ni "
+                                 "tekshiring. (To'lov va kartaga men tegmayman — buni faqat siz qilasiz.)")
+            running = {c["id"]: c.get("name", "") for c in await meta.campaigns()}
+            camps = await meta.campaigns_today()
+        except soc.MetaError as e:
+            await _ads_alert(st, "err", "⚠️ Reklamani tekshirib bo'lmadi (Meta xatosi):\n<code>" + esc(str(e)[:300])
+                             + "</code>\nKeyinroq yana urinaman.")
+            return
+        byid = {c["id"]: c for c in camps}
+        # 1) avval ishlab turgan reklama to'xtab qoldimi
+        for cid, name in (st.get("running") or {}).items():
+            if cid in running:
+                continue
+            c = byid.get(cid) or {}
+            why = {"PAUSED": "qo'lda to'xtatilgan", "CAMPAIGN_PAUSED": "qo'lda to'xtatilgan",
+                   "DISAPPROVED": "Meta rad etgan", "WITH_ISSUES": "muammo bor",
+                   "PENDING_BILLING_INFO": "to'lov ma'lumoti kutilmoqda", "ARCHIVED": "arxivlangan",
+                   "DELETED": "o'chirilgan"}.get(c.get("effective_status") or "", "muddati tugagan yoki to'xtagan")
+            await _ads_alert(st, f"stop{cid}", f"⛔ <b>Reklama to'xtadi:</b> {esc(name)}\nSabab: {why}.\n"
+                             "Qayta yoqish kerak bo'lsa — Ads Manager'da yoqing yoki menga ayting.")
+        if not running:
+            await _ads_alert(st, "none", "🚨 <b>Hozir birorta ham reklama ishlamayapti!</b>\n"
+                             "Yangi lidlar kelmaydi. Ads Manager'da reklamani yoqing yoki menga ayting.")
+        # 2) rad etilgan / muammoli e'lonlar va kampaniyalar
+        try:
+            for a in await meta.rejected_ads():
+                if a.get("campaign_id") in running:
+                    await _ads_alert(st, f"ad{a['id']}{a.get('effective_status')}",
+                                     f"⚠️ <b>E'lon {'rad etildi' if a.get('effective_status') == 'DISAPPROVED' else 'da muammo bor'}:</b> "
+                                     f"{esc(a.get('name', ''))}\nKampaniya: {esc(running.get(a.get('campaign_id'), ''))}\n"
+                                     "Ads Manager'da sababini ko'ring.")
+        except soc.MetaError as e:
+            log.warning("rad etilgan e'lonlarni olib bo'lmadi: %s", e)
+        for cid in running:
+            c = byid.get(cid) or {}
+            if c.get("effective_status") in ("WITH_ISSUES", "PENDING_BILLING_INFO"):
+                await _ads_alert(st, f"iss{cid}", f"⚠️ <b>Kampaniyada muammo:</b> {esc(c.get('name', ''))} "
+                                 f"({c.get('effective_status')}). Ads Manager'da tekshiring.")
+        # 3) $15 sarflab 0 lid — lid kampaniyasini to'xtatish (kamida bittasi yoqiq qoladi)
+        for cid in list(running):
+            c = byid.get(cid) or {}
+            if c.get("spend", 0) <= ADS_PAUSE_SPEND or c.get("leads", 0) > 0:
+                continue
+            if c.get("objective") not in LEAD_OBJECTIVES:
+                await _ads_alert(st, f"waste{cid}", f"👀 <b>{esc(c.get('name', ''))}</b>: bugun ${c['spend']:.2f} "
+                                 "sarflandi, Meta hisobida lid yo'q. Bu kampaniya botga/saytga yo'naltiradi, shuning uchun "
+                                 "o'zim to'xtatmadim — guruhga ariza tushyaptimi, qarab qo'ying.")
+                continue
+            if len(running) <= 1:
+                await _ads_alert(st, f"last{cid}", f"👀 <b>{esc(c.get('name', ''))}</b>: bugun ${c['spend']:.2f} sarflandi, "
+                                 "lid yo'q. Bu yagona ishlayotgan reklama — shuning uchun to'xtatmadim.")
+                continue
+            try:
+                await meta.set_campaign_status(cid, "PAUSED")
+            except soc.MetaError as e:
+                await _ads_alert(st, f"pfail{cid}", f"⚠️ {esc(c.get('name', ''))} ni to'xtatib bo'lmadi: <code>{esc(str(e)[:200])}</code>")
+                continue
+            log.info("reklama nazoratchisi: %s to'xtatildi ($%.2f, 0 lid)", cid, c["spend"])
+            running.pop(cid, None)
+            await _ads_alert(st, f"paused{cid}", f"⏸ <b>To'xtatdim:</b> {esc(c.get('name', ''))}\n"
+                             f"Bugun ${c['spend']:.2f} sarfladi, birorta ham lid bermadi (qoida: ${ADS_PAUSE_SPEND:.0f} va 0 lid).\n"
+                             f"Qolgan ishlayotgan reklamalar: {len(running)} ta. Qayta yoqish: Ads Manager.")
+        st["running"] = running
+        # 4) kechki qisqa hisobot
+        hour = time.gmtime(now + 5 * 3600).tm_hour
+        if hour >= ADS_REPORT_HOUR and "report" not in st["sent"]:
+            lines = [f"📣 <b>Reklama — bugun ({cust.fmt_date(today)})</b>", ""]
+            total = 0.0
+            for cid, name in running.items():
+                c = byid.get(cid) or {}
+                total += c.get("spend", 0)
+                lines.append(f"🟢 {esc(name)} — ${c.get('spend', 0):.2f}, lid: {c.get('leads', 0)}")
+            for c in camps:
+                if c["id"] not in running and c.get("spend", 0) > 0:
+                    total += c["spend"]
+                    lines.append(f"⏸ {esc(c.get('name', ''))} — ${c['spend']:.2f}, lid: {c.get('leads', 0)}")
+            if len(lines) == 2:
+                lines.append("Bugun reklama ishlamadi.")
+            lines += ["", f"💵 Jami: <b>${total:.2f}</b> (chegara ${ADS_DAILY_LIMIT}/kun)",
+                      "Guruhga tushgan arizalar soni — /sabablar"]
+            await _ads_alert(st, "report", "\n".join(lines))
+    finally:
+        shop.set_setting("ads_watch", json.dumps(st, ensure_ascii=False))
+
+
+async def ads_watch_loop():
+    """Reklama nazoratchisi: har 30 daqiqada (kechasi ham) hisob holati, to'xtab qolgan va rad etilgan reklamalar,
+    «$15 va 0 lid» qoidasi, kechki hisobot. Byudjet, to'lov va kartaga hech qachon tegmaydi."""
+    await asyncio.sleep(90)
+    while True:
+        try:
+            if soc.configured() and shop.settings().get("ads_watch_on", "1") != "0":
+                await ads_watch_once(int(time.time()))
+        except Exception:  # noqa: BLE001 — sikl to'xtamasin
+            log.exception("ads_watch_loop")
+        await asyncio.sleep(ADS_WATCH_EVERY)
+
+
+@dp.message(Command("nazorat"))
+async def cmd_ads_watch(m: Message):
+    """Admin: reklama nazoratchisini yoqish/o'chirish va hozir tekshirish."""
+    if not is_admin(m.from_user.id):
+        return
+    arg = ((m.text or "").split(maxsplit=1)[1:] or [""])[0].strip().lower()
+    if arg in ("off", "o'chir", "ochir"):
+        shop.set_setting("ads_watch_on", "0")
+        return await m.answer("⏹ Reklama nazoratchisi o'chirildi. Yoqish: <code>/nazorat on</code>")
+    if arg in ("on", "yoq"):
+        shop.set_setting("ads_watch_on", "1")
+    await m.answer("⏳ Reklamani tekshiryapman...")
+    st = _ads_state()
+    st["sent"] = [k for k in st.get("sent", []) if k != "report"]
+    shop.set_setting("ads_watch", json.dumps(st, ensure_ascii=False))
+    await ads_watch_once(int(time.time()))
+    on = shop.settings().get("ads_watch_on", "1") != "0"
+    await m.answer(("🟢 Nazoratchi yoqiq" if on else "⏹ Nazoratchi o'chiq")
+                   + f": har 30 daqiqada tekshiradi; lid kampaniyasi bugun ${ADS_PAUSE_SPEND:.0f} sarflab 0 lid bersa "
+                   "to'xtatadi (kamida bittasi yoqiq qoladi); byudjet va to'lovga tegmaydi.\n"
+                   "Ishlayotgan reklamalar: /reklama")
+
+
 @dp.message(Command("reklama"))
 async def cmd_ads(m: Message):
     """Ishlayotgan Meta reklamalari ro'yxati va har birini to'xtatish tugmasi (brauzersiz, telefondan)."""
@@ -3638,6 +3803,8 @@ ADMIN_MENU = [
      ("⏰ Post vaqti", "cmd_post_time", "/post_vaqti", "Postlar chiqadigan vaqt")],
     [("📉 Rad sabablari", "cmd_lost_reasons", "/sabablar", "Arizalar voronkasi va rad etish sabablari (oy bo'yicha)"),
      ("🔎 Reklama lidlari", "cmd_leads_check", "/lidlar", "Reklama formasidagi lidlarni tekshirish")],
+    [("📣 Reklamalar", "cmd_ads", "/reklama", "Ishlayotgan reklamalar va to'xtatish"),
+     ("🛡 Reklama nazorati", "cmd_ads_watch", "/nazorat", "Reklamani hozir tekshirish; /nazorat off — o'chirish")],
     [("#️⃣ Heshteglar", "cmd_tags", "/heshteg", "Postlardagi heshteglar"),
      ("⭐ Mijozlar fikri", "cmd_reviews", "/fikrlar", "Mijozlar fikrlari")],
     [("🔁 Guruhga qayta yuborish", "cmd_resend_roles", "/guruhga", "Buyurtmani kuryer/yig'uvchilarga qayta yuborish"),
@@ -4054,6 +4221,7 @@ async def main():
         app_tasks.append(asyncio.create_task(social_loop()))
         app_tasks.append(asyncio.create_task(meta_leads_loop()))
         app_tasks.append(asyncio.create_task(followup_loop()))
+        app_tasks.append(asyncio.create_task(ads_watch_loop()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")

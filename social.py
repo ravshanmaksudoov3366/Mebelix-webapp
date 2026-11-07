@@ -61,6 +61,23 @@ CREATE TABLE IF NOT EXISTS social_posts (
 """
 
 
+LEAD_ACTIONS = ("lead", "leadgen_grouped", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead",
+                "onsite_web_lead", "onsite_conversion.messaging_conversation_started_7d")
+
+
+def count_leads(actions) -> int:
+    """Insights «actions» ro'yxatidan lidlar soni (forma, sayt lid, yozishma boshlash). Bir xil lid bir nechta
+    turda takrorlanishi mumkin — eng kattasini olamiz."""
+    best = 0
+    for a in actions or []:
+        if a.get("action_type") in LEAD_ACTIONS:
+            try:
+                best = max(best, int(float(a.get("value") or 0)))
+            except ValueError:
+                pass
+    return best
+
+
 class MetaError(Exception):
     pass
 
@@ -357,6 +374,37 @@ class Meta:
             c["geo"] = ", ".join(sorted(geo.get(c.get("id"), ())))
             out.append(c)
         return out
+
+    async def ad_account_info(self) -> dict:
+        """Reklama hisobi holati: account_status 1 — faol; boshqasi — to'lov/bloklash muammosi."""
+        return await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}",
+                                fields="name,account_status,disable_reason,currency")
+
+    async def campaigns_today(self) -> list:
+        """Barcha kampaniyalar (holati, maqsadi, byudjeti) + bugungi xarajat va lidlar soni."""
+        d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
+                             fields="id,name,status,effective_status,objective,daily_budget,lifetime_budget,stop_time",
+                             limit=500)
+        camps = {c["id"]: c for c in d.get("data") or []}
+        ins = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/insights", level="campaign", date_preset="today",
+                               fields="campaign_id,spend,actions", limit=500)
+        for row in ins.get("data") or []:
+            c = camps.get(row.get("campaign_id"))
+            if not c:
+                continue
+            c["spend"] = float(row.get("spend") or 0)
+            c["leads"] = count_leads(row.get("actions"))
+        for c in camps.values():
+            c.setdefault("spend", 0.0)
+            c.setdefault("leads", 0)
+        return list(camps.values())
+
+    async def rejected_ads(self) -> list:
+        """Rad etilgan yoki muammoli e'lonlar (faqat yoqilgan kampaniyalarda)."""
+        d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/ads", limit=200,
+                             fields="id,name,campaign_id,status,effective_status",
+                             effective_status=json.dumps(["DISAPPROVED", "WITH_ISSUES"]))
+        return [a for a in d.get("data") or [] if a.get("status") == "ACTIVE"]
 
     async def campaign_spend(self, cid: str) -> dict:
         d = await self._call("GET", ADS_V + f"{cid}/insights", fields="spend,impressions,clicks", date_preset="today")
