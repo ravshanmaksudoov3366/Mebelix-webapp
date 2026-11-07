@@ -1928,7 +1928,7 @@ FIX_BOOST_CAMP = "52543573021850"       # egasi yoqqan Instagram reklama («Ху
 BOT_LINK = "https://t.me/isofauz_bot?start=ads"
 FEED_PLACEMENTS = {"publisher_platforms": ["facebook", "instagram"],
                    "facebook_positions": ["feed", "story", "facebook_reels"],
-                   "instagram_positions": ["stream", "story", "reels", "explore"]}
+                   "instagram_positions": ["stream", "story", "reels"]}
 LEAD_FORM_V3 = {
     "name": "iSofa — Bepul o'lchov v3 (tuman bilan)",
     "locale": "ru_RU",
@@ -1983,6 +1983,96 @@ async def _video_creative(post_id: str, name: str, cta: dict) -> str:
     if meta._ig_id:
         spec["instagram_user_id"] = meta._ig_id
     return (await meta.ads_post(f"act_{soc.AD_ACCOUNT_ID}/adcreatives", name=name[:90], object_story_spec=spec))["id"]
+
+
+async def ads_fix_retry():
+    """2-urinish: lid reklamasi joylashuvi va Instagram obuna reklamasi (1-urinishda «explore» sababli o'tmagan)."""
+    await asyncio.sleep(45)
+    if not soc.configured() or shop.settings().get("ads_fix2") == "1":
+        return
+    shop.set_setting("ads_fix2", "1")
+    rep, paused = [], {}
+    A = f"act_{soc.AD_ACCOUNT_ID}/"
+    try:
+        await meta._ready()
+        aset = await meta.ads_get(FIX_LEAD_ADSET, fields="targeting")
+        geo = (aset.get("targeting") or {}).get("geo_locations") or {"countries": ["UZ"]}
+        geo = {k: v for k, v in geo.items() if k in ("regions", "cities", "countries", "location_types")}
+        try:
+            await meta.ads_post(FIX_LEAD_ADSET, targeting=await _fix_targeting(aset.get("targeting"), None))
+            rep.append("✅ Lid reklamasi: Audience Network va Messenger o'chirildi — endi faqat Instagram/Facebook "
+                       "lentasi, stories va reels; yosh 25–60 (avtomatik kengaytirish o'chiq), Toshkent")
+        except soc.MetaError as e:
+            rep.append(f"⚠️ Lid reklamasi joylashuvini o'zgartirib bo'lmadi: {esc(str(e)[:200])}")
+        new_camp = ""
+        try:
+            oc = await meta.ads_get(FIX_BOOST_CAMP, fields="daily_budget,effective_status")
+            budget = int(oc.get("daily_budget") or 0)
+            oads = (await meta.ads_get(FIX_BOOST_CAMP + "/ads", fields="creative{effective_instagram_media_id}",
+                                       limit=10)).get("data") or []
+            media = next(((a.get("creative") or {}).get("effective_instagram_media_id") for a in oads
+                          if (a.get("creative") or {}).get("effective_instagram_media_id")), "")
+            if not budget or not media or not meta._ig_id:
+                raise soc.MetaError(f"ma'lumot yetarli emas (byudjet={budget}, post={bool(media)})")
+            tgt = await _fix_targeting({}, geo, (18, 55), {"publisher_platforms": ["instagram"],
+                                                           "instagram_positions": ["stream", "story", "reels",
+                                                                                   "profile_feed"]})
+            new_camp = (await meta.ads_post(A + "campaigns", name="iSofa — Instagram obuna (profilga tashrif)",
+                                            objective="OUTCOME_TRAFFIC", status="ACTIVE", special_ad_categories=[],
+                                            is_adset_budget_sharing_enabled="false"))["id"]
+            new_set, last = "", None
+            for goal in ("VISIT_INSTAGRAM_PROFILE", "PROFILE_VISIT"):
+                try:
+                    new_set = (await meta.ads_post(A + "adsets", name="Instagram profil — obuna", campaign_id=new_camp,
+                                                   daily_budget=budget, billing_event="IMPRESSIONS",
+                                                   optimization_goal=goal, destination_type="INSTAGRAM_PROFILE",
+                                                   bid_strategy="LOWEST_COST_WITHOUT_CAP", targeting=tgt,
+                                                   status="ACTIVE"))["id"]
+                    break
+                except soc.MetaError as e:
+                    last = e
+                    log.warning("ADSFIX2 adset %s: %s", goal, e)
+            if not new_set:
+                raise last or soc.MetaError("ad set yaratilmadi")
+            cr, last = "", None
+            for extra in ({"call_to_action": {"type": "VIEW_INSTAGRAM_PROFILE",
+                                              "value": {"link": f"https://www.instagram.com/{meta.ig_username}/"}}}, {}):
+                try:
+                    cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Instagram obuna",
+                                              instagram_user_id=meta._ig_id, source_instagram_media_id=media,
+                                              **extra))["id"]
+                    break
+                except soc.MetaError as e:
+                    last = e
+                    log.warning("ADSFIX2 creative: %s", e)
+            if not cr:
+                raise last
+            await meta.ads_post(A + "ads", name="Instagram obuna — post", adset_id=new_set,
+                                creative={"creative_id": cr}, status="ACTIVE")
+            await meta.ads_post(FIX_BOOST_CAMP, status="PAUSED")
+            paused[FIX_BOOST_CAMP] = 1
+            rep.append(f"✅ Siz yoqqan reklama endi Instagram profilingizga (obuna) yo'naltirildi — o'sha post, "
+                       f"o'sha byudjet ${budget / 100:.0f}/kun, faqat Instagram, Toshkent. Eskisi to'xtatildi")
+        except soc.MetaError as e:
+            log.warning("ADSFIX2 C: %s", e)
+            if new_camp:
+                try:
+                    await meta.ads_post(new_camp, status="PAUSED")
+                except soc.MetaError:
+                    pass
+            rep.append(f"⚠️ Instagram obuna reklamasi yaratilmadi (eskisi ishlashda davom etadi): {esc(str(e)[:200])}")
+    except Exception as e:  # noqa: BLE001
+        log.exception("ADSFIX2")
+        rep.append(f"⚠️ Kutilmagan xato: {esc(str(e)[:200])}")
+    st = _ads_state()
+    st.setdefault("paused_by_watch", {}).update({k: int(time.time()) for k in paused})
+    shop.set_setting("ads_watch", json.dumps(st, ensure_ascii=False))
+    log.info("ADSFIX2 natija: %s", " || ".join(rep))
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, "🛠 <b>Reklama sozlamalari</b>\n\n" + "\n\n".join(rep))
+        except TelegramAPIError:
+            pass
 
 
 async def ads_fix_once():
@@ -2088,7 +2178,7 @@ async def ads_fix_once():
                                             is_adset_budget_sharing_enabled="false"))["id"]
             tgt = await _fix_targeting({}, geo or {"countries": ["UZ"]}, (18, 55),
                                        {"publisher_platforms": ["instagram"],
-                                        "instagram_positions": ["stream", "story", "reels", "explore", "profile_feed"]})
+                                        "instagram_positions": ["stream", "story", "reels", "profile_feed"]})
             new_set, last = "", None
             for goal in ("VISIT_INSTAGRAM_PROFILE", "PROFILE_VISIT"):
                 try:
@@ -4670,7 +4760,7 @@ async def main():
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
-        app_tasks.append(asyncio.create_task(ads_fix_once()))
+        app_tasks.append(asyncio.create_task(ads_fix_retry()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
