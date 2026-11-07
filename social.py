@@ -365,6 +365,15 @@ class Meta:
     async def set_campaign_status(self, cid: str, status: str = "PAUSED") -> None:
         await self._call("POST", ADS_V + cid, status=status)
 
+    async def mark_lead_stage(self, pixel_id: str, lead_id: str, stage: str) -> dict:
+        """Reklama formasi lidining holatini Meta'ga yuboradi (Conversions API — CRM / «Конверсионные лиды»).
+        Meta shu bilan lid sifatini o'rganadi: sifatsiz deb belgilanganlarga o'xshash odamlarga reklama kamroq chiqadi.
+        Tokenga Pixel (dataset) ustidan ruxsat kerak."""
+        ev = [{"event_name": stage, "event_time": int(time.time()), "action_source": "system_generated",
+               "user_data": {"lead_id": int(lead_id)},
+               "custom_data": {"event_source": "crm", "lead_event_source": "iSofa bot"}}]
+        return await self._call("POST", ADS_V + f"{pixel_id}/events", data=json.dumps(ev))
+
     async def _ready(self):
         if not self._page_token:
             await self.connect()

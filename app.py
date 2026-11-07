@@ -2560,6 +2560,23 @@ def custom_kb(r: dict, mode: str = "") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+BAD_LEAD_STAGE = os.getenv("META_BAD_LEAD_STAGE", "Disqualified").strip() or "Disqualified"
+
+
+async def report_bad_lead(r: dict) -> str:
+    """«Ariza qoldirmaganman» — reklama lidini Meta'ga sifatsiz deb yuboradi. Natija matnini qaytaradi."""
+    pixel = SHOP["pixel"]
+    if not (soc.configured() and pixel):
+        return "⚠️ Meta'ga yuborilmadi: META_TOKEN yoki META_PIXEL_ID yo'q. Ads Manager → Центр лидов'da qo'lda «Не квалифицирован» qiling."
+    try:
+        await asyncio.wait_for(meta.mark_lead_stage(pixel, r["meta_lead"], BAD_LEAD_STAGE), 12)
+        log.info("lid #%s Meta'ga sifatsiz deb yuborildi (meta_lead=%s)", r["id"], r["meta_lead"])
+        return "📉 Meta'ga «sifatsiz lid» deb yuborildi — bunday odamlarga reklama kamroq chiqadi."
+    except (soc.MetaError, asyncio.TimeoutError, aiohttp.ClientError, ValueError) as e:
+        log.warning("lid #%s Meta'ga yuborilmadi: %s", r["id"], e)
+        return f"⚠️ Meta'ga yuborilmadi ({str(e)[:120]}). Ads Manager → Центр лидов'da qo'lda «Не квалифицирован» qiling."
+
+
 def callback_time(code: str, now: int = 0) -> int:
     now = now or int(time.time())
     day0 = (now + 5 * 3600) // 86400 * 86400 - 5 * 3600
@@ -2594,12 +2611,14 @@ async def cb_custom_call(c: CallbackQuery):
         elif act == "rj":
             r = cs.log_call(rid, "rejected", who, reason=parts[3])
             note = f"❌ Ariza yopildi: {cust.LOST_REASONS.get(parts[3], '')}"
+            if parts[3] in cust.BAD_LEAD_REASONS and r.get("meta_lead"):
+                note += "\n" + await report_bad_lead(r)
         else:
             return await c.answer()
     except ShopError as e:
         return await c.answer(str(e), show_alert=True)
     await refresh_custom_messages(r)
-    await c.answer(note, show_alert=False)
+    await c.answer(note[:200], show_alert="Meta" in note)
 
 
 async def api_admin_custom_call(request):
@@ -2608,6 +2627,8 @@ async def api_admin_custom_call(request):
     at = cust.parse_local_dt(data.get("at") or "") or callback_time(data.get("preset") or "")
     r = cs.log_call(int(request.match_info["id"]), data.get("result", ""), f"admin: {u.get('first_name', '')}",
                     callback_at=at, reason=data.get("reason") or "")
+    if data.get("result") == "rejected" and data.get("reason") in cust.BAD_LEAD_REASONS and r.get("meta_lead"):
+        asyncio.create_task(report_bad_lead(r))
     asyncio.create_task(refresh_custom_messages(r))
     return web.json_response({"request": custom_admin(r)})
 

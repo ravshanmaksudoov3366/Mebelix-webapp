@@ -199,7 +199,10 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
 CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
                 "rejected": "❌ Rad etdi"}
 LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",
-                "other_shop": "Boshqa joydan oldi", "think": "O'ylab ko'radi", "other": "Boshqa sabab"}
+                "other_shop": "Boshqa joydan oldi", "think": "O'ylab ko'radi",
+                "no_request": "Ariza qoldirmaganman deydi", "other": "Boshqa sabab"}
+# shu sabab bilan yopilgan reklama lidi Meta'ga «sifatsiz lid» deb yuboriladi
+BAD_LEAD_REASONS = ("no_request",)
 PRIVATE_FIELDS = ("admin_msgs", "admin_note", "photos", "user_id", "username", "workshop", "workshop_cost",
                   "calls", "callback_at", "lost_reason",
                   "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair")
