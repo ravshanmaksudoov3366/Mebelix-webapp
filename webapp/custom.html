@@ -944,6 +944,9 @@ function adminDetail(r) {
         ${S.adm.callMode === "rej" ? `<div class="chiprow" style="margin-top:10px">${Object.entries(LOST).map(([k, n]) =>
           `<button class="kchip" onclick="logCall(${r.id}, 'rejected', '', '${k}')">${n}</button>`).join("")}</div>` : ""}` : ""}
     </div>` : ""}
+    <div class="section"><b>📍 Mijoz manzili</b>
+      <input class="in" id="aAddr" value="${esc(r.address || "")}" placeholder="Tuman, ko'cha, uy, mo'ljal" style="margin-top:8px">
+      ${r.city ? `<div class="unit-hint">Shahar: ${esc(r.city)}</div>` : ""}</div>
     <div class="section"><b>👷 Usta va o'lchov</b>
       <label class="f">Usta</label><select class="in" id="aMaster"><option value="">— tanlanmagan —</option>
         ${[...new Set([...(S.adm.masters || []), r.master].filter(Boolean))].map(m => `<option ${m === r.master ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>
@@ -957,12 +960,39 @@ function adminDetail(r) {
       <label class="f">Ustaxonaga to'lanadigan narx</label><input class="in" inputmode="numeric" id="aWsCost" value="${r.workshop_cost || ""}" oninput="updProfit()">
       <div class="unit-hint" id="profitBox">${profitText(r.price, r.workshop_cost)}</div></div>
     <div class="section"><b>Narx va muddat</b>
-      <div class="grid2"><div><label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}" oninput="updProfit()"></div>
-      <div><label class="f">Oldindan to'lov</label><input class="in" inputmode="numeric" id="aPrepay" value="${r.prepay || ""}"></div></div>
+      <label class="f">Kelishilgan narx</label><input class="in" inputmode="numeric" id="aPrice" value="${r.price || ""}" oninput="updProfit()">
+      <div class="unit-hint">To'lovlar pastdagi «💵 To'lovlar» bo'limida kiritiladi.</div>
       <label class="f">Tayyor bo'lish sanasi</label><input class="in" type="date" id="aReady" value="${esc(r.ready_date || "")}">
       ${r.due && !r.ready_date ? `<div class="unit-hint">Oldin yozilgan: ${esc(r.due)}</div>` : ""}
       <label class="f">Ichki izoh (mijoz ko'rmaydi)</label><textarea class="in" id="aNote">${esc(r.admin_note)}</textarea>
-      <button class="btn" style="width:100%;margin-top:12px" onclick="saveReq(${r.id})">Saqlash</button></div>`;
+      <button class="btn" style="width:100%;margin-top:12px" onclick="saveReq(${r.id})">Saqlash</button></div>
+    ${paymentsHTML(r)}`;
+}
+function paymentsHTML(r) {
+  const pv = r.payments_view || [], paid = pv.reduce((a, x) => a + x.amount, 0), left = Math.max((r.price || 0) - paid, 0);
+  return `<div class="section"><b>💵 To'lovlar</b>
+      ${pv.length ? pv.map(x => `<div class="sum-row"><span>${esc(x.at)}${x.note ? "\n" + esc(x.note) : ""}</span><span>${money(x.amount)} <button class="kchip" style="margin-left:6px" onclick="delPay(${r.id}, ${x.i})">🗑</button></span></div>`).join("")
+        : `<div class="small muted" style="margin-top:6px">Hali to'lov kiritilmagan.</div>`}
+      <div class="sum-row"><span><b>Jami to'langan</b></span><span><b>${money(paid)}</b></span></div>
+      ${r.price ? `<div class="sum-row"><span>Qoldiq</span><span><b>${money(left)}</b></span></div>` : ""}
+      ${!r.price || left > 0 ? `<div class="grid2" style="margin-top:10px"><div><label class="f">Summa</label><input class="in" inputmode="numeric" id="pAmt" placeholder="${left || ""}"></div>
+      <div><label class="f">Sana</label><input class="in" type="date" id="pDate" value="${todayTk()}"></div></div>
+      <label class="f">Izoh</label><input class="in" id="pNote" placeholder="Masalan: 2-avans, naqd / karta">
+      <button class="btn" style="width:100%;margin-top:12px" id="pBtn" onclick="addPay(${r.id})">➕ To'lov qo'shish</button>` : `<div class="unit-hint">✅ To'liq to'langan.</div>`}</div>`;
+}
+async function addPay(id) {
+  const amt = $("#pAmt").value.trim();
+  if (!amt) return alertBox("To'lov summasini kiriting");
+  const b = $("#pBtn"); b.disabled = true;
+  try { const { request } = await api(`/api/admin/custom/${id}/payment`, { json: { amount: amt, date: $("#pDate").value, note: $("#pNote").value.trim() } });
+    notifyH("success"); toast("✓ To'lov qo'shildi"); replaceReq(request); }
+  catch (e) { alertBox(e.message); b.disabled = false; }
+}
+async function delPay(id, i) {
+  const ok = await new Promise(res => (IN_TG && tg.showConfirm) ? tg.showConfirm("Bu to'lovni o'chirasizmi?", res) : res(confirm("Bu to'lovni o'chirasizmi?")));
+  if (!ok) return;
+  try { const { request } = await api(`/api/admin/custom/${id}/payment/${i}/delete`, { method: "POST" }); toast("O'chirildi"); replaceReq(request); }
+  catch (e) { alertBox(e.message); }
 }
 /* o'zimiz topgan mijozga qilingan sotuv */
 function todayTk() { return new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10); }
@@ -973,6 +1003,7 @@ function saleHTML() {
       <p class="small muted" style="margin:6px 0 0">Ko'cha, tanish yoki qo'ng'iroq orqali topilgan mijoz. Ariza lidlar guruhiga tushadi, mijozga xabar yuborilmaydi.</p>
       <label class="f">Mijoz ismi *</label><input class="in" id="sName" placeholder="Akmal">
       <label class="f">Telefon raqami *</label><input class="in" type="tel" inputmode="tel" id="sPhone" placeholder="+998 90 123 45 67">
+      <label class="f">Mijoz manzili</label><input class="in" id="sAddr" placeholder="Tuman, ko'cha, uy, mo'ljal">
       <label class="f">Qaysi mebel *</label><select class="in" id="sKind">${ks.map(k => `<option value="${esc(k.id)}">${esc((k.icon || "") + " " + k.uz)}</option>`).join("")}</select>
       <div class="grid2"><div><label class="f">Qanchaga sotildi (so'm) *</label><input class="in" inputmode="numeric" id="sPrice" placeholder="12000000" oninput="saleHint()"></div>
       <div><label class="f">Olingan avans (so'm)</label><input class="in" inputmode="numeric" id="sPrepay" placeholder="0" oninput="saleHint()"></div></div>
@@ -993,7 +1024,7 @@ async function saveSale() {
   const b = $("#sBtn"); b.disabled = true;
   try {
     const { request } = await api("/api/admin/custom/manual", { json: { name: v("#sName"), phone: v("#sPhone"), kind: v("#sKind"),
-      price: v("#sPrice"), prepay: v("#sPrepay"), sale_date: v("#sDate"), ready_date: v("#sReady"), status: v("#sStatus"), note: v("#sNote") } });
+      price: v("#sPrice"), prepay: v("#sPrepay"), address: v("#sAddr"), sale_date: v("#sDate"), ready_date: v("#sReady"), status: v("#sStatus"), note: v("#sNote") } });
     notifyH("success"); toast(`✓ Sotuv #${request.id} saqlandi`);
     S.adm.tab = "list"; S.adm.status = "active"; S.adm.list = null; refresh(); await loadAdmin(); openReq(request.id);
   } catch (e) { alertBox(e.message); b.disabled = false; }
@@ -1016,7 +1047,7 @@ async function setStage(id, s) {
   catch (e) { alertBox(e.message); }
 }
 async function saveReq(id) {
-  try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, prepay: $("#aPrepay").value, admin_note: $("#aNote").value,
+  try { const { request } = await api(`/api/admin/custom/${id}`, { json: { price: $("#aPrice").value, address: $("#aAddr").value, admin_note: $("#aNote").value,
         master: $("#aMaster").value, measure_at: $("#aMeasure").value, ready_date: $("#aReady").value,
         workshop: $("#aWs").value, workshop_cost: $("#aWsCost").value } });
         replaceReq(request); toast("Saqlandi ✓"); loadAdminQuiet(); }

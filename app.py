@@ -2769,10 +2769,39 @@ async def api_admin_custom_manual(request):
                          [str(d.get("kind") or "other")], money(d.get("price")), money(d.get("prepay")),
                          str(d.get("status") or "contract"), str(d.get("note") or ""),
                          who=f"admin: {u.get('first_name') or ''} (o'zi topdi)".replace("  ", " "),
-                         sale_ts=sale_ts, ready_date=str(d.get("ready_date") or ""))
+                         sale_ts=sale_ts, ready_date=str(d.get("ready_date") or ""),
+                         address=str(d.get("address") or ""))
     asyncio.create_task(post_custom_to_groups(r))
     if r["status"] == "done":
         asyncio.create_task(fin_sale("c", r))
+    return web.json_response({"request": custom_admin(r)})
+
+
+async def api_admin_custom_payment(request):
+    """Admin panel: arizaga to'lov qo'shish (avans, ish jarayonidagi qo'shimcha to'lov, qoldiq)."""
+    u = get_admin(request)
+    rid = int(request.match_info["id"])
+    d = await request.json()
+    amount = int(re.sub(r"\D", "", str(d.get("amount") or "")) or 0)
+    ts = cust.parse_local_dt(f"{d.get('date')}T12:00") if d.get("date") else 0
+    if d.get("date") and not ts:
+        raise ShopError("To'lov sanasi noto'g'ri")
+    r = cs.add_payment(rid, amount, ts, str(d.get("note") or ""), who=str(u.get("first_name") or "admin"))
+    asyncio.create_task(refresh_custom_messages(r))
+    paid = int(r.get("prepay") or 0)
+    left = max(int(r.get("price") or 0) - paid, 0)
+    note = str(d.get("note") or "").strip()
+    asyncio.create_task(_nudge(r.get("admin_msgs"), f"💵 <b>Ariza #{r['id']}: to'lov olindi +{fmt_price(amount)}</b>"
+                               + (f" ({esc(note[:80])})" if note else "") + f"\n👤 {esc(r['name'])}\n"
+                               f"Jami to'langan: {fmt_price(paid)}" + (f" · qoldiq: {fmt_price(left)}" if r.get("price") else ""),
+                               chats=lead_chats(r)))
+    return web.json_response({"request": custom_admin(r)})
+
+
+async def api_admin_custom_payment_delete(request):
+    get_admin(request)
+    r = cs.delete_payment(int(request.match_info["id"]), int(request.match_info["i"]))
+    asyncio.create_task(refresh_custom_messages(r))
     return web.json_response({"request": custom_admin(r)})
 
 
@@ -2787,6 +2816,9 @@ def custom_admin(r: dict) -> dict:
     out["visit_text"] = cust.visit_text(r)
     out["measure_text"] = cust.fmt_dt(r.get("measure_at") or 0)
     out["callback_text"] = cust.fmt_dt(r.get("callback_at") or 0)
+    out["payments_view"] = [{"i": i, "at": time.strftime("%d.%m.%Y", time.gmtime(int(x[0]) + 5 * 3600)),
+                             "amount": int(x[1]), "note": x[2] if len(x) > 2 else ""}
+                            for i, x in enumerate(cs._payments(r))]
     out["calls_view"] = [{"at": cust.fmt_dt(x[0]), "res": cust.CALL_RESULTS.get(x[1], x[1]), "note": x[3] if len(x) > 3 else ""}
                          for x in (r.get("calls") or [])][::-1]
     out["ready_text"] = cust.fmt_date(r.get("ready_date") or "")
@@ -4336,6 +4368,8 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/custom/kinds", api_admin_custom_kinds)
     app.router.add_post("/api/admin/custom/masters", api_admin_custom_masters)
     app.router.add_post("/api/admin/custom/manual", api_admin_custom_manual)
+    app.router.add_post("/api/admin/custom/{id}/payment", api_admin_custom_payment)
+    app.router.add_post("/api/admin/custom/{id}/payment/{i}/delete", api_admin_custom_payment_delete)
     app.router.add_post("/api/admin/custom/{id}/call", api_admin_custom_call)
     app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
     app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)

@@ -197,7 +197,9 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''",
                    "meta_lead": "TEXT DEFAULT ''",  # Instagram/Facebook ariza formasidagi lid ID (takrorlanmasin)
                    "meta_crm": "TEXT DEFAULT ''",  # Meta'ga yuborilgan CRM bosqichlari (vergul bilan)
-                   "revived": "INTEGER DEFAULT 0"}  # «keyinroq» degan mijozga qayta eslatma yuborilganmi
+                   "revived": "INTEGER DEFAULT 0",
+                   # olingan to'lovlar: [[vaqt, summa, izoh, kim]]; prepay — ularning yig'indisi (jami to'langan)
+                   "payments": "TEXT DEFAULT '[]'"}  # «keyinroq» degan mijozga qayta eslatma yuborilganmi
 CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
                 "rejected": "❌ Rad etdi"}
 LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",
@@ -211,7 +213,7 @@ REVIVE_AFTER = 10 * 86400
 REVIVE_MAX_AGE = 45 * 86400  # juda eski arizalarga yozilmaydi
 PRIVATE_FIELDS = ("admin_msgs", "admin_note", "photos", "user_id", "username", "workshop", "workshop_cost",
                   "calls", "callback_at", "lost_reason",
-                  "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair")
+                  "nudged", "nudged_at", "source", "fee_ok", "need_when", "repair", "payments")
 TZ = 5 * 3600  # Toshkent
 
 
@@ -486,7 +488,8 @@ class CustomStore:
     @staticmethod
     def _row(r) -> dict:
         d = dict(r)
-        for f, dflt in (("dims", "{}"), ("photos", "[]"), ("events", "[]"), ("admin_msgs", "[]"), ("calls", "[]")):
+        for f, dflt in (("dims", "{}"), ("photos", "[]"), ("events", "[]"), ("admin_msgs", "[]"), ("calls", "[]"),
+                         ("payments", "[]")):
             d[f] = json.loads(d.get(f) or dflt)
         d["kinds"] = kinds_of(d)
         d["kind_name"] = kinds_name(d, d.get("lang") or "uz")
@@ -640,7 +643,7 @@ class CustomStore:
 
     def create_manual(self, uid: int, name: str, phone: str, kinds: list, price: int, prepay: int,
                       status: str = "contract", note: str = "", who: str = "", sale_ts: int = 0,
-                      ready_date: str = "") -> dict:
+                      ready_date: str = "", address: str = "") -> dict:
         """Admin o'zi topgan mijoz (ko'cha, tanish, qo'ng'iroq) — ariza darhol kelishilgan bosqichda yaratiladi.
         sale_ts — sotuv qilingan vaqt (bo'sh — hozir); ready_date — tayyor bo'lish sanasi (YYYY-MM-DD)."""
         if status not in ("contract", "production", "ready", "delivered", "done"):
@@ -666,10 +669,11 @@ class CustomStore:
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "kinds,source,price,prepay,ready_date,due) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uid, "", name.strip()[:80], phone, "", "", kinds[0], None, "", "{}", 0, "", "",
-             (note or "").strip()[:1000], "[]", 0, 0, status, json.dumps(events, ensure_ascii=False), "uz", ts, now,
-             json.dumps(kinds), "street", int(price or 0), int(prepay or 0), ready_date, fmt_date(ready_date)))
+            "kinds,source,price,prepay,ready_date,due,payments) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, "", name.strip()[:80], phone, "", re.sub(r"\s+", " ", address or "").strip()[:300], kinds[0], None, "",
+             "{}", 0, "", "", (note or "").strip()[:1000], "[]", 0, 0, status, json.dumps(events, ensure_ascii=False),
+             "uz", ts, now, json.dumps(kinds), "street", int(price or 0), int(prepay or 0), ready_date,
+             fmt_date(ready_date), json.dumps([[ts, int(prepay), "Avans", w]] if prepay else [], ensure_ascii=False)))
         self.db.commit()
         return self.get(cur.lastrowid)
 
@@ -693,6 +697,9 @@ class CustomStore:
             raw = re.sub(r"\D", "", str(data.get(k, r[k]) or ""))
             return int(raw) if raw else 0
         price, prepay = money_field("price"), money_field("prepay")
+        if r.get("payments"):  # to'lovlar tarixi bor — jami to'langan faqat «To'lov qo'shish» orqali o'zgaradi
+            prepay = sum(int(x[1]) for x in r["payments"])
+        address = re.sub(r"\s+", " ", str(data.get("address", r.get("address")) or "")).strip()[:300]
         wcost = money_field("workshop_cost")
         workshop = re.sub(r"\s+", " ", str(data.get("workshop", r.get("workshop")) or "")).strip()[:80]
         if prepay and price and prepay > price:
@@ -706,10 +713,52 @@ class CustomStore:
         if ready:
             due = fmt_date(ready)  # mijozga ko'rinadigan muddat ham shu sana bo'ladi
         self.db.execute("UPDATE custom_requests SET price=?, prepay=?, due=?, admin_note=?, master=?, measure_at=?, "
-                        "ready_date=?, workshop=?, workshop_cost=?, updated=? WHERE id=?",
-                        (price, prepay, due, note, master, measure_at, ready, workshop, wcost, int(time.time()), rid))
+                        "ready_date=?, workshop=?, workshop_cost=?, address=?, updated=? WHERE id=?",
+                        (price, prepay, due, note, master, measure_at, ready, workshop, wcost, address,
+                         int(time.time()), rid))
         self.db.commit()
         return self.get(rid)
+
+    # ------------------------------------------------ to'lovlar (avans, ish jarayonidagi qo'shimcha to'lovlar)
+    @staticmethod
+    def _payments(r: dict) -> list:
+        """To'lovlar ro'yxati. Eski arizalarda faqat prepay bo'lsa — uni birinchi to'lov deb olamiz."""
+        pays = [list(x) for x in r.get("payments") or []]
+        if not pays and int(r.get("prepay") or 0) > 0:
+            ts = next((e[1] for e in r.get("events") or [] if e and e[0] == "contract"), 0) or r.get("created") or 0
+            pays = [[int(ts), int(r["prepay"]), "Oldindan to'lov", ""]]
+        return pays
+
+    def _save_payments(self, rid: int, pays: list) -> dict:
+        self.db.execute("UPDATE custom_requests SET payments=?, prepay=?, updated=? WHERE id=?",
+                        (json.dumps(pays, ensure_ascii=False), sum(int(x[1]) for x in pays), int(time.time()), rid))
+        self.db.commit()
+        return self.get(rid)
+
+    def add_payment(self, rid: int, amount: int, ts: int = 0, note: str = "", who: str = "") -> dict:
+        r = self.get(rid)
+        if not amount or amount <= 0:
+            raise ShopError("To'lov summasini kiriting")
+        pays = self._payments(r)
+        paid = sum(int(x[1]) for x in pays)
+        if r.get("price") and paid + amount > int(r["price"]):
+            raise ShopError(f"Jami to'lov narxdan oshib ketadi (to'langan: {fmt_price(paid)}, "
+                            f"qoldiq: {fmt_price(int(r['price']) - paid)})")
+        now = int(time.time())
+        ts = int(ts or now)
+        if ts > now + 3600 or ts < now - 400 * 86400:
+            raise ShopError("To'lov sanasi noto'g'ri")
+        pays.append([ts, int(amount), re.sub(r"\s+", " ", note or "").strip()[:120], (who or "")[:80]])
+        pays.sort(key=lambda x: x[0])
+        return self._save_payments(rid, pays)
+
+    def delete_payment(self, rid: int, idx: int) -> dict:
+        r = self.get(rid)
+        pays = self._payments(r)
+        if not 0 <= idx < len(pays):
+            raise ShopError("To'lov topilmadi")
+        pays.pop(idx)
+        return self._save_payments(rid, pays)
 
     # ------------------------------------------------ qo'ng'iroq natijalari
     def log_call(self, rid: int, result: str, who: str = "", callback_at: int = 0, reason: str = "") -> dict:
@@ -985,8 +1034,11 @@ def admin_text(r: dict) -> str:
     if r.get("price") and r.get("workshop_cost"):
         lines.append(f"📈 Foyda: <b>{fmt_price(r['price'] - r['workshop_cost'])}</b>")
     if r.get("price"):
+        paid = int(r.get("prepay") or 0)
+        npay = len(r.get("payments") or [])
         lines.append(f"💰 <b>Kelishilgan narx: {fmt_price(r['price'])}</b>"
-                     + (f"\n💵 Oldindan to'lov: {fmt_price(r['prepay'])}" if r.get("prepay") else ""))
+                     + (f"\n💵 To'langan: {fmt_price(paid)}" + (f" ({npay} ta to'lov)" if npay > 1 else "")
+                        + f" · qoldiq: <b>{fmt_price(max(int(r['price']) - paid, 0))}</b>" if paid else ""))
     if r.get("due"):
         lines.append(f"📅 Muddat: {e(r['due'])}")
     if r.get("admin_note"):
