@@ -418,6 +418,35 @@ class Meta:
         return {r.get("campaign_id"): {"spend": float(r.get("spend") or 0), "leads": count_leads(r.get("actions"))}
                 for r in d.get("data") or []}
 
+    # ---------------------------------------------------------------- reklama tuzilmasini o'zgartirish (ehtiyotkor)
+    async def ads_get(self, path: str, **params) -> dict:
+        return await self._call("GET", ADS_V + path, **params)
+
+    async def ads_post(self, path: str, **params) -> dict:
+        enc = {k: (json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v) for k, v in params.items()}
+        return await self._call("POST", ADS_V + path, **enc)
+
+    async def page_post_media(self, post_id: str) -> dict:
+        """Sahifa posti: matni, video ID va rasmi (yangi e'lon yaratish uchun)."""
+        await self._ready()
+        d = await self._call("GET", post_id, _token=self._page_token,
+                             fields="message,full_picture,attachments{media_type,target,media}")
+        att = ((d.get("attachments") or {}).get("data") or [{}])[0]
+        img = ((att.get("media") or {}).get("image") or {}).get("src") or d.get("full_picture") or ""
+        return {"message": d.get("message", ""), "video_id": (att.get("target") or {}).get("id", "")
+                if "video" in (att.get("media_type") or "").lower() else "", "image": img}
+
+    async def tashkent_regions(self) -> list:
+        d = await self._call("GET", ADS_V + "search", type="adgeolocation", q="Tashkent", country_code="UZ",
+                             location_types=json.dumps(["region"]))
+        return [{"key": x["key"]} for x in d.get("data") or [] if x.get("type") == "region"
+                and "tashkent" in (x.get("name") or "").lower()]
+
+    async def create_lead_form(self, spec: dict) -> str:
+        await self._ready()
+        enc = {k: (json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v) for k, v in spec.items()}
+        return (await self._call("POST", f"{self.page_id}/leadgen_forms", _token=self._page_token, **enc))["id"]
+
     async def account_snapshot(self) -> dict:
         """Faqat o'qish: reklama hisobi tuzilishi (kampaniya, ad set, e'lon, forma, IG) — tashxis uchun."""
         await self._ready()

@@ -642,11 +642,16 @@ class CustomStore:
             phone = normalize_phone(raw_phone)
         except ShopError:
             phone = (raw_phone or "—")[:30]
+        address = ""
+        for k in [k for k in fields if "tuman" in k or "район" in k]:
+            address = fields.pop(k).replace("_", " ").strip()[:300]
         # Meta variantlarni «oshxona_/_кухня» ko'rinishida qaytaradi — o'qiladigan qilamiz
         answers = " | ".join(v.replace("_", " ").replace("  ", " ") for v in fields.values() if v)
         low = answers.lower()
-        kinds = [k for k, words in (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")))
-                 if any(w in low for w in words)] or ["other"]
+        kinds = [k for k, words in (("turnkey", ("klyuch", "ключ")), ("kitchen", ("oshxona", "кухн")),
+                                    ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")),
+                                    ("kids", ("bolalar", "детск")), ("sofa", ("yumshoq", "мягк", "divan")))
+                 if any(w in low for w in words)][:1] or ["other"]
         need_when = ("quarter" if ("1-3" in low or "1–3" in low) else
                      "month" if any(w in low for w in ("hozir", "срочно", "1 oy", "течение месяца")) else "")
         plat = str(lead.get("platform") or "").lower()
@@ -658,7 +663,7 @@ class CustomStore:
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
             "kinds,source,meta_lead,need_when) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uid, "", name, phone, "", "", kinds[0], None, "", "{}", 1, "", "", note, "[]", 0, 0, "new",
+            (uid, "", name, phone, "", address, kinds[0], None, "", "{}", 1, "", "", note, "[]", 0, 0, "new",
              json.dumps([["new", now, "reklama formasi"]]), "uz", now, now, json.dumps(kinds), source, lid, need_when))
         self.db.commit()
         return self.get(cur.lastrowid)

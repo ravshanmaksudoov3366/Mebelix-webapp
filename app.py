@@ -1846,6 +1846,8 @@ async def ads_watch_once(now: int):
             c = byid.get(cid) or {}
             if c.get("spend", 0) <= ADS_PAUSE_SPEND or c.get("leads", 0) > 0:
                 continue
+            if c.get("objective") not in LEAD_OBJECTIVES and "obuna" in (c.get("name") or "").lower():
+                continue  # obunachi yig'adigan reklama — lid kutilmaydi
             if c.get("objective") not in LEAD_OBJECTIVES:
                 await _ads_alert(st, f"waste{cid}", f"👀 <b>{esc(c.get('name', ''))}</b>: bugun ${c['spend']:.2f} "
                                  "sarflandi, Meta hisobida lid yo'q. Bu kampaniya botga/saytga yo'naltiradi, shuning uchun "
@@ -1915,6 +1917,229 @@ async def ads_diag_once():
         shop.set_setting("ads_diag", ADS_DIAG_VER)
     except Exception as e:  # noqa: BLE001
         log.warning("ADSDIAG xato: %s", e)
+
+
+# ------------------------------------------------------------------ bir martalik reklama tuzatish (2026-11-07)
+ADS_FIX_VER = "1"
+FIX_LEAD_ADSET = "52543306489050"       # «Telefon raqam (Instant forma)»
+FIX_TRAFFIC_CAMP = "52543306858850"     # «Telegram botga (Trafik)»
+FIX_TRAFFIC_ADSET = "52543306859250"
+FIX_BOOST_CAMP = "52543573021850"       # egasi yoqqan Instagram reklama («Хурматли мижозлар»)
+BOT_LINK = "https://t.me/isofauz_bot?start=ads"
+FEED_PLACEMENTS = {"publisher_platforms": ["facebook", "instagram"],
+                   "facebook_positions": ["feed", "story", "facebook_reels"],
+                   "instagram_positions": ["stream", "story", "reels", "explore"]}
+LEAD_FORM_V3 = {
+    "name": "iSofa — Bepul o'lchov v3 (tuman bilan)",
+    "locale": "ru_RU",
+    "is_optimized_for_quality": "true",
+    "block_display_for_non_targeted_viewer": "true",
+    "privacy_policy": {"url": "https://mebelix.onrender.com/privacy", "link_text": "Maxfiylik / Конфиденциальность"},
+    "follow_up_action_url": BOT_LINK,
+    "context_card": {"title": "Bepul o'lchov / Бесплатный замер", "style": "LIST_STYLE",
+                     "content": ["Usta uyingizga kelib bepul o'lchaydi / Мастер бесплатно сделает замер",
+                                 "Menejer sizga qo'ng'iroq qiladi / Менеджер вам перезвонит"],
+                     "button_text": "Ariza qoldirish / Оставить заявку"},
+    "questions": [
+        {"type": "CUSTOM", "key": "mebel_turi", "label": "Qaysi mebel kerak? / Какая мебель нужна?",
+         "options": [{"key": "oshxona", "value": "Oshxona / Кухня"},
+                     {"key": "shkaf", "value": "Shkaf, garderob / Шкаф, гардероб"},
+                     {"key": "pod_klyuch", "value": "Pod klyuch (to'liq) / Под ключ"},
+                     {"key": "bolalar", "value": "Bolalar mebeli / Детская мебель"},
+                     {"key": "boshqa", "value": "Boshqa mebel / Другая мебель"}]},
+        {"type": "CUSTOM", "key": "qachon", "label": "Mebel qachon kerak? / Когда нужна мебель?",
+         "options": [{"key": "hozir", "value": "Hozir / Срочно"},
+                     {"key": "1_oy", "value": "1 oy ichida / В течение месяца"},
+                     {"key": "1_3_oy", "value": "1-3 oy ichida / Через 1-3 месяца"},
+                     {"key": "aniq_emas", "value": "Hali aniq emas / Пока не знаю"}]},
+        {"type": "CUSTOM", "key": "tuman", "label": "Qaysi tumanda yashaysiz? / В каком районе живёте?"},
+        {"type": "FULL_NAME"}, {"type": "PHONE"}],
+    "thank_you_page": {"title": "Rahmat! Arizangiz qabul qilindi / Спасибо! Заявка принята",
+                       "body": "Menejer tez orada qo'ng'iroq qiladi. / Менеджер скоро вам позвонит.",
+                       "button_type": "VIEW_WEBSITE", "button_text": "Telegram bot", "website_url": BOT_LINK},
+}
+
+
+async def _fix_targeting(base: dict, geo: dict | None, age=(25, 60), places: dict = FEED_PLACEMENTS) -> dict:
+    t = {k: v for k, v in (base or {}).items() if k not in ("publisher_platforms", "facebook_positions",
+                                                             "instagram_positions", "messenger_positions",
+                                                             "audience_network_positions", "device_platforms",
+                                                             "targeting_automation", "targeting_relaxation_types",
+                                                             "age_range")}
+    if geo:
+        t["geo_locations"] = geo
+    t["age_min"], t["age_max"] = age
+    t.update(places)
+    t["targeting_automation"] = {"advantage_audience": 0}
+    return t
+
+
+async def _video_creative(post_id: str, name: str, cta: dict) -> str:
+    m = await meta.page_post_media(post_id)
+    if not m["video_id"] or not m["image"]:
+        raise soc.MetaError(f"post {post_id}: video topilmadi")
+    spec = {"page_id": soc.FB_PAGE_ID, "video_data": {"video_id": m["video_id"], "image_url": m["image"],
+                                                       "message": m["message"][:2000], "call_to_action": cta}}
+    if meta._ig_id:
+        spec["instagram_user_id"] = meta._ig_id
+    return (await meta.ads_post(f"act_{soc.AD_ACCOUNT_ID}/adcreatives", name=name[:90], object_story_spec=spec))["id"]
+
+
+async def ads_fix_once():
+    """Lid sifatini tuzatish: forma v3 + joylashuvlar, Telegram havola reklamasi, egasining reklamasini Instagram
+    profilga (obuna). Har bir qadamda eski narsa faqat yangisi muvaffaqiyatli yaratilgandan keyin to'xtatiladi.
+    Byudjetlar o'zgarmaydi."""
+    await asyncio.sleep(45)
+    if not soc.configured() or shop.settings().get("ads_fix") == ADS_FIX_VER:
+        return
+    shop.set_setting("ads_fix", ADS_FIX_VER)  # qayta ishga tushganda takror yaratmasin
+    rep, paused = [], {}
+    A = f"act_{soc.AD_ACCOUNT_ID}/"
+    try:
+        await meta._ready()
+        try:
+            regions = await meta.tashkent_regions()
+        except soc.MetaError as e:
+            regions = []
+            log.warning("ADSFIX geo: %s", e)
+        geo = {"regions": regions, "location_types": ["home", "recent"]} if regions else None
+        log.info("ADSFIX geo=%s ig=%s", geo, meta._ig_id)
+
+        # A) lid formasi v3 + lid reklamasi joylashuvlari
+        try:
+            spec = dict(LEAD_FORM_V3)
+            try:
+                form_id = await meta.create_lead_form(spec)
+            except soc.MetaError as e:
+                log.warning("ADSFIX forma (context_card bilan) xato: %s — usiz qayta", e)
+                spec.pop("context_card", None)
+                form_id = await meta.create_lead_form(spec)
+            log.info("ADSFIX forma v3: %s", form_id)
+            aset = await meta.ads_get(FIX_LEAD_ADSET, fields="targeting,daily_budget")
+            try:
+                await meta.ads_post(FIX_LEAD_ADSET, targeting=await _fix_targeting(aset.get("targeting"), geo))
+                rep.append("✅ Lid reklamasi: faqat Instagram/Facebook lentasi, stories, reels (Audience Network va "
+                           "Messenger o'chirildi), yosh 25–60, Toshkent")
+            except soc.MetaError as e:
+                rep.append(f"⚠️ Lid reklamasi joylashuvini o'zgartirib bo'lmadi: {e}")
+            ads = (await meta.ads_get(FIX_LEAD_ADSET + "/ads", fields="id,name,status,creative{effective_object_story_id}",
+                                      limit=50)).get("data") or []
+            made = 0
+            for ad in [a for a in ads if a.get("status") == "ACTIVE"]:
+                post = (ad.get("creative") or {}).get("effective_object_story_id")
+                try:
+                    cr = await _video_creative(post, f"{ad['name']} — forma v3",
+                                               {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id}})
+                    await meta.ads_post(A + "ads", name=f"{ad['name'][:60]} — forma v3", adset_id=FIX_LEAD_ADSET,
+                                        creative={"creative_id": cr}, status="ACTIVE")
+                    await meta.ads_post(ad["id"], status="PAUSED")
+                    made += 1
+                except soc.MetaError as e:
+                    log.warning("ADSFIX lid e'lon %s: %s", ad["id"], e)
+                    rep.append(f"⚠️ E'lon «{esc(ad['name'][:40])}» uchun yangi forma qo'yilmadi: {esc(str(e)[:150])}")
+            if made:
+                rep.append(f"✅ Yangi forma (tuman savoli bilan) {made} ta lid e'loniga qo'yildi, eski e'lonlar to'xtatildi")
+        except soc.MetaError as e:
+            log.warning("ADSFIX A: %s", e)
+            rep.append(f"⚠️ Yangi lid formasini yaratib bo'lmadi: {esc(str(e)[:200])}")
+
+        # B) Telegram botga havola (eski trafik reklamasi saytga olib borayotgan edi)
+        try:
+            old = await meta.ads_get(FIX_TRAFFIC_ADSET, fields="targeting,daily_budget,bid_strategy")
+            ads = (await meta.ads_get(FIX_TRAFFIC_ADSET + "/ads", fields="id,status,creative{effective_object_story_id}",
+                                      limit=20)).get("data") or []
+            post = next((a["creative"]["effective_object_story_id"] for a in ads
+                         if (a.get("creative") or {}).get("effective_object_story_id")), "")
+            cr = await _video_creative(post, "iSofa — Telegram bot (havola)",
+                                       {"type": "CONTACT_US", "value": {"link": BOT_LINK}})
+            new_set = (await meta.ads_post(A + "adsets", name="Telegram bot — to'g'ridan-to'g'ri havola",
+                                           campaign_id=FIX_TRAFFIC_CAMP, daily_budget=old.get("daily_budget") or 1500,
+                                           billing_event="IMPRESSIONS", optimization_goal="LINK_CLICKS",
+                                           bid_strategy="LOWEST_COST_WITHOUT_CAP", destination_type="WEBSITE",
+                                           targeting=await _fix_targeting(old.get("targeting"), geo),
+                                           status="ACTIVE"))["id"]
+            try:
+                await meta.ads_post(A + "ads", name="Telegram bot — havola", adset_id=new_set,
+                                    creative={"creative_id": cr}, status="ACTIVE")
+            except soc.MetaError:
+                await meta.ads_post(new_set, status="PAUSED")
+                raise
+            await meta.ads_post(FIX_TRAFFIC_ADSET, status="PAUSED")
+            paused[FIX_TRAFFIC_ADSET] = 1
+            rep.append(f"✅ Telegram reklamasi: tugma endi to'g'ridan-to'g'ri @isofauz_bot ga olib boradi "
+                       f"(byudjet o'sha — ${int(old.get('daily_budget') or 1500) / 100:.0f}/kun); eski (saytga) to'xtatildi")
+        except soc.MetaError as e:
+            log.warning("ADSFIX B: %s", e)
+            rep.append(f"⚠️ Telegram reklamasini o'zgartirib bo'lmadi: {esc(str(e)[:200])}")
+
+        # C) egasining reklamasi -> Instagram profil (obuna)
+        new_camp = ""
+        try:
+            oc = await meta.ads_get(FIX_BOOST_CAMP, fields="name,daily_budget,effective_status")
+            budget = int(oc.get("daily_budget") or 0)
+            oads = (await meta.ads_get(FIX_BOOST_CAMP + "/ads", fields="creative{effective_instagram_media_id}",
+                                       limit=10)).get("data") or []
+            media = next(((a.get("creative") or {}).get("effective_instagram_media_id") for a in oads
+                          if (a.get("creative") or {}).get("effective_instagram_media_id")), "")
+            if not budget or not media or not meta._ig_id:
+                raise soc.MetaError(f"ma'lumot yetarli emas (byudjet={budget}, post={bool(media)})")
+            new_camp = (await meta.ads_post(A + "campaigns", name="iSofa — Instagram obuna (profilga tashrif)",
+                                            objective="OUTCOME_TRAFFIC", status="ACTIVE", special_ad_categories=[],
+                                            is_adset_budget_sharing_enabled="false"))["id"]
+            tgt = await _fix_targeting({}, geo or {"countries": ["UZ"]}, (18, 55),
+                                       {"publisher_platforms": ["instagram"],
+                                        "instagram_positions": ["stream", "story", "reels", "explore", "profile_feed"]})
+            new_set, last = "", None
+            for goal in ("VISIT_INSTAGRAM_PROFILE", "PROFILE_VISIT"):
+                try:
+                    new_set = (await meta.ads_post(A + "adsets", name="Instagram profil — obuna", campaign_id=new_camp,
+                                                   daily_budget=budget, billing_event="IMPRESSIONS",
+                                                   optimization_goal=goal, destination_type="INSTAGRAM_PROFILE",
+                                                   bid_strategy="LOWEST_COST_WITHOUT_CAP", targeting=tgt,
+                                                   status="ACTIVE"))["id"]
+                    break
+                except soc.MetaError as e:
+                    last = e
+                    log.warning("ADSFIX C adset %s: %s", goal, e)
+            if not new_set:
+                raise last or soc.MetaError("ad set yaratilmadi")
+            try:
+                cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Instagram obuna",
+                                          instagram_user_id=meta._ig_id, source_instagram_media_id=media,
+                                          call_to_action={"type": "VIEW_INSTAGRAM_PROFILE",
+                                                          "value": {"link": f"https://www.instagram.com/{meta.ig_username}/"}}))["id"]
+            except soc.MetaError as e:
+                log.warning("ADSFIX C creative CTA bilan: %s — usiz", e)
+                cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Instagram obuna",
+                                          instagram_user_id=meta._ig_id, source_instagram_media_id=media))["id"]
+            await meta.ads_post(A + "ads", name="Instagram obuna — post", adset_id=new_set,
+                                creative={"creative_id": cr}, status="ACTIVE")
+            await meta.ads_post(FIX_BOOST_CAMP, status="PAUSED")
+            paused[FIX_BOOST_CAMP] = 1
+            rep.append(f"✅ Siz yoqqan reklama endi Instagram profilingizga (obuna) yo'naltirildi — o'sha post, "
+                       f"o'sha byudjet ${budget / 100:.0f}/kun, faqat Instagram, Toshkent. Eskisi to'xtatildi")
+        except soc.MetaError as e:
+            log.warning("ADSFIX C: %s", e)
+            if new_camp:
+                try:
+                    await meta.ads_post(new_camp, status="PAUSED")
+                except soc.MetaError:
+                    pass
+            rep.append(f"⚠️ Instagram obuna reklamasini yaratib bo'lmadi (eskisi ishlashda davom etadi): {esc(str(e)[:200])}")
+    except Exception as e:  # noqa: BLE001
+        log.exception("ADSFIX")
+        rep.append(f"⚠️ Kutilmagan xato: {esc(str(e)[:200])}")
+    st = _ads_state()
+    st.setdefault("paused_by_watch", {}).update({k: int(time.time()) for k in paused})
+    shop.set_setting("ads_watch", json.dumps(st, ensure_ascii=False))
+    text = "🛠 <b>Reklama tuzatildi</b>\n\n" + "\n\n".join(rep) + \
+           "\n\nYangi e'lonlar Meta tekshiruvidan o'tgach (odatda 15 daqiqa – bir necha soat) ko'rsatila boshlaydi."
+    log.info("ADSFIX natija: %s", " || ".join(rep))
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
 
 
 async def ads_watch_loop():
@@ -4445,6 +4670,7 @@ async def main():
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
+        app_tasks.append(asyncio.create_task(ads_fix_once()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
