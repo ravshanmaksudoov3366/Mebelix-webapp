@@ -639,22 +639,37 @@ class CustomStore:
         return self.get(cur.lastrowid)
 
     def create_manual(self, uid: int, name: str, phone: str, kinds: list, price: int, prepay: int,
-                      status: str = "contract", note: str = "", who: str = "") -> dict:
-        """Admin o'zi topgan mijoz (ko'cha, tanish, qo'ng'iroq) — ariza darhol kelishilgan bosqichda yaratiladi."""
-        if status not in STAGES:
+                      status: str = "contract", note: str = "", who: str = "", sale_ts: int = 0,
+                      ready_date: str = "") -> dict:
+        """Admin o'zi topgan mijoz (ko'cha, tanish, qo'ng'iroq) — ariza darhol kelishilgan bosqichda yaratiladi.
+        sale_ts — sotuv qilingan vaqt (bo'sh — hozir); ready_date — tayyor bo'lish sanasi (YYYY-MM-DD)."""
+        if status not in ("contract", "production", "ready", "delivered", "done"):
             raise ShopError("Noto'g'ri bosqich")
-        if prepay and price and prepay > price:
+        if not price or price <= 0:
+            raise ShopError("Sotilgan narxni kiriting")
+        if prepay and prepay > price:
             raise ShopError("Avans narxdan katta bo'lishi mumkin emas")
+        if not (name or "").strip():
+            raise ShopError("Mijoz ismini kiriting")
         kinds = [k for k in kinds if k in KINDS] or ["other"]
         now = int(time.time())
-        events = [["new", now, who or "admin"]] + ([[status, now, who or "admin"]] if status != "new" else [])
+        ts = int(sale_ts or now)
+        if ts > now + 3600 or ts < now - 400 * 86400:
+            raise ShopError("Sotuv sanasi noto'g'ri")
+        ready_date = ready_date if re.fullmatch(r"\d{4}-\d{2}-\d{2}", ready_date or "") else ""
+        w = who or "admin"
+        events = [["new", ts, w]]
+        order = ["contract", "production", "ready", "delivered", "done"]
+        for st_ in order[:order.index(status) + 1]:
+            if st_ == "contract" or st_ == status:
+                events.append([st_, ts, w])  # sotuv sanasi — moliya hisobotida shu oyga tushadi
         cur = self.db.execute(
             "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
             "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
-            "kinds,source,price,prepay) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (uid, "", (name or "Mijoz").strip()[:80], phone, "", "", kinds[0], None, "", "{}", 0, "", "",
-             (note or "").strip()[:1000], "[]", 0, 0, status, json.dumps(events, ensure_ascii=False), "uz", now, now,
-             json.dumps(kinds), "street", int(price or 0), int(prepay or 0)))
+            "kinds,source,price,prepay,ready_date,due) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, "", name.strip()[:80], phone, "", "", kinds[0], None, "", "{}", 0, "", "",
+             (note or "").strip()[:1000], "[]", 0, 0, status, json.dumps(events, ensure_ascii=False), "uz", ts, now,
+             json.dumps(kinds), "street", int(price or 0), int(prepay or 0), ready_date, fmt_date(ready_date)))
         self.db.commit()
         return self.get(cur.lastrowid)
 

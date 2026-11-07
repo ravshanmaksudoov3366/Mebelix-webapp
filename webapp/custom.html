@@ -765,13 +765,14 @@ async function loadAdmin() {
   refresh();
 }
 function adminHTML() {
-  const tabs = [["list", "📋 Arizalar"], ["plan", "🗓 Jadval"], ["prices", "💰 Narxlar"], ["kinds", "🪑 Turlar"], ["gallery", "🖼 Namunalar"]];
+  const tabs = [["list", "📋 Arizalar"], ["sale", "➕ Sotuv"], ["plan", "🗓 Jadval"], ["prices", "💰 Narxlar"], ["kinds", "🪑 Turlar"], ["gallery", "🖼 Namunalar"]];
   let h = `<div class="adm-tabs">${tabs.map(([k, n]) => `<button class="${S.adm.tab === k ? "on" : ""}" onclick="S.adm.tab='${k}'; S.adm.open=0; refresh()">${n}</button>`).join("")}</div>`;
   if (!S.adm.list) return h + `<div class="skeleton"></div>`;
   if (S.adm.tab === "prices") return h + ratesHTML();
   if (S.adm.tab === "gallery") return h + galleryAdminHTML();
   if (S.adm.tab === "kinds") return h + kindsAdminHTML();
   if (S.adm.tab === "plan") return h + planHTML();
+  if (S.adm.tab === "sale") return h + saleHTML();
   if (S.adm.open) return h + adminDetail(S.adm.list.find(r => r.id === S.adm.open));
   const c = S.adm.counts || {};
   h += `<div class="chips">${ADM_F.map(([k, n]) => `<button class="chip ${S.adm.status === k ? "on" : ""}" onclick="S.adm.status='${k}'; S.adm.list=null; refresh(); loadAdmin()">${n}${k && c[k] ? " · " + c[k] : ""}</button>`).join("")}</div>`;
@@ -962,6 +963,40 @@ function adminDetail(r) {
       ${r.due && !r.ready_date ? `<div class="unit-hint">Oldin yozilgan: ${esc(r.due)}</div>` : ""}
       <label class="f">Ichki izoh (mijoz ko'rmaydi)</label><textarea class="in" id="aNote">${esc(r.admin_note)}</textarea>
       <button class="btn" style="width:100%;margin-top:12px" onclick="saveReq(${r.id})">Saqlash</button></div>`;
+}
+/* o'zimiz topgan mijozga qilingan sotuv */
+function todayTk() { return new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10); }
+function saleHTML() {
+  const ks = (S.adm.kinds || []).filter(k => !k.hidden);
+  const st = [["contract", "📝 Shartnoma tuzildi (ish boshlanadi)"], ["production", "🔨 Ishlab chiqarilmoqda"], ["ready", "✅ Tayyor"], ["delivered", "🚚 Yetkazildi"], ["done", "🤝 Yakunlandi (to'liq to'landi)"]];
+  return `<div class="section" style="margin-top:12px"><b>🚶 O'zingiz topgan mijozga sotuv</b>
+      <p class="small muted" style="margin:6px 0 0">Ko'cha, tanish yoki qo'ng'iroq orqali topilgan mijoz. Ariza lidlar guruhiga tushadi, mijozga xabar yuborilmaydi.</p>
+      <label class="f">Mijoz ismi *</label><input class="in" id="sName" placeholder="Akmal">
+      <label class="f">Telefon raqami *</label><input class="in" type="tel" inputmode="tel" id="sPhone" placeholder="+998 90 123 45 67">
+      <label class="f">Qaysi mebel *</label><select class="in" id="sKind">${ks.map(k => `<option value="${esc(k.id)}">${esc((k.icon || "") + " " + k.uz)}</option>`).join("")}</select>
+      <div class="grid2"><div><label class="f">Qanchaga sotildi (so'm) *</label><input class="in" inputmode="numeric" id="sPrice" placeholder="12000000" oninput="saleHint()"></div>
+      <div><label class="f">Olingan avans (so'm)</label><input class="in" inputmode="numeric" id="sPrepay" placeholder="0" oninput="saleHint()"></div></div>
+      <div class="unit-hint" id="sHint"></div>
+      <div class="grid2"><div><label class="f">Sotuv qilingan sana *</label><input class="in" type="date" id="sDate" value="${todayTk()}"></div>
+      <div><label class="f">Tayyor bo'lish muddati</label><input class="in" type="date" id="sReady"></div></div>
+      <label class="f">Hozirgi holati</label><select class="in" id="sStatus">${st.map(([k, n]) => `<option value="${k}">${n}</option>`).join("")}</select>
+      <label class="f">Qo'shimcha ma'lumot</label><textarea class="in" id="sNote" placeholder="Manzil, o'lcham, rang, material, kelishuvlar..."></textarea>
+      <button class="btn" style="width:100%;margin-top:12px" id="sBtn" onclick="saveSale()">Sotuvni saqlash</button></div>`;
+}
+function saleHint() {
+  const n = v => +String(v || "").replace(/\D/g, "") || 0, p = n($("#sPrice").value), a = n($("#sPrepay").value);
+  $("#sHint").textContent = p ? `Narx: ${money(p)}` + (a ? ` · avans: ${money(a)} · qoldiq: ${money(Math.max(p - a, 0))}` : "") : "";
+}
+async function saveSale() {
+  const v = id => $(id).value.trim();
+  if (!v("#sName") || !v("#sPhone") || !v("#sPrice")) return alertBox("Ism, telefon va narxni kiriting");
+  const b = $("#sBtn"); b.disabled = true;
+  try {
+    const { request } = await api("/api/admin/custom/manual", { json: { name: v("#sName"), phone: v("#sPhone"), kind: v("#sKind"),
+      price: v("#sPrice"), prepay: v("#sPrepay"), sale_date: v("#sDate"), ready_date: v("#sReady"), status: v("#sStatus"), note: v("#sNote") } });
+    notifyH("success"); toast(`✓ Sotuv #${request.id} saqlandi`);
+    S.adm.tab = "list"; S.adm.status = "active"; S.adm.list = null; refresh(); await loadAdmin(); openReq(request.id);
+  } catch (e) { alertBox(e.message); b.disabled = false; }
 }
 async function openReq(id) {
   S.adm.open = id; refresh(); scrollTo(0, 0);

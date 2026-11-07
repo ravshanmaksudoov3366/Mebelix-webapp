@@ -2753,6 +2753,29 @@ async def api_custom_mine(request):
                               "is_admin": is_admin(u["id"])})
 
 
+async def api_admin_custom_manual(request):
+    """Admin panel: o'zimiz topgan mijozga qilingan sotuvni kiritish."""
+    u = get_admin(request)
+    d = await request.json()
+    try:
+        phone = normalize_phone(str(d.get("phone") or ""))
+    except ShopError:
+        raise ShopError("Telefon raqami noto'g'ri")
+    money = lambda v: int(re.sub(r"\D", "", str(v or "")) or 0)  # noqa: E731
+    sale_ts = cust.parse_local_dt(f"{d.get('sale_date')}T12:00") if d.get("sale_date") else 0
+    if d.get("sale_date") and not sale_ts:
+        raise ShopError("Sotuv sanasi noto'g'ri")
+    r = cs.create_manual(-(WEB_ID_BASE + int.from_bytes(os.urandom(6), "big")), str(d.get("name") or ""), phone,
+                         [str(d.get("kind") or "other")], money(d.get("price")), money(d.get("prepay")),
+                         str(d.get("status") or "contract"), str(d.get("note") or ""),
+                         who=f"admin: {u.get('first_name') or ''} (o'zi topdi)".replace("  ", " "),
+                         sale_ts=sale_ts, ready_date=str(d.get("ready_date") or ""))
+    asyncio.create_task(post_custom_to_groups(r))
+    if r["status"] == "done":
+        asyncio.create_task(fin_sale("c", r))
+    return web.json_response({"request": custom_admin(r)})
+
+
 def custom_admin(r: dict) -> dict:
     out = {k: v for k, v in r.items() if k != "admin_msgs"}
     out["photos"] = len(r.get("photos") or [])
@@ -4312,6 +4335,7 @@ def make_app() -> web.Application:
     app.router.add_post("/api/admin/custom/rates", api_admin_custom_rates)
     app.router.add_post("/api/admin/custom/kinds", api_admin_custom_kinds)
     app.router.add_post("/api/admin/custom/masters", api_admin_custom_masters)
+    app.router.add_post("/api/admin/custom/manual", api_admin_custom_manual)
     app.router.add_post("/api/admin/custom/{id}/call", api_admin_custom_call)
     app.router.add_post("/api/admin/custom/gallery", api_admin_gallery_add)
     app.router.add_post("/api/admin/custom/gallery/{gid}/delete", api_admin_gallery_delete)
