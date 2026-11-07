@@ -58,24 +58,36 @@ STYLES = {
 # dims: eski arizalardagi o'lchamlar (yangi ariza formasida o'lcham so'ralmaydi — usta o'lchaydi).
 # BASE_KINDS — standart turlar; admin «🪑 Turlar» bo'limida nomini, belgisini, narx turini, tartibini o'zgartiradi,
 # yangi tur qo'shadi yoki yashiradi. Natija sozlamalarda saqlanadi va KINDS ga qo'llanadi (apply_kinds).
+WH = [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]
 BASE_KINDS = {
-    "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухня", "icon": "🍳", "price": "kitchen",
+    "kitchen": {"uz": "Oshxona mebeli", "ru": "Кухонная мебель", "icon": "🍳", "price": "kitchen",
                 "dims": [("w", "1-devor uzunligi", "Длина 1-й стены"), ("w2", "2-devor (burchak bo'lsa)", "2-я стена (если угловая)")]},
-    "wardrobe": {"uz": "Shkaf / garderob", "ru": "Шкаф / гардероб", "icon": "🚪", "price": "wardrobe",
-                 "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
-    "komod": {"uz": "Komod", "ru": "Комод", "icon": "🗄", "price": "wardrobe",
-              "dims": [("w", "Eni", "Ширина"), ("h", "Balandligi", "Высота")]},
-    "sofa": {"uz": "Divan", "ru": "Диван", "icon": "🛋", "price": None,
+    "table": {"uz": "Stol va stullar", "ru": "Столы и стулья", "icon": "🪑", "price": None, "dims": []},
+    "tv": {"uz": "TV zona", "ru": "ТВ-зона", "icon": "📺", "price": None, "dims": WH},
+    "bed": {"uz": "Krovat", "ru": "Кровать", "icon": "🛏", "price": None,
+            "dims": [("w", "Matras eni", "Ширина матраса"), ("l", "Matras bo'yi", "Длина матраса")]},
+    "wardrobe": {"uz": "Shkaf va garderob", "ru": "Шкафы и гардеробы", "icon": "🚪", "price": "wardrobe", "dims": WH},
+    "tumba": {"uz": "Tumba", "ru": "Тумба", "icon": "🗄", "price": None, "dims": WH},
+    "komod": {"uz": "Komod", "ru": "Комод", "icon": "🗃", "price": "wardrobe", "dims": WH},
+    "mattress": {"uz": "Matras", "ru": "Матрас", "icon": "🛌", "price": None,
+                 "dims": [("w", "Eni", "Ширина"), ("l", "Bo'yi", "Длина")]},
+    "island": {"uz": "Oshxona oroli (ostrovok)", "ru": "Кухонный остров", "icon": "🏝", "price": None, "dims": []},
+    "shoe": {"uz": "Poyabzal javoni (pod obuv)", "ru": "Обувница", "icon": "👟", "price": None, "dims": WH},
+    "office": {"uz": "Ofis mebeli", "ru": "Офисная мебель", "icon": "💼", "price": None, "dims": []},
+    "sofa": {"uz": "Yumshoq mebel", "ru": "Мягкая мебель", "icon": "🛋", "price": None,
              "dims": [("w", "Uzunligi", "Длина")]},
-    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "price": None,
-               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона")]},
-    "other": {"uz": "Boshqa mebel", "ru": "Другая мебель", "icon": "🪑", "price": None, "dims": []},
+    "kids": {"uz": "Bolalar mebeli", "ru": "Детская мебель", "icon": "🧸", "price": None, "dims": []},
+    "turnkey": {"uz": "Pod klyuch (to'liq jihozlash)", "ru": "Под ключ (полная меблировка)", "icon": "🏠",
+                "price": None, "dims": []},
     # eski arizalar uchun (tanlovda ko'rsatilmaydi)
+    "corner": {"uz": "Burchak divan", "ru": "Угловой диван", "icon": "🛋", "price": None, "hidden": True,
+               "dims": [("w", "Katta tomoni", "Длинная сторона"), ("w2", "Kichik tomoni", "Короткая сторона")]},
+    "other": {"uz": "Boshqa mebel", "ru": "Другая мебель", "icon": "🪑", "price": None, "hidden": True, "dims": []},
     "armchair": {"uz": "Kreslo", "ru": "Кресло", "icon": "💺", "price": None, "hidden": True,
                  "dims": [("w", "Eni", "Ширина")]},
-    "bed": {"uz": "Karavot", "ru": "Кровать", "icon": "🛏", "price": None, "hidden": True,
-            "dims": [("w", "Matras eni", "Ширина матраса"), ("l", "Matras bo'yi", "Длина матраса")]},
 }
+# 2-avlod turlar ro'yxati (egasi so'ragan tartibda) — bir marta saqlangan sozlamalar ustidan qo'llanadi
+KINDS_VERSION = "2"
 KINDS = {k: dict(v) for k, v in BASE_KINDS.items()}
 KIND_PRICES = ("kitchen", "wardrobe")  # admin tanlaydigan narx turlari; None — kelishiladi
 DIMS_BY_PRICE = {"kitchen": BASE_KINDS["kitchen"]["dims"], "wardrobe": BASE_KINDS["wardrobe"]["dims"], None: []}
@@ -299,6 +311,16 @@ class CustomStore:
             saved = json.loads(shop.settings().get("custom_kinds") or "null")
         except ValueError:
             saved = None
+        if shop.settings().get("custom_kinds_ver") != KINDS_VERSION:
+            # yangi ro'yxat: standart tartib; avval admin qo'shgan turlar yashirin qoladi (eski arizalar nomi saqlanadi)
+            items = [{"id": k, "uz": v["uz"], "ru": v["ru"], "icon": v["icon"], "price": v.get("price") or "",
+                      "hidden": bool(v.get("hidden"))} for k, v in BASE_KINDS.items()]
+            for it in saved if isinstance(saved, list) else []:
+                if isinstance(it, dict) and it.get("id") and it["id"] not in BASE_KINDS:
+                    items.append({**it, "hidden": True})
+            shop.set_setting("custom_kinds", json.dumps(items, ensure_ascii=False))
+            shop.set_setting("custom_kinds_ver", KINDS_VERSION)
+            saved = items
         if isinstance(saved, list) and saved:
             apply_kinds(saved)
         self.photo_dir = os.path.join(os.path.dirname(shop.upload_dir.rstrip("/")), "custom")

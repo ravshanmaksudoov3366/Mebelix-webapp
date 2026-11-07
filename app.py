@@ -1233,8 +1233,13 @@ async def cmd_lost_reasons(m: Message):
     await m.answer(lost_report_text(ym))
 
 
-SALE_KINDS = (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")),
-              ("komod", ("komod", "комод")), ("corner", ("burchak", "углов")), ("sofa", ("divan", "диван")))
+SALE_KINDS = (("turnkey", ("klyuch", "ключ")), ("island", ("orol", "ostrov", "остров")),
+              ("shoe", ("obuv", "обув", "poyabzal")), ("kitchen", ("oshxona", "кухн")),
+              ("table", ("stol", "стол", "стул")), ("tv", ("tv", "тв", "televizor")),
+              ("mattress", ("matras", "матрас")), ("bed", ("krovat", "karavot", "кроват")),
+              ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")), ("tumba", ("tumba", "тумб")),
+              ("komod", ("komod", "комод")), ("office", ("ofis", "офис")),
+              ("kids", ("bolalar", "детск")), ("sofa", ("yumshoq", "divan", "диван", "мягк")))
 SALE_HELP = ("🚶 <b>O'zingiz topgan mijozni kiritish</b>\n\n"
              "Bitta xabar, vergul bilan:\n<code>/sotuv Ism, telefon, mebel turi, narx, avans</code>\n\n"
              "Masalan:\n<code>/sotuv Akmal, 901234567, oshxona, 12mln, 4mln</code>\n"
@@ -1262,7 +1267,7 @@ async def cmd_manual_sale(m: Message):
     if not price:
         return await m.answer(f"💰 Narxni tushunmadim: <code>{esc(parts[3])}</code> (masalan: 12mln yoki 12 000 000)")
     low = kind_txt.lower()
-    kinds = [k for k, words in SALE_KINDS if any(w in low for w in words)] or ["other"]
+    kinds = [next((k for k, words in SALE_KINDS if any(w in low for w in words)), "other")]
     note = ", ".join(parts[5:])
     if kinds == ["other"] and kind_txt:
         note = (kind_txt + (", " + note if note else ""))
