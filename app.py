@@ -1703,11 +1703,79 @@ async def _ads_alert(st: dict, key: str, text: str):
             log.warning("reklama ogohlantirishi yuborilmadi %s: %s", aid, e)
 
 
+REPLACE_COOLDOWN = 7 * 86400  # nazoratchi to'xtatgan kampaniya shuncha vaqt qayta yoqilmaydi
+
+
+async def ads_pick_replacement(st: dict, running: dict, byid: dict, now: int):
+    """To'xtatilgan kampaniyalardan eng yaxshisini tanlaydi (oxirgi 30 kunda arzon lid bergan, lid maqsadli).
+    Shart: kunlik byudjeti aniq, muddati o'tmagan, rad etilmagan, va jami kunlik byudjet ADS_DAILY_LIMIT dan oshmaydi.
+    Qaytaradi: (kampaniya, uning byudjeti) yoki (None, sabab)."""
+    budgets = await meta.campaign_daily_budgets()
+    used = 0.0
+    for cid in running:
+        b = budgets.get(cid)
+        if b is None:
+            return None, "ishlayotgan reklamalardan birining byudjeti umumiy (lifetime) — kunlik jamini hisoblab bo'lmadi"
+        used += b
+    hist = await meta.campaigns_history(30)
+    paused_by_me = st.get("paused_by_watch") or {}
+    cands = []
+    for cid, c in byid.items():
+        if cid in running or c.get("status") != "PAUSED":
+            continue
+        if now - int(paused_by_me.get(cid) or 0) < REPLACE_COOLDOWN:
+            continue
+        stop = c.get("stop_time")
+        if stop:
+            try:
+                if datetime.strptime(stop, "%Y-%m-%dT%H:%M:%S%z").timestamp() <= now:
+                    continue
+            except ValueError:
+                continue
+        b = budgets.get(cid)
+        if not b or used + b > ADS_DAILY_LIMIT + 0.01:
+            continue
+        h = hist.get(cid) or {"spend": 0.0, "leads": 0}
+        cpl = h["spend"] / h["leads"] if h["leads"] else 10 ** 6
+        cands.append((c.get("objective") not in LEAD_OBJECTIVES, h["leads"] == 0, cpl, -h["leads"], cid, b))
+    if not cands:
+        return None, (f"mos to'xtatilgan reklama yo'q (jami byudjet ${used:.0f}/${ADS_DAILY_LIMIT} — "
+                      "qolgan reklamalar chegaraga sig'maydi yoki muddati tugagan)")
+    cands.sort()
+    return byid[cands[0][4]], cands[0][5]
+
+
+async def ads_turn_on_replacement(st: dict, running: dict, byid: dict, now: int, why: str):
+    """Reklama butunlay to'xtab qolmasligi uchun o'rniga boshqasini yoqadi va egasiga xabar beradi."""
+    try:
+        c, info = await ads_pick_replacement(st, running, byid, now)
+    except soc.MetaError as e:
+        c, info = None, f"Meta xatosi: {e}"
+    if not c:
+        await _ads_alert(st, "norepl" + why[:10], f"⚠️ <b>O'rniga yoqadigan reklama topilmadi</b> — {esc(str(info))}.\n"
+                         "Ads Manager'da yangi reklama yoqing yoki menga ayting.")
+        return None
+    try:
+        await meta.set_campaign_status(c["id"], "ACTIVE")
+    except soc.MetaError as e:
+        await _ads_alert(st, f"onfail{c['id']}", f"⚠️ {esc(c.get('name', ''))} ni yoqib bo'lmadi: <code>{esc(str(e)[:200])}</code>")
+        return None
+    running[c["id"]] = c.get("name", "")
+    st.setdefault("enabled_by_watch", {})[c["id"]] = now
+    log.info("reklama nazoratchisi: %s yoqildi (%s)", c["id"], why)
+    await _ads_alert(st, f"on{c['id']}", f"▶️ <b>O'rniga yoqdim:</b> {esc(c.get('name', ''))} — ${info:.0f}/kun\n"
+                     f"Sabab: {esc(why)}.\nJami kunlik byudjet ${ADS_DAILY_LIMIT} dan oshmaydi. "
+                     "Agar Meta uni ko'rsatmasa (ichidagi e'lon o'chiq bo'lsa), keyingi tekshiruvda xabar beraman.")
+    return c
+
+
 async def ads_watch_once(now: int):
     st = _ads_state()
     today = time.strftime("%Y-%m-%d", time.gmtime(now + 5 * 3600))
     if st.get("day") != today:
-        st = {"day": today, "sent": [], "running": st.get("running") or {}}
+        st = {"day": today, "sent": [], "running": st.get("running") or {},
+              "paused_by_watch": {k: v for k, v in (st.get("paused_by_watch") or {}).items() if now - v < REPLACE_COOLDOWN},
+              "enabled_by_watch": {k: v for k, v in (st.get("enabled_by_watch") or {}).items() if now - v < 86400}}
     try:
         try:
             acc = await meta.ad_account_info()
@@ -1726,7 +1794,7 @@ async def ads_watch_once(now: int):
         byid = {c["id"]: c for c in camps}
         # 1) avval ishlab turgan reklama to'xtab qoldimi
         for cid, name in (st.get("running") or {}).items():
-            if cid in running:
+            if cid in running or cid in (st.get("paused_by_watch") or {}):
                 continue
             c = byid.get(cid) or {}
             why = {"PAUSED": "qo'lda to'xtatilgan", "CAMPAIGN_PAUSED": "qo'lda to'xtatilgan",
@@ -1735,9 +1803,23 @@ async def ads_watch_once(now: int):
                    "DELETED": "o'chirilgan"}.get(c.get("effective_status") or "", "muddati tugagan yoki to'xtagan")
             await _ads_alert(st, f"stop{cid}", f"⛔ <b>Reklama to'xtadi:</b> {esc(name)}\nSabab: {why}.\n"
                              "Qayta yoqish kerak bo'lsa — Ads Manager'da yoqing yoki menga ayting.")
+        for cid, ts in list((st.get("enabled_by_watch") or {}).items()):
+            if cid not in running and now - ts >= 25 * 60:
+                name = (byid.get(cid) or {}).get("name", "")
+                st["enabled_by_watch"].pop(cid, None)
+                st.setdefault("paused_by_watch", {})[cid] = now  # qayta tanlanmasin
+                try:
+                    await meta.set_campaign_status(cid, "PAUSED")  # bo'sh turgan kampaniyani yopamiz
+                except soc.MetaError:
+                    pass
+                await _ads_alert(st, f"dead{cid}", f"⚠️ Yoqqan reklamam ({esc(name)}) ko'rsatilmayapti — ichidagi e'lon "
+                                 "yoki ad set o'chiq bo'lishi mumkin. Uni yopib, boshqasini yoqishga harakat qilaman.")
+                await ads_turn_on_replacement(st, running, byid, now, f"«{name}» ko'rsatilmadi")
         if not running:
-            await _ads_alert(st, "none", "🚨 <b>Hozir birorta ham reklama ishlamayapti!</b>\n"
-                             "Yangi lidlar kelmaydi. Ads Manager'da reklamani yoqing yoki menga ayting.")
+            c = await ads_turn_on_replacement(st, running, byid, now, "birorta ham reklama ishlamay qoldi")
+            if not c:
+                await _ads_alert(st, "none", "🚨 <b>Hozir birorta ham reklama ishlamayapti!</b>\n"
+                                 "Yangi lidlar kelmaydi. Ads Manager'da reklamani yoqing yoki menga ayting.")
         # 2) rad etilgan / muammoli e'lonlar va kampaniyalar
         try:
             for a in await meta.rejected_ads():
@@ -1763,9 +1845,19 @@ async def ads_watch_once(now: int):
                                  "sarflandi, Meta hisobida lid yo'q. Bu kampaniya botga/saytga yo'naltiradi, shuning uchun "
                                  "o'zim to'xtatmadim — guruhga ariza tushyaptimi, qarab qo'ying.")
                 continue
-            if len(running) <= 1:
+            if cid in (st.get("enabled_by_watch") or {}) and now - st["enabled_by_watch"][cid] < 6 * 3600:
+                continue  # o'zim yoqqanimga kamida 6 soat imkon beraman
+            # o'rniga yoqiladigan reklama bormi — avval tekshiramiz (to'xtatilgan byudjet bo'shaydi)
+            rest = {k: v for k, v in running.items() if k != cid}
+            try:
+                repl, info = await ads_pick_replacement({**st, "paused_by_watch": {**(st.get("paused_by_watch") or {}),
+                                                                                   cid: now}}, rest, byid, now)
+            except soc.MetaError:
+                repl, info = None, ""
+            if not rest and not repl:
                 await _ads_alert(st, f"last{cid}", f"👀 <b>{esc(c.get('name', ''))}</b>: bugun ${c['spend']:.2f} sarflandi, "
-                                 "lid yo'q. Bu yagona ishlayotgan reklama — shuning uchun to'xtatmadim.")
+                                 "lid yo'q. Bu yagona ishlayotgan reklama va o'rniga yoqadigan mos reklama yo'q — "
+                                 "reklama butunlay to'xtab qolmasligi uchun to'xtatmadim.")
                 continue
             try:
                 await meta.set_campaign_status(cid, "PAUSED")
@@ -1774,9 +1866,10 @@ async def ads_watch_once(now: int):
                 continue
             log.info("reklama nazoratchisi: %s to'xtatildi ($%.2f, 0 lid)", cid, c["spend"])
             running.pop(cid, None)
+            st.setdefault("paused_by_watch", {})[cid] = now
             await _ads_alert(st, f"paused{cid}", f"⏸ <b>To'xtatdim:</b> {esc(c.get('name', ''))}\n"
-                             f"Bugun ${c['spend']:.2f} sarfladi, birorta ham lid bermadi (qoida: ${ADS_PAUSE_SPEND:.0f} va 0 lid).\n"
-                             f"Qolgan ishlayotgan reklamalar: {len(running)} ta. Qayta yoqish: Ads Manager.")
+                             f"Bugun ${c['spend']:.2f} sarfladi, birorta ham lid bermadi (qoida: ${ADS_PAUSE_SPEND:.0f} va 0 lid).")
+            await ads_turn_on_replacement(st, running, byid, now, f"«{c.get('name', '')}» sifatsiz bo'lgani uchun to'xtatildi")
         st["running"] = running
         # 4) kechki qisqa hisobot
         hour = time.gmtime(now + 5 * 3600).tm_hour

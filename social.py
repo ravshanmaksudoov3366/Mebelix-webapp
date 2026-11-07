@@ -380,6 +380,44 @@ class Meta:
         return await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}",
                                 fields="name,account_status,disable_reason,currency")
 
+    async def campaign_daily_budgets(self) -> dict:
+        """{kampaniya_id: kunlik byudjet (hisob valyutasida, butun birlikda)} — kampaniya (CBO) yoki yoqiq
+        ad set'lar yig'indisi. Faqat umumiy (lifetime) byudjetli kampaniya uchun None."""
+        camps = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns", limit=500,
+                                 fields="id,daily_budget,lifetime_budget")
+        sets = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/adsets", limit=500,
+                                fields="campaign_id,status,daily_budget,lifetime_budget")
+        out = {}
+        for c in camps.get("data") or []:
+            if c.get("daily_budget"):
+                out[c["id"]] = int(c["daily_budget"]) / 100
+            elif c.get("lifetime_budget"):
+                out[c["id"]] = None
+        for a in sets.get("data") or []:
+            cid = a.get("campaign_id")
+            if cid in out or a.get("status") not in ("ACTIVE", "PAUSED"):
+                continue
+            if a.get("lifetime_budget"):
+                out[cid + "#lt"] = True
+            elif a.get("daily_budget") and a.get("status") == "ACTIVE":
+                out.setdefault(cid + "#sum", 0)
+                out[cid + "#sum"] += int(a["daily_budget"]) / 100
+        res = {k: v for k, v in out.items() if "#" not in k}
+        for k, v in out.items():
+            if k.endswith("#sum") and k[:-4] + "#lt" not in out:
+                res[k[:-4]] = v
+            elif k.endswith("#lt"):
+                res[k[:-3]] = None
+        return res
+
+    async def campaigns_history(self, days: int = 30) -> dict:
+        """{kampaniya_id: {"spend": $, "leads": n}} — oxirgi `days` kun."""
+        preset = {7: "last_7d", 14: "last_14d", 30: "last_30d", 90: "last_90d"}.get(days, "last_30d")
+        d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/insights", level="campaign", date_preset=preset,
+                             fields="campaign_id,spend,actions", limit=500)
+        return {r.get("campaign_id"): {"spend": float(r.get("spend") or 0), "leads": count_leads(r.get("actions"))}
+                for r in d.get("data") or []}
+
     async def campaigns_today(self) -> list:
         """Barcha kampaniyalar (holati, maqsadi, byudjeti) + bugungi xarajat va lidlar soni."""
         d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
