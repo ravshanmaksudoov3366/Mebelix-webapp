@@ -1753,6 +1753,8 @@ async def ads_pick_replacement(st: dict, running: dict, byid: dict, now: int):
 
 async def ads_turn_on_replacement(st: dict, running: dict, byid: dict, now: int, why: str):
     """Reklama butunlay to'xtab qolmasligi uchun o'rniga boshqasini yoqadi va egasiga xabar beradi."""
+    if ads_hands_off():
+        return None
     try:
         c, info = await ads_pick_replacement(st, running, byid, now)
     except soc.MetaError as e:
@@ -1773,6 +1775,11 @@ async def ads_turn_on_replacement(st: dict, running: dict, byid: dict, now: int,
                      f"Sabab: {esc(why)}.\nJami kunlik byudjet ${ADS_DAILY_LIMIT} dan oshmaydi. "
                      "Agar Meta uni ko'rsatmasa (ichidagi e'lon o'chiq bo'lsa), keyingi tekshiruvda xabar beraman.")
     return c
+
+
+def ads_hands_off() -> bool:
+    """Faqat kuzatish rejimi (egasining talabi, 2026-11-07): nazoratchi reklamani o'zi yoqmaydi va to'xtatmaydi."""
+    return shop.settings().get("ads_watch_mode", "alert") != "auto"
 
 
 async def ads_watch_once(now: int):
@@ -1810,7 +1817,7 @@ async def ads_watch_once(now: int):
             await _ads_alert(st, f"stop{cid}", f"⛔ <b>Reklama to'xtadi:</b> {esc(name)}\nSabab: {why}.\n"
                              "Qayta yoqish kerak bo'lsa — Ads Manager'da yoqing yoki menga ayting.")
         for cid, ts in list((st.get("enabled_by_watch") or {}).items()):
-            if cid not in running and now - ts >= 25 * 60:
+            if not ads_hands_off() and cid not in running and now - ts >= 25 * 60:
                 name = (byid.get(cid) or {}).get("name", "")
                 st["enabled_by_watch"].pop(cid, None)
                 st.setdefault("paused_by_watch", {})[cid] = now  # qayta tanlanmasin
@@ -1822,7 +1829,8 @@ async def ads_watch_once(now: int):
                                  "yoki ad set o'chiq bo'lishi mumkin. Uni yopib, boshqasini yoqishga harakat qilaman.")
                 await ads_turn_on_replacement(st, running, byid, now, f"«{name}» ko'rsatilmadi")
         if not running:
-            c = await ads_turn_on_replacement(st, running, byid, now, "birorta ham reklama ishlamay qoldi")
+            c = None if ads_hands_off() else await ads_turn_on_replacement(st, running, byid, now,
+                                                                         "birorta ham reklama ishlamay qoldi")
             if not c:
                 await _ads_alert(st, "none", "🚨 <b>Hozir birorta ham reklama ishlamayapti!</b>\n"
                                  "Yangi lidlar kelmaydi. Ads Manager'da reklamani yoqing yoki menga ayting.")
@@ -1845,6 +1853,11 @@ async def ads_watch_once(now: int):
         for cid in list(running):
             c = byid.get(cid) or {}
             if c.get("spend", 0) <= ADS_PAUSE_SPEND or c.get("leads", 0) > 0:
+                continue
+            if ads_hands_off():
+                await _ads_alert(st, f"watch{cid}", f"👀 <b>{esc(c.get('name', ''))}</b>: bugun ${c['spend']:.2f} "
+                                 "sarflandi, Meta hisobida lid yo'q. Reklamaga tegmadim (faqat kuzatish rejimi) — "
+                                 "guruhga ariza tushyaptimi, qarab qo'ying.")
                 continue
             if c.get("objective") not in LEAD_OBJECTIVES and "obuna" in (c.get("name") or "").lower():
                 continue  # obunachi yig'adigan reklama — lid kutilmaydi
@@ -2306,8 +2319,11 @@ async def cmd_ads_watch(m: Message):
     await ads_watch_once(int(time.time()))
     on = shop.settings().get("ads_watch_on", "1") != "0"
     await m.answer(("🟢 Nazoratchi yoqiq" if on else "⏹ Nazoratchi o'chiq")
-                   + f": har 30 daqiqada tekshiradi; lid kampaniyasi bugun ${ADS_PAUSE_SPEND:.0f} sarflab 0 lid bersa "
-                   "to'xtatadi (kamida bittasi yoqiq qoladi); byudjet va to'lovga tegmaydi.\n"
+                   + (": har 30 daqiqada tekshiradi va faqat xabar beradi — reklamani o'zi yoqmaydi ham, to'xtatmaydi ham; "
+                      if ads_hands_off() else
+                      f": har 30 daqiqada tekshiradi; lid kampaniyasi bugun ${ADS_PAUSE_SPEND:.0f} sarflab 0 lid bersa "
+                      "to'xtatadi va o'rniga boshqasini yoqadi; ")
+                   + "byudjet va to'lovga tegmaydi.\n"
                    "Ishlayotgan reklamalar: /reklama")
 
 
@@ -4803,7 +4819,10 @@ async def main():
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
-        app_tasks.append(asyncio.create_task(ads_stop_all()))
+        if shop.settings().get("ads_watch_alert_v") != "1":
+            shop.set_setting("ads_watch_mode", "alert")
+            shop.set_setting("ads_watch_on", "1")
+            shop.set_setting("ads_watch_alert_v", "1")
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
