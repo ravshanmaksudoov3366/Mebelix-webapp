@@ -1805,6 +1805,14 @@ async def ads_watch_once(now: int):
                              + "</code>\nKeyinroq yana urinaman.")
             return
         byid = {c["id"]: c for c in camps}
+        log.info("ADSWATCH ishlayotgan: %s", " | ".join(
+            f"{(byid.get(cid) or {}).get('name', name)[:50]} [{(byid.get(cid) or {}).get('effective_status')}, "
+            f"{(byid.get(cid) or {}).get('objective')}, ${(byid.get(cid) or {}).get('spend', 0):.2f}, "
+            f"lid {(byid.get(cid) or {}).get('leads', 0)}]" for cid, name in running.items()) or "hech biri")
+        for c in camps:
+            if c["id"] not in running and c.get("effective_status") in ("IN_PROCESS", "PENDING_REVIEW", "WITH_ISSUES",
+                                                                         "DISAPPROVED", "PENDING_BILLING_INFO"):
+                log.info("ADSWATCH holat: %s [%s]", c.get("name", "")[:50], c.get("effective_status"))
         # 1) avval ishlab turgan reklama to'xtab qoldimi
         for cid, name in (st.get("running") or {}).items():
             if cid in running or cid in (st.get("paused_by_watch") or {}):
