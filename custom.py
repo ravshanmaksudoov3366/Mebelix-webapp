@@ -195,7 +195,8 @@ REQUEST_COLUMNS = {"style": "TEXT DEFAULT ''", "sample_id": "INTEGER", "sample_i
                    "workshop": "TEXT DEFAULT ''", "workshop_cost": "INTEGER DEFAULT 0",
                    # qo'ng'iroqlar: [[vaqt, natija, kim, izoh]], qayta qo'ng'iroq vaqti, rad etish sababi
                    "calls": "TEXT DEFAULT '[]'", "callback_at": "INTEGER DEFAULT 0", "lost_reason": "TEXT DEFAULT ''",
-                   "meta_lead": "TEXT DEFAULT ''"}  # Instagram/Facebook ariza formasidagi lid ID (takrorlanmasin)
+                   "meta_lead": "TEXT DEFAULT ''",  # Instagram/Facebook ariza formasidagi lid ID (takrorlanmasin)
+                   "meta_crm": "TEXT DEFAULT ''"}  # Meta'ga yuborilgan CRM bosqichlari (vergul bilan)
 CALL_RESULTS = {"noanswer": "📵 Javob bermadi", "callback": "🔁 Qayta qo'ng'iroq", "agreed": "✅ Rozi bo'ldi",
                 "rejected": "❌ Rad etdi"}
 LOST_REASONS = {"price": "Qimmat tuyuldi", "fee": "O'lchov puli to'g'ri kelmadi", "later": "Keyinroq oladi",

@@ -2561,20 +2561,45 @@ def custom_kb(r: dict, mode: str = "") -> InlineKeyboardMarkup:
 
 
 BAD_LEAD_STAGE = os.getenv("META_BAD_LEAD_STAGE", "Disqualified").strip() or "Disqualified"
+# Meta CRM bosqichlari: ariza holati → bosqich nomi (Events Manager'da shu nomlar ko'rinadi)
+CRM_QUALIFIED = ("measure", "design", "contract", "production", "ready", "delivered", "done")
+CRM_CONVERTED = ("contract", "production", "ready", "delivered", "done")
 
 
-async def report_bad_lead(r: dict) -> str:
-    """«Ariza qoldirmaganman» — reklama lidini Meta'ga sifatsiz deb yuboradi. Natija matnini qaytaradi."""
-    pixel = SHOP["pixel"]
-    if not (soc.configured() and pixel):
-        return "⚠️ Meta'ga yuborilmadi: META_TOKEN yoki META_PIXEL_ID yo'q. Ads Manager → Центр лидов'da qo'lda «Не квалифицирован» qiling."
+async def send_crm_stage(r: dict, stage: str) -> str:
+    """Reklama lidi bosqichini Meta'ga bir marta yuboradi. Natija matnini qaytaradi ("" — yuborish kerak emas)."""
+    if not r.get("meta_lead"):
+        return ""
+    row = cs.db.execute("SELECT meta_crm FROM custom_requests WHERE id=?", (r["id"],)).fetchone()
+    done = set(filter(None, ((row[0] if row else "") or "").split(",")))
+    if stage in done:
+        return ""
+    if not (soc.configured() and SHOP["pixel"]):
+        return "⚠️ Meta'ga yuborilmadi: META_TOKEN yoki META_PIXEL_ID yo'q."
     try:
-        await asyncio.wait_for(meta.mark_lead_stage(pixel, r["meta_lead"], BAD_LEAD_STAGE), 12)
-        log.info("lid #%s Meta'ga sifatsiz deb yuborildi (meta_lead=%s)", r["id"], r["meta_lead"])
-        return "📉 Meta'ga «sifatsiz lid» deb yuborildi — bunday odamlarga reklama kamroq chiqadi."
+        await asyncio.wait_for(meta.mark_lead_stage(SHOP["pixel"], r["meta_lead"], stage), 12)
     except (soc.MetaError, asyncio.TimeoutError, aiohttp.ClientError, ValueError) as e:
-        log.warning("lid #%s Meta'ga yuborilmadi: %s", r["id"], e)
-        return f"⚠️ Meta'ga yuborilmadi ({str(e)[:120]}). Ads Manager → Центр лидов'da qo'lda «Не квалифицирован» qiling."
+        log.warning("lid #%s Meta'ga %s yuborilmadi: %s", r["id"], stage, e)
+        return f"⚠️ Meta'ga yuborilmadi ({str(e)[:120]})."
+    done.add(stage)
+    cs.db.execute("UPDATE custom_requests SET meta_crm=? WHERE id=?", (",".join(sorted(done)), r["id"]))
+    cs.db.commit()
+    log.info("lid #%s Meta'ga «%s» deb yuborildi", r["id"], stage)
+    return f"📤 Meta'ga «{stage}» yuborildi."
+
+
+async def crm_sync(r: dict) -> str:
+    """Ariza holati o'zgarganda reklama lidining bosqichini Meta'ga yuboradi (Conversions API — CRM)."""
+    if not r.get("meta_lead"):
+        return ""
+    if r["status"] == "cancelled" and r.get("lost_reason") in cust.BAD_LEAD_REASONS:
+        return await send_crm_stage(r, BAD_LEAD_STAGE)
+    out = ""
+    if r["status"] in CRM_QUALIFIED:
+        out = await send_crm_stage(r, "Qualified") or out
+    if r["status"] in CRM_CONVERTED:
+        out = await send_crm_stage(r, "Converted") or out
+    return out
 
 
 def callback_time(code: str, now: int = 0) -> int:
@@ -2612,7 +2637,7 @@ async def cb_custom_call(c: CallbackQuery):
             r = cs.log_call(rid, "rejected", who, reason=parts[3])
             note = f"❌ Ariza yopildi: {cust.LOST_REASONS.get(parts[3], '')}"
             if parts[3] in cust.BAD_LEAD_REASONS and r.get("meta_lead"):
-                note += "\n" + await report_bad_lead(r)
+                note += "\n" + (await crm_sync(r) or "").replace("«Disqualified»", "«sifatsiz lid»")
         else:
             return await c.answer()
     except ShopError as e:
@@ -2627,8 +2652,6 @@ async def api_admin_custom_call(request):
     at = cust.parse_local_dt(data.get("at") or "") or callback_time(data.get("preset") or "")
     r = cs.log_call(int(request.match_info["id"]), data.get("result", ""), f"admin: {u.get('first_name', '')}",
                     callback_at=at, reason=data.get("reason") or "")
-    if data.get("result") == "rejected" and data.get("reason") in cust.BAD_LEAD_REASONS and r.get("meta_lead"):
-        asyncio.create_task(report_bad_lead(r))
     asyncio.create_task(refresh_custom_messages(r))
     return web.json_response({"request": custom_admin(r)})
 
@@ -2727,6 +2750,8 @@ async def remove_custom_messages(r: dict) -> None:
 
 
 async def refresh_custom_messages(r: dict):
+    if r.get("meta_lead"):
+        asyncio.create_task(crm_sync(r))
     if not bot:
         return
     if r["status"] == "cancelled":
