@@ -1899,6 +1899,24 @@ async def ads_watch_once(now: int):
         shop.set_setting("ads_watch", json.dumps(st, ensure_ascii=False))
 
 
+ADS_DIAG_VER = "1"
+
+
+async def ads_diag_once():
+    """Bir martalik tashxis: reklama hisobi tuzilishini logga yozadi (faqat o'qish, hech narsa o'zgarmaydi)."""
+    await asyncio.sleep(20)
+    if not soc.configured() or shop.settings().get("ads_diag") == ADS_DIAG_VER:
+        return
+    try:
+        snap = await meta.account_snapshot()
+        blob = json.dumps(snap, ensure_ascii=False, separators=(",", ":"))
+        for i in range(0, len(blob), 3000):
+            log.info("ADSDIAG %d/%d %s", i // 3000 + 1, (len(blob) + 2999) // 3000, blob[i:i + 3000])
+        shop.set_setting("ads_diag", ADS_DIAG_VER)
+    except Exception as e:  # noqa: BLE001
+        log.warning("ADSDIAG xato: %s", e)
+
+
 async def ads_watch_loop():
     """Reklama nazoratchisi: har 30 daqiqada (kechasi ham) hisob holati, to'xtab qolgan va rad etilgan reklamalar,
     «$15 va 0 lid» qoidasi, kechki hisobot. Byudjet, to'lov va kartaga hech qachon tegmaydi."""
@@ -4426,6 +4444,7 @@ async def main():
         app_tasks.append(asyncio.create_task(meta_leads_loop()))
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
+        app_tasks.append(asyncio.create_task(ads_diag_once()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")

@@ -418,6 +418,41 @@ class Meta:
         return {r.get("campaign_id"): {"spend": float(r.get("spend") or 0), "leads": count_leads(r.get("actions"))}
                 for r in d.get("data") or []}
 
+    async def account_snapshot(self) -> dict:
+        """Faqat o'qish: reklama hisobi tuzilishi (kampaniya, ad set, e'lon, forma, IG) — tashxis uchun."""
+        await self._ready()
+        A = ADS_V + f"act_{AD_ACCOUNT_ID}/"
+        out = {"ig": {"id": self._ig_id, "username": self.ig_username}, "page": self.page_id}
+        out["campaigns"] = (await self._call("GET", A + "campaigns", limit=200, fields=(
+            "id,name,status,effective_status,objective,daily_budget,lifetime_budget,created_time,start_time,stop_time,"
+            "special_ad_categories,bid_strategy"))).get("data") or []
+        out["adsets"] = (await self._call("GET", A + "adsets", limit=200, fields=(
+            "id,name,campaign_id,status,effective_status,optimization_goal,billing_event,destination_type,daily_budget,"
+            "lifetime_budget,bid_amount,promoted_object,targeting,created_time,end_time"))).get("data") or []
+        out["ads"] = (await self._call("GET", A + "ads", limit=200, fields=(
+            "id,name,adset_id,campaign_id,status,effective_status,created_time,"
+            "creative{id,name,object_story_spec,effective_object_story_id,effective_instagram_media_id,"
+            "call_to_action_type,asset_feed_spec,object_type,degrees_of_freedom_spec}"))).get("data") or []
+        try:
+            out["forms"] = (await self._call("GET", f"{self.page_id}/leadgen_forms", limit=50, _token=self._page_token,
+                                             fields="id,name,status,locale,leads_count,created_time,is_optimized_for_quality,"
+                                                    "questions,privacy_policy_url,thank_you_page,follow_up_action_url,"
+                                                    "block_display_for_non_targeted_viewer")).get("data") or []
+        except MetaError as e:
+            out["forms_error"] = str(e)
+        try:
+            out["account"] = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}", fields=(
+                "name,currency,timezone_name,account_status,spend_cap,amount_spent"))
+        except MetaError as e:
+            out["account_error"] = str(e)
+        try:
+            ins = await self._call("GET", A + "insights", level="campaign", date_preset="last_7d", limit=200,
+                                   fields="campaign_id,campaign_name,spend,impressions,reach,clicks,actions")
+            out["insights_7d"] = ins.get("data") or []
+        except MetaError as e:
+            out["insights_error"] = str(e)
+        return out
+
     async def campaigns_today(self) -> list:
         """Barcha kampaniyalar (holati, maqsadi, byudjeti) + bugungi xarajat va lidlar soni."""
         d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/campaigns",
