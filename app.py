@@ -1232,6 +1232,52 @@ async def cmd_lost_reasons(m: Message):
     await m.answer(lost_report_text(ym))
 
 
+SALE_KINDS = (("kitchen", ("oshxona", "кухн")), ("wardrobe", ("shkaf", "шкаф", "garderob", "гардероб")),
+              ("komod", ("komod", "комод")), ("corner", ("burchak", "углов")), ("sofa", ("divan", "диван")))
+SALE_HELP = ("🚶 <b>O'zingiz topgan mijozni kiritish</b>\n\n"
+             "Bitta xabar, vergul bilan:\n<code>/sotuv Ism, telefon, mebel turi, narx, avans</code>\n\n"
+             "Masalan:\n<code>/sotuv Akmal, 901234567, oshxona, 12mln, 4mln</code>\n"
+             "<code>/sotuv Dilnoza, +998 93 111 22 33, shkaf, 6 500 000</code>  (avanssiz)\n\n"
+             "Ariza «📝 Shartnoma» bosqichida ochiladi va lidlar guruhiga tushadi — keyingi bosqichlarni "
+             "o'sha yerdagi tugmalar bilan o'tkazasiz. «✅ Yakunlandi» bosilganda savdo moliya hisobotiga kiradi.")
+
+
+@dp.message(Command("sotuv"))
+async def cmd_manual_sale(m: Message):
+    """Admin: ko'chadan / tanish orqali topilgan mijozni bitta buyruq bilan ariza qilib kiritadi."""
+    if not is_admin(m.from_user.id):
+        return
+    body = ((m.text or "").split(maxsplit=1)[1:] or [""])[0].strip()
+    parts = [x.strip() for x in body.split(",")] if body else []
+    if len(parts) < 4:
+        return await m.answer(SALE_HELP)
+    name, raw_phone, kind_txt = parts[0], parts[1], parts[2]
+    try:
+        phone = normalize_phone(raw_phone)
+    except ShopError:
+        return await m.answer(f"📞 Telefon raqami noto'g'ri: <code>{esc(raw_phone)}</code>\n\n" + SALE_HELP)
+    price = fin.parse_amount(parts[3])[0]
+    prepay = fin.parse_amount(re.sub(r"(?i)^(avans|аванс|oldindan)\s*", "", parts[4]))[0] if len(parts) > 4 else 0
+    if not price:
+        return await m.answer(f"💰 Narxni tushunmadim: <code>{esc(parts[3])}</code> (masalan: 12mln yoki 12 000 000)")
+    low = kind_txt.lower()
+    kinds = [k for k, words in SALE_KINDS if any(w in low for w in words)] or ["other"]
+    note = ", ".join(parts[5:])
+    if kinds == ["other"] and kind_txt:
+        note = (kind_txt + (", " + note if note else ""))
+    uid = -(WEB_ID_BASE + int.from_bytes(os.urandom(6), "big"))  # mijozning Telegram'i yo'q — unga xabar yuborilmaydi
+    try:
+        r = cs.create_manual(uid, name, phone, kinds, price, prepay, "contract", note,
+                             who=f"admin: {m.from_user.full_name} (o'zi topdi)")
+    except ShopError as e:
+        return await m.answer("⚠️ " + esc(str(e)))
+    await post_custom_to_groups(r)
+    await m.answer(f"✅ <b>Ariza #{r['id']} kiritildi</b> — 🚶 o'zingiz topgan mijoz\n"
+                   f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}\n"
+                   f"💰 Narx: {fmt_price(price)}" + (f" · avans: {fmt_price(prepay)}" if prepay else "") + "\n"
+                   "📝 Bosqich: Shartnoma. Lidlar guruhida ko'rinadi; ish topshirilgach «✅ Yakunlandi» ni bosing.")
+
+
 @dp.message(Command("hisobot"))
 async def cmd_report(m: Message):
     """Admin istalgan joyda, sherik esa sherik guruhida so'rashi mumkin."""
@@ -3803,6 +3849,7 @@ ADMIN_MENU = [
      ("⏰ Post vaqti", "cmd_post_time", "/post_vaqti", "Postlar chiqadigan vaqt")],
     [("📉 Rad sabablari", "cmd_lost_reasons", "/sabablar", "Arizalar voronkasi va rad etish sabablari (oy bo'yicha)"),
      ("🔎 Reklama lidlari", "cmd_leads_check", "/lidlar", "Reklama formasidagi lidlarni tekshirish")],
+    [("🚶 Sotuv kiritish", "cmd_manual_sale", "/sotuv", "O'zingiz topgan mijoz: /sotuv Ism, telefon, oshxona, 12mln, 4mln")],
     [("📣 Reklamalar", "cmd_ads", "/reklama", "Ishlayotgan reklamalar va to'xtatish"),
      ("🛡 Reklama nazorati", "cmd_ads_watch", "/nazorat", "Reklamani hozir tekshirish; /nazorat off — o'chirish")],
     [("#️⃣ Heshteglar", "cmd_tags", "/heshteg", "Postlardagi heshteglar"),

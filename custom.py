@@ -233,7 +233,7 @@ def parse_local_dt(s: str) -> int:
     y, mo, d, h, mi = map(int, m.groups())
     return calendar.timegm((y, mo, d, h, mi, 0)) - TZ
 # Mijoz qayerdan kelgani (havoladagi ?src=...)
-SOURCES = {"ig": "📸 Instagram", "fb": "📘 Facebook", "tg": "✈️ Telegram", "site": "🌐 Sayt", "ads": "📣 Reklama"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
+SOURCES = {"street": "🚶 O'zimiz topdik", "ig": "📸 Instagram", "fb": "📘 Facebook", "tg": "✈️ Telegram", "site": "🌐 Sayt", "ads": "📣 Reklama"}  # bir arizada bir nechta mebel turi (kind — birinchisi)
 
 
 def kinds_of(r: dict) -> list:
@@ -638,6 +638,26 @@ class CustomStore:
         self.db.commit()
         return self.get(cur.lastrowid)
 
+    def create_manual(self, uid: int, name: str, phone: str, kinds: list, price: int, prepay: int,
+                      status: str = "contract", note: str = "", who: str = "") -> dict:
+        """Admin o'zi topgan mijoz (ko'cha, tanish, qo'ng'iroq) — ariza darhol kelishilgan bosqichda yaratiladi."""
+        if status not in STAGES:
+            raise ShopError("Noto'g'ri bosqich")
+        if prepay and price and prepay > price:
+            raise ShopError("Avans narxdan katta bo'lishi mumkin emas")
+        kinds = [k for k in kinds if k in KINDS] or ["other"]
+        now = int(time.time())
+        events = [["new", now, who or "admin"]] + ([[status, now, who or "admin"]] if status != "new" else [])
+        cur = self.db.execute(
+            "INSERT INTO custom_requests(user_id,username,name,phone,city,address,kind,model_id,model_name,dims,"
+            "measure_visit,tier,color,note,photos,estimate_min,estimate_max,status,events,lang,created,updated,"
+            "kinds,source,price,prepay) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (uid, "", (name or "Mijoz").strip()[:80], phone, "", "", kinds[0], None, "", "{}", 0, "", "",
+             (note or "").strip()[:1000], "[]", 0, 0, status, json.dumps(events, ensure_ascii=False), "uz", now, now,
+             json.dumps(kinds), "street", int(price or 0), int(prepay or 0)))
+        self.db.commit()
+        return self.get(cur.lastrowid)
+
     def set_status(self, rid: int, status: str, who: str = "") -> dict:
         if status not in STAGES:
             raise ShopError("Noto'g'ri bosqich")
@@ -848,6 +868,8 @@ def source_text(r: dict) -> str:
     if r.get("meta_lead"):
         plat = "📸 Instagram" if s == "ig" else ("📘 Facebook" if s == "fb" else "Instagram/Facebook")
         return f"📣 Reklama formasi · {plat}"
+    if s == "street":
+        return SOURCES["street"]
     if (r.get("user_id") or 0) < 0:
         return "🌐 Sayt" + (f" ← {origin}" if s and s != "site" else "")
     return "✈️ Telegram bot" + (f" ← {origin}" if s and s != "tg" else "")
@@ -887,6 +909,8 @@ def admin_text(r: dict) -> str:
     when = time.strftime("%d.%m.%Y %H:%M", time.gmtime(r["created"] + 5 * 3600))
     if r.get("meta_lead"):
         who = "📱 Instagram/Facebook reklama formasidan — telefon qiling"
+    elif r.get("source") == "street":
+        who = "🚶 o'zimiz topgan mijoz"
     elif r["user_id"] < 0:
         who = "🌐 saytdan — Telegram'i yo'q, telefon qiling"
     elif r.get("username"):
