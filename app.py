@@ -1710,12 +1710,15 @@ def _due_nudge(row: dict, now: int) -> int:
 async def _nudge(msgs: list, text: str, kb=None, chats=None):
     """Eslatma — guruhdagi asl xabarga javob (reply) sifatida, shunda tugmalari yonida bo'ladi."""
     by_chat = {e[0]: e[1] for e in msgs or [] if len(e) > 1}
+    sent = []
     for chat in chats or NOTIFY_CHATS:
         try:
-            await bot.send_message(chat, text, reply_markup=kb, reply_to_message_id=by_chat.get(chat),
-                                   allow_sending_without_reply=True)
+            m = await bot.send_message(chat, text, reply_markup=kb, reply_to_message_id=by_chat.get(chat),
+                                       allow_sending_without_reply=True)
+            sent.append((chat, m.message_id))
         except TelegramAPIError as e:
             log.warning("eslatma yuborilmadi %s: %s", chat, e)
+    return sent
 
 
 async def daily_digest(now: int):
@@ -1793,7 +1796,7 @@ async def followup_loop():
                            if r.get("need_when") != "price" else "Mijoz narx so'ramoqda — qo'ng'iroq qilib maslahat bering."))
                 cs.db.execute("UPDATE custom_requests SET nudged=?, nudged_at=? WHERE id=?", (n, now, r["id"]))
                 cs.db.commit()
-                await _nudge(r.get("admin_msgs"), text, custom_kb(r), lead_chats(r))
+                track_custom_extra(r["id"], await _nudge(r.get("admin_msgs"), text, custom_kb(r), lead_chats(r)))
                 # oxirgi eslatma — egasiga shaxsan ham; reklama lidlari uchun alohida guruh bo'lsa — faqat o'sha guruhga
                 if n == len(NUDGE_AFTER) and not lead_chat_id():
                     for aid in ADMIN_IDS:
@@ -2614,8 +2617,9 @@ async def remind_callbacks(now: int):
         cs.clear_callback(r["id"])
         last = (r.get("calls") or [[0, ""]])[-1]
         why = "javob bermagan edi" if last[1] == "noanswer" else "qayta qo'ng'iroq qilishga kelishilgan"
-        await _nudge(r.get("admin_msgs"), f"🔁 <b>Qayta qo'ng'iroq vaqti — ariza #{r['id']}</b> ({why})\n"
-                     f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}", custom_kb(r))
+        track_custom_extra(r["id"], await _nudge(
+            r.get("admin_msgs"), f"🔁 <b>Qayta qo'ng'iroq vaqti — ariza #{r['id']}</b> ({why})\n"
+            f"👤 {esc(r['name'])} · 📞 {esc(r['phone'])}\n{esc(r['kind_name'])}", custom_kb(r)))
 
 
 def lead_chat_id() -> int:
@@ -2630,25 +2634,34 @@ def lead_chats(r: dict) -> list:
     return [lc] if lc else NOTIFY_CHATS
 
 
-async def notify_custom_new(r: dict):
-    if not bot:
-        return
+async def post_custom_to_groups(r: dict) -> list:
+    """Arizani lidlar guruhiga (yoki admin guruhlariga) yuboradi. Qaytaradi: [[chat, xabar_id, [rasm/eslatma id'lari]]]."""
     msgs = []
     for chat in lead_chats(r):
+        extra = []
         try:
             photos = [os.path.join(cs.photo_dir, p) for p in r["photos"]]
             if r.get("sample_image"):  # mijoz tanlagan namuna — birinchi rasm
                 photos.insert(0, os.path.join(UPLOAD_DIR, os.path.basename(r["sample_image"])))
             photos = [p for p in photos if os.path.isfile(p)]
             if len(photos) == 1:
-                await bot.send_photo(chat, FSInputFile(photos[0]))
+                extra.append((await bot.send_photo(chat, FSInputFile(photos[0]))).message_id)
             elif photos:
-                await bot.send_media_group(chat, [InputMediaPhoto(media=FSInputFile(p)) for p in photos[:10]])
+                sent = await bot.send_media_group(chat, [InputMediaPhoto(media=FSInputFile(p)) for p in photos[:10]])
+                extra += [x.message_id for x in sent]
             m = await bot.send_message(chat, cust.admin_text(r), reply_markup=custom_kb(r))
-            msgs.append([chat, m.message_id])
+            msgs.append([chat, m.message_id, extra])
         except TelegramAPIError as e:
             log.warning("individual ariza guruhga yuborilmadi: %s", e)
+            await _delete_msgs(chat, extra)
     cs.set_admin_msgs(r["id"], msgs)
+    return msgs
+
+
+async def notify_custom_new(r: dict):
+    if not bot:
+        return
+    await post_custom_to_groups(r)
     if is_web(r["user_id"]):
         return
     try:
@@ -2658,8 +2671,47 @@ async def notify_custom_new(r: dict):
         log.warning("mijozga yuborilmadi: %s", e)
 
 
+def track_custom_extra(rid: int, sent) -> None:
+    """Ariza bo'yicha guruhga yuborilgan qo'shimcha xabarlar (eslatmalar) — bekor qilinganda birga o'chiriladi."""
+    if not sent:
+        return
+    try:
+        msgs = cs.get(rid).get("admin_msgs") or []
+    except ShopError:
+        return
+    for chat, mid in sent:
+        for e in msgs:
+            if e[0] == chat:
+                if len(e) < 3:
+                    e.append([])
+                e[2].append(mid)
+                break
+    cs.set_admin_msgs(rid, msgs)
+
+
+async def _delete_msgs(chat, ids) -> None:
+    for mid in ids or []:
+        try:
+            await bot.delete_message(chat, mid)
+        except TelegramAPIError as e:  # 48 soatdan eski xabarni o'chirish uchun bot guruhda admin bo'lishi kerak
+            log.warning("guruhdagi xabar o'chirilmadi %s/%s: %s", chat, mid, e)
+
+
+async def remove_custom_messages(r: dict) -> None:
+    """Rad etilgan / bekor qilingan ariza — guruhdagi xabari, rasmlari va eslatmalari o'chiriladi."""
+    for e in r.get("admin_msgs") or []:
+        await _delete_msgs(e[0], [e[1]] + list(e[2] if len(e) > 2 else []))
+    cs.set_admin_msgs(r["id"], [])
+    r["admin_msgs"] = []
+
+
 async def refresh_custom_messages(r: dict):
     if not bot:
+        return
+    if r["status"] == "cancelled":
+        return await remove_custom_messages(r)
+    if not r.get("admin_msgs"):  # bekor qilingan ariza qayta ochildi — guruhga yangidan chiqaramiz
+        await post_custom_to_groups(r)
         return
     for entry in r.get("admin_msgs") or []:
         try:
