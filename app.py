@@ -1985,6 +1985,49 @@ async def _video_creative(post_id: str, name: str, cta: dict) -> str:
     return (await meta.ads_post(f"act_{soc.AD_ACCOUNT_ID}/adcreatives", name=name[:90], object_story_spec=spec))["id"]
 
 
+async def ads_stop_all():
+    """Egasining buyrug'i (2026-11-07 21:40): barcha reklamalarni to'xtatish va nazoratchini o'chirish
+    (u bo'sh qolganda reklamani o'zi yoqmasin). Ikki marta o'tadi — oraliqda yaratilgani ham qolmasin."""
+    if shop.settings().get("ads_stopall") == "1":
+        return
+    shop.set_setting("ads_watch_on", "0")   # nazoratchi hech narsani yoqmaydi
+    shop.set_setting("ads_fix2", "1")       # tuzatish qayta ishga tushmaydi
+    if not soc.configured():
+        return
+    stopped, errs = [], []
+    for attempt in range(2):
+        try:
+            camps = (await meta.ads_get(f"act_{soc.AD_ACCOUNT_ID}/campaigns", fields="id,name,status", limit=500)).get("data") or []
+        except soc.MetaError as e:
+            errs.append(str(e))
+            await asyncio.sleep(60)
+            continue
+        for c in camps:
+            if c.get("status") != "ACTIVE":
+                continue
+            try:
+                await meta.ads_post(c["id"], status="PAUSED")
+                stopped.append(c.get("name") or c["id"])
+                log.info("ADSSTOP %s to'xtatildi", c["id"])
+            except soc.MetaError as e:
+                errs.append(f"{c.get('name', c['id'])[:40]}: {e}")
+        if attempt == 0:
+            await asyncio.sleep(120)
+    if not errs:
+        shop.set_setting("ads_stopall", "1")
+    log.info("ADSSTOP natija: %d ta to'xtatildi, xato: %s", len(stopped), errs)
+    text = (f"⏸ <b>Barcha reklamalar to'xtatildi</b> ({len(stopped)} ta kampaniya).\n"
+            "Reklama nazoratchisi ham o'chirildi — hech narsani o'zi yoqmaydi.\n"
+            "Qayta yoqish: Ads Manager'da yoki menga ayting.")
+    if errs:
+        text += "\n\n⚠️ To'xtatib bo'lmaganlari:\n" + "\n".join(esc(x[:150]) for x in errs[:5])
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
+
+
 async def ads_fix_retry():
     """2-urinish: lid reklamasi joylashuvi va Instagram obuna reklamasi (1-urinishda «explore» sababli o'tmagan)."""
     await asyncio.sleep(45)
@@ -4760,7 +4803,7 @@ async def main():
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
-        app_tasks.append(asyncio.create_task(ads_fix_retry()))
+        app_tasks.append(asyncio.create_task(ads_stop_all()))
     shop.reset_stuck_videos()  # havolani saqlaymiz (GC o'chirib yubormasin)
     if not bot:
         log.warning("BOT_TOKEN yo'q — faqat web server ishlayapti (sinov rejimi).")
