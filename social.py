@@ -512,6 +512,21 @@ class Meta:
         d = await self._call("GET", ADS_V + f"{cid}/insights", fields="spend,impressions,clicks", date_preset="today")
         return (d.get("data") or [{}])[0]
 
+    async def spend_report(self, days: int = 10) -> list:
+        """Oxirgi N kun (bugun bilan) bo'yicha har bir kampaniya sarfi, ko'rsatuv va bosishlar."""
+        t = time.gmtime(time.time() + 5 * 3600)
+        until = time.strftime("%Y-%m-%d", t)
+        since = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 5 * 3600 - (days - 1) * 86400))
+        d = await self._call("GET", ADS_V + f"act_{AD_ACCOUNT_ID}/insights", level="campaign",
+                             fields="campaign_name,spend,impressions,clicks,actions",
+                             time_range=json.dumps({"since": since, "until": until}), limit=200)
+        rows = d.get("data") or []
+        for r in rows:
+            acts = {a.get("action_type"): int(float(a.get("value") or 0)) for a in r.get("actions") or []}
+            r["leads"] = acts.get("lead", 0) or acts.get("onsite_conversion.lead_grouped", 0)
+        rows.sort(key=lambda r: -float(r.get("spend") or 0))
+        return [dict(r, since=since, until=until) for r in rows]
+
     async def set_campaign_status(self, cid: str, status: str = "PAUSED") -> None:
         await self._call("POST", ADS_V + cid, status=status)
 

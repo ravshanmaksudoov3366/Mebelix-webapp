@@ -2335,6 +2335,31 @@ async def cmd_ads_watch(m: Message):
                    "Ishlayotgan reklamalar: /reklama")
 
 
+@dp.message(Command("sarf"))
+async def cmd_spend(m: Message):
+    """Admin: oxirgi N kunda reklamaga qancha sarflangani (standart — 10 kun). Masalan: /sarf 30"""
+    if not is_admin(m.from_user.id):
+        return
+    parts = (m.text or "").split()
+    days = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() and 0 < int(parts[1]) <= 90 else 10
+    try:
+        rows = await meta.spend_report(days)
+    except soc.MetaError as ex:
+        return await m.answer(f"⚠️ Meta xatosi:\n<code>{esc(str(ex))}</code>")
+    rows = [r for r in rows if float(r.get("spend") or 0) > 0]
+    if not rows:
+        return await m.answer(f"Oxirgi {days} kunda reklamaga pul sarflanmagan.")
+    total = sum(float(r["spend"]) for r in rows)
+    out = [f"💰 <b>Reklama sarfi — oxirgi {days} kun</b> ({rows[0]['since']} … {rows[0]['until']})", ""]
+    for r in rows:
+        sp = float(r["spend"])
+        extra = f" · {r['leads']} lid (${sp / r['leads']:.2f}/lid)" if r.get("leads") else ""
+        out.append(f"• {esc(r.get('campaign_name', ''))}\n   <b>${sp:.2f}</b> · {int(r.get('impressions') or 0):,} ko'rish · "
+                   f"{int(r.get('clicks') or 0)} bosish{extra}".replace(",", " "))
+    out += ["", f"<b>Jami: ${total:.2f}</b>"]
+    await m.answer("\n".join(out))
+
+
 @dp.message(Command("reklama"))
 async def cmd_ads(m: Message):
     """Ishlayotgan Meta reklamalari ro'yxati va har birini to'xtatish tugmasi (brauzersiz, telefondan)."""
