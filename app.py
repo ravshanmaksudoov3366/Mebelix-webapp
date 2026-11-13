@@ -2296,7 +2296,7 @@ async def ads_fix_once():
             pass
 
 
-NEW_LEAD_VER = "3"  # 2: IG post orqali (ilova development rejimida)
+NEW_LEAD_VER = "4"  # 2: IG post orqali (ilova development rejimida)
 NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
 
 
@@ -2341,6 +2341,7 @@ async def ads_new_lead_once():
                                     promoted_object={"page_id": soc.FB_PAGE_ID},
                                     targeting=await _fix_targeting({}, geo), status="ACTIVE"))["id"]
         cta = {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id}}
+        ig_cta = {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id, "link": "http://fb.me/"}}
         # 1-urinish: egasi Instagramga qo'lda joylagan post (ilova yaratmagan — «development» to'sig'i yo'q)
         oads = (await meta.ads_get(FIX_BOOST_CAMP + "/ads", fields="creative{effective_instagram_media_id}",
                                    limit=10)).get("data") or []
@@ -2351,7 +2352,7 @@ async def ads_new_lead_once():
             try:
                 cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Lid forma (IG post)",
                                           instagram_user_id=meta._ig_id, source_instagram_media_id=media,
-                                          call_to_action=cta))["id"]
+                                          call_to_action=ig_cta))["id"]
                 for ig_only in (False, True):
                     try:
                         if ig_only:
