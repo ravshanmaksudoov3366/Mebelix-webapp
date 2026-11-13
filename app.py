@@ -2296,6 +2296,74 @@ async def ads_fix_once():
             pass
 
 
+NEW_LEAD_VER = "1"
+NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
+
+
+async def ads_new_lead_once():
+    """Egasining buyrug'i (2026-11-13): yangi lid kampaniyasi — Instagram + Facebook, Meta ichidagi forma
+    (telefon raqam), Toshkent, $10/kun. Lidlar meta_leads_loop orqali menejerlar guruhiga keladi.
+    Bir marta ishlaydi; xato bo'lsa yaratilgan kampaniya to'xtatiladi. Eski reklamalarga tegmaydi."""
+    await asyncio.sleep(60)
+    if not soc.configured() or shop.settings().get("ads_newlead") == NEW_LEAD_VER:
+        return
+    shop.set_setting("ads_newlead", NEW_LEAD_VER)  # qayta ishga tushganda takror yaratmasin
+    A = f"act_{soc.AD_ACCOUNT_ID}/"
+    camp, text = "", ""
+    try:
+        await meta._ready()
+        try:
+            regions = await meta.tashkent_regions()
+        except soc.MetaError as e:
+            regions = []
+            log.warning("NEWLEAD geo: %s", e)
+        geo = {"regions": regions, "location_types": ["home", "recent"]} if regions else {"countries": ["UZ"]}
+        ads = (await meta.ads_get(FIX_LEAD_ADSET + "/ads", fields="id,creative{effective_object_story_id}",
+                                  limit=50)).get("data") or []
+        post = next(((a.get("creative") or {}).get("effective_object_story_id") for a in ads
+                     if (a.get("creative") or {}).get("effective_object_story_id")), "")
+        if not post:
+            raise soc.MetaError("lid reklamasi uchun video post topilmadi")
+        spec = dict(LEAD_FORM_V3, name="iSofa — Bepul o'lchov (2026-11-13)")
+        try:
+            form_id = await meta.create_lead_form(spec)
+        except soc.MetaError as e:
+            log.warning("NEWLEAD forma context_card bilan: %s — usiz", e)
+            spec.pop("context_card", None)
+            form_id = await meta.create_lead_form(spec)
+        camp = (await meta.ads_post(A + "campaigns", name="iSofa — Lid (forma) 2026-11-13", objective="OUTCOME_LEADS",
+                                    status="ACTIVE", special_ad_categories=[],
+                                    is_adset_budget_sharing_enabled="false"))["id"]
+        aset = (await meta.ads_post(A + "adsets", name="Toshkent — IG+FB forma", campaign_id=camp,
+                                    daily_budget=NEW_LEAD_BUDGET, billing_event="IMPRESSIONS",
+                                    optimization_goal="LEAD_GENERATION", destination_type="ON_AD",
+                                    bid_strategy="LOWEST_COST_WITHOUT_CAP",
+                                    promoted_object={"page_id": soc.FB_PAGE_ID},
+                                    targeting=await _fix_targeting({}, geo), status="ACTIVE"))["id"]
+        cr = await _video_creative(post, "iSofa — Lid forma 2026-11-13",
+                                   {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id}})
+        await meta.ads_post(A + "ads", name="Lid forma — video", adset_id=aset,
+                            creative={"creative_id": cr}, status="ACTIVE")
+        log.info("NEWLEAD ok: camp=%s adset=%s form=%s post=%s", camp, aset, form_id, post)
+        text = ("✅ <b>Yangi lid reklamasi yoqildi</b>\n"
+                f"Instagram + Facebook (lenta, stories, reels), Toshkent, yosh 25–60, ${NEW_LEAD_BUDGET / 100:.0f}/kun.\n"
+                "Mijoz raqamini Meta ichidagi formada qoldiradi — ariza shu guruhga avtomatik keladi.\n"
+                "Meta tekshiruvidan o'tgach (15 daqiqa – bir necha soat) ko'rsatila boshlaydi.")
+    except Exception as e:  # noqa: BLE001
+        log.exception("NEWLEAD")
+        if camp:
+            try:
+                await meta.ads_post(camp, status="PAUSED")
+            except soc.MetaError:
+                pass
+        text = f"⚠️ Yangi lid reklamasini yaratib bo'lmadi: {esc(str(e)[:300])}"
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
+
+
 async def ads_watch_loop():
     """Reklama nazoratchisi: har 30 daqiqada (kechasi ham) hisob holati, to'xtab qolgan va rad etilgan reklamalar,
     «$15 va 0 lid» qoidasi, kechki hisobot. Byudjet, to'lov va kartaga hech qachon tegmaydi."""
@@ -4852,6 +4920,7 @@ async def main():
         app_tasks.append(asyncio.create_task(followup_loop()))
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
+        app_tasks.append(asyncio.create_task(ads_new_lead_once()))
         if shop.settings().get("ads_watch_alert_v") != "1":
             shop.set_setting("ads_watch_mode", "alert")
             shop.set_setting("ads_watch_on", "1")
