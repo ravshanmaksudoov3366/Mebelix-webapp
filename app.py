@@ -2296,7 +2296,7 @@ async def ads_fix_once():
             pass
 
 
-NEW_LEAD_VER = "5"  # 2: IG post orqali (ilova development rejimida)
+NEW_LEAD_VER = "6"  # 2: IG post orqali (ilova development rejimida)
 NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
 
 
