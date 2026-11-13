@@ -2296,7 +2296,7 @@ async def ads_fix_once():
             pass
 
 
-NEW_LEAD_VER = "1"
+NEW_LEAD_VER = "2"  # 2: IG post orqali (ilova development rejimida)
 NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
 
 
@@ -2340,13 +2340,48 @@ async def ads_new_lead_once():
                                     bid_strategy="LOWEST_COST_WITHOUT_CAP",
                                     promoted_object={"page_id": soc.FB_PAGE_ID},
                                     targeting=await _fix_targeting({}, geo), status="ACTIVE"))["id"]
-        cr = await _video_creative(post, "iSofa — Lid forma 2026-11-13",
-                                   {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id}})
-        await meta.ads_post(A + "ads", name="Lid forma — video", adset_id=aset,
-                            creative={"creative_id": cr}, status="ACTIVE")
-        log.info("NEWLEAD ok: camp=%s adset=%s form=%s post=%s", camp, aset, form_id, post)
+        cta = {"type": "SIGN_UP", "value": {"lead_gen_form_id": form_id}}
+        # 1-urinish: egasi Instagramga qo'lda joylagan post (ilova yaratmagan — «development» to'sig'i yo'q)
+        oads = (await meta.ads_get(FIX_BOOST_CAMP + "/ads", fields="creative{effective_instagram_media_id}",
+                                   limit=10)).get("data") or []
+        media = next(((a.get("creative") or {}).get("effective_instagram_media_id") for a in oads
+                      if (a.get("creative") or {}).get("effective_instagram_media_id")), "")
+        errs, done, where = [], False, "Instagram + Facebook (lenta, stories, reels)"
+        if media and meta._ig_id:
+            try:
+                cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Lid forma (IG post)",
+                                          instagram_user_id=meta._ig_id, source_instagram_media_id=media,
+                                          call_to_action=cta))["id"]
+                for ig_only in (False, True):
+                    try:
+                        if ig_only:
+                            await meta.ads_post(aset, targeting=await _fix_targeting({}, geo, places={
+                                "publisher_platforms": ["instagram"],
+                                "instagram_positions": ["stream", "story", "reels"]}))
+                            where = "Instagram (lenta, stories, reels)"
+                        await meta.ads_post(A + "ads", name="Lid forma — IG post", adset_id=aset,
+                                            creative={"creative_id": cr}, status="ACTIVE")
+                        done = True
+                        break
+                    except soc.MetaError as e:
+                        errs.append(f"IG post{' (faqat IG)' if ig_only else ''}: {e}")
+                        log.warning("NEWLEAD IG post ig_only=%s: %s", ig_only, e)
+            except soc.MetaError as e:
+                errs.append(f"IG creative: {e}")
+                log.warning("NEWLEAD IG creative: %s", e)
+        if not done:
+            if where.startswith("Instagram ("):
+                await meta.ads_post(aset, targeting=await _fix_targeting({}, geo))
+                where = "Instagram + Facebook (lenta, stories, reels)"
+            try:
+                cr = await _video_creative(post, "iSofa — Lid forma 2026-11-13", cta)
+                await meta.ads_post(A + "ads", name="Lid forma — video", adset_id=aset,
+                                    creative={"creative_id": cr}, status="ACTIVE")
+            except soc.MetaError as e:
+                raise soc.MetaError(" | ".join(errs + [f"video: {e}"]))
+        log.info("NEWLEAD ok: camp=%s adset=%s form=%s post=%s media=%s", camp, aset, form_id, post, media)
         text = ("✅ <b>Yangi lid reklamasi yoqildi</b>\n"
-                f"Instagram + Facebook (lenta, stories, reels), Toshkent, yosh 25–60, ${NEW_LEAD_BUDGET / 100:.0f}/kun.\n"
+                f"{where}, Toshkent, yosh 25–60, ${NEW_LEAD_BUDGET / 100:.0f}/kun.\n"
                 "Mijoz raqamini Meta ichidagi formada qoldiradi — ariza shu guruhga avtomatik keladi.\n"
                 "Meta tekshiruvidan o'tgach (15 daqiqa – bir necha soat) ko'rsatila boshlaydi.")
     except Exception as e:  # noqa: BLE001
