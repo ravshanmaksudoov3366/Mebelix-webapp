@@ -2296,7 +2296,7 @@ async def ads_fix_once():
             pass
 
 
-NEW_LEAD_VER = "2"  # 2: IG post orqali (ilova development rejimida)
+NEW_LEAD_VER = "3"  # 2: IG post orqali (ilova development rejimida)
 NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
 
 
@@ -2324,7 +2324,7 @@ async def ads_new_lead_once():
                      if (a.get("creative") or {}).get("effective_object_story_id")), "")
         if not post:
             raise soc.MetaError("lid reklamasi uchun video post topilmadi")
-        spec = dict(LEAD_FORM_V3, name="iSofa — Bepul o'lchov (2026-11-13)")
+        spec = dict(LEAD_FORM_V3, name=f"iSofa — Bepul o'lchov {time.strftime('%Y-%m-%d %H:%M')}")
         try:
             form_id = await meta.create_lead_form(spec)
         except soc.MetaError as e:
