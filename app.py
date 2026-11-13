@@ -2296,7 +2296,7 @@ async def ads_fix_once():
             pass
 
 
-NEW_LEAD_VER = "4"  # 2: IG post orqali (ilova development rejimida)
+NEW_LEAD_VER = "5"  # 2: IG post orqali (ilova development rejimida)
 NEW_LEAD_BUDGET = 1000  # $10/kun — egasining tanlovi (2026-11-13)
 
 
@@ -2348,11 +2348,27 @@ async def ads_new_lead_once():
         media = next(((a.get("creative") or {}).get("effective_instagram_media_id") for a in oads
                       if (a.get("creative") or {}).get("effective_instagram_media_id")), "")
         errs, done, where = [], False, "Instagram + Facebook (lenta, stories, reels)"
-        if media and meta._ig_id:
+        cands = [media] if media else []
+        if meta._ig_id:
+            try:
+                cands += [x["id"] for x in (await meta.ads_get(f"{meta._ig_id}/media", fields="id,media_type",
+                                                                limit=8)).get("data") or []
+                          if x.get("media_type") in ("VIDEO", "IMAGE", "CAROUSEL_ALBUM")]
+            except soc.MetaError as e:
+                errs.append(f"IG postlar: {e}")
+        cr = ""
+        for mid in cands[:9]:
             try:
                 cr = (await meta.ads_post(A + "adcreatives", name="iSofa — Lid forma (IG post)",
-                                          instagram_user_id=meta._ig_id, source_instagram_media_id=media,
+                                          instagram_user_id=meta._ig_id, source_instagram_media_id=mid,
                                           call_to_action=ig_cta))["id"]
+                media = mid
+                break
+            except soc.MetaError as e:
+                errs.append(f"IG {mid}: {e}")
+                log.warning("NEWLEAD IG creative %s: %s", mid, e)
+        if cr:
+            try:
                 for ig_only in (False, True):
                     try:
                         if ig_only:
