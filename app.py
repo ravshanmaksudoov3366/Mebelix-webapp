@@ -43,6 +43,7 @@ from aiogram.types import (
 import aiohttp
 
 import custom as cust
+import bazis
 import finance as fin
 import social as soc
 import reviews as rv
@@ -3997,7 +3998,8 @@ def _login_page(title: str, text: str, ok: bool) -> str:
 LOGIN_LINKS = ("<a href='/app?admin=1'>🛋 Tayyor mebellar — admin</a>"
                "<a href='/custom?admin=1'>📐 O'lchamga arizalar</a>"
                "<a href='/moliya'>💰 Moliya: daromad va xarajatlar</a>"
-               "<a href='/konstruktor'>🧊 3D konstruktor</a>")
+               "<a href='/konstruktor'>🧊 3D konstruktor</a>"
+               "<a href='/bazis'>🧩 Bazis: loyiha va raskroy</a>")
 _BOT_UA = re.compile(r"bot|crawler|spider|preview|facebookexternalhit|whatsapp|slack|discord|skype", re.I)
 
 
@@ -4641,7 +4643,8 @@ def admin_panels_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🗂 Admin panel", web_app=WebAppInfo(url=f"{APP_URL}?admin=1&lang=uz")),
          InlineKeyboardButton(text="📐 O'lchamga arizalar", web_app=WebAppInfo(url=f"{CUSTOM_URL}?admin=1"))],
         [InlineKeyboardButton(text="💰 Moliya", web_app=WebAppInfo(url=f"{WEBAPP_URL}moliya")),
-         InlineKeyboardButton(text="🧊 3D konstruktor", web_app=WebAppInfo(url=f"{WEBAPP_URL}konstruktor"))]])
+         InlineKeyboardButton(text="🧊 3D konstruktor", web_app=WebAppInfo(url=f"{WEBAPP_URL}konstruktor"))],
+        [InlineKeyboardButton(text="🧩 Bazis: loyiha, raskroy, smeta", web_app=WebAppInfo(url=f"{WEBAPP_URL}bazis"))]])
 
 
 @dp.message(Command("menyu", "menu", "buyruqlar"))
@@ -4969,6 +4972,7 @@ def make_app() -> web.Application:
     app.router.add_get("/custom", page_custom)
     app.router.add_get("/konstruktor", page_konstruktor)
     app.router.add_get("/moliya", page_moliya)
+    bazis.setup(app, web, shop, get_admin, BASE)  # 🧩 Bazis (namuna) — olib tashlash uchun shu qatorni o'chiring
     app.router.add_get("/api/admin/finance", api_fin)
     app.router.add_post("/api/admin/finance/expense", api_fin_add)
     app.router.add_post("/api/admin/finance/expense/{id}/delete", api_fin_delete)

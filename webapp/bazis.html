@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>iSofa Bazis</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg2:#f6f2ea;--text:#1f1e1f;--hint:#6f695f;--line:#e6dfd2;--soft:#f3e8cd;--gold:#e9cc85;--char:#363435;--ok:#2f7d4f;--bad:#b3412e;--serif:"Cormorant Garamond",Georgia,serif;--r:16px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg2);color:var(--text);font-family:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px}
+button,input,select{font-family:inherit;font-size:inherit;color:var(--text)}
+header{background:var(--char);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+.brand{display:flex;flex-direction:column;color:var(--gold);font-size:21px;font-weight:600;line-height:1}
+.brand small{font-size:8px;letter-spacing:1.6px;color:#cdb57a;margin-top:3px;font-weight:500}
+.back{border:1px solid #5a5758;color:var(--gold);border-radius:12px;padding:7px 10px;font-size:12.5px;font-weight:600;text-decoration:none}
+.hact{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:0;border-radius:11px;padding:9px 13px;font-weight:600;font-size:13px;cursor:pointer;background:var(--char);color:var(--gold);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.l{background:#fff;color:var(--text);border:1.5px solid var(--line)}
+.btn.g{background:var(--gold);color:var(--char)}
+.btn.s{padding:6px 9px;font-size:12px;border-radius:9px}
+.btn.x{background:#fff;color:var(--bad);border:1.5px solid #ecd2cc}
+header .btn.l{background:transparent;color:#f6f2ea;border-color:#5a5758}
+nav{display:flex;gap:6px;padding:10px 14px 0;overflow-x:auto;max-width:1400px;margin:0 auto}
+nav button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--char);color:var(--gold);border-color:var(--char)}
+main{max-width:1400px;margin:0 auto;padding:12px 14px 40px}
+.card{background:#fff;border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card h2{margin:0 0 10px;font-family:var(--serif);font-size:22px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card h2 small{font-family:Montserrat,sans-serif;font-size:12px;color:var(--hint);font-weight:500}
+.grid{display:grid;grid-template-columns:minmax(330px,440px) 1fr;gap:12px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.f{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.f4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+label.l{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--hint);font-weight:600}
+.in{border:1.5px solid var(--line);border-radius:9px;padding:7px 8px;background:#fff;width:100%;min-width:0}
+.in:focus{outline:none;border-color:#c9a85c}
+input[type=color].in{height:36px;padding:3px;cursor:pointer}
+.seg{display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:#fff;padding:7px 6px;font-weight:600;cursor:pointer;font-size:12.5px}
+.seg button.on{background:var(--char);color:var(--gold)}
+.adds{display:flex;flex-wrap:wrap;gap:6px}
+.mod{border:1.5px solid var(--line);border-radius:12px;padding:9px;margin-top:8px}
+.mod.sel{border-color:#c9a85c;background:#fffcf3}
+.mh{display:flex;align-items:center;gap:6px;cursor:pointer}
+.mh b{flex:1;font-size:13px}
+.mh .dim{color:var(--hint);font-size:12px}
+.mb{margin-top:8px}
+#view{width:100%;height:520px;border-radius:12px;background:#ebe5da;position:relative;overflow:hidden;touch-action:none}
+@media(max-width:900px){#view{height:340px}}
+#view .msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--hint);text-align:center;padding:20px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--hint);margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:6px 7px;border-bottom:1px solid #efe9de;text-align:left;vertical-align:top}
+th{font-size:11px;color:var(--hint);font-weight:600;background:#faf7f1;position:sticky;top:0}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.grp td{background:var(--soft);font-weight:700}
+.tw{overflow-x:auto}
+.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+@media(max-width:700px){.kp{grid-template-columns:repeat(2,1fr)}}
+.kp div{background:#fff;border-radius:14px;padding:12px}
+.kp span{font-size:11.5px;color:var(--hint);font-weight:600}
+.kp b{display:block;font-size:19px;margin-top:4px}
+.sheets{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,560px),1fr));gap:14px}
+.sheet{margin:6px 0 4px}
+.sheet svg{width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:6px;display:block;margin-top:4px}
+.note{font-size:12px;color:var(--hint);line-height:1.45}
+.warn{background:#fff6e5;border:1px solid #f0d9a8;border-radius:10px;padding:9px 11px;font-size:12.5px;margin-bottom:10px}
+.tot td{font-weight:700}
+.big td{font-size:15px;font-weight:700;background:var(--soft)}
+.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.prow{display:flex;align-items:center;gap:8px;border-bottom:1px solid #f1ebe0;padding:5px 0}
+.prow span{flex:1;font-size:12.5px}
+.prow input{width:120px;text-align:right}
+.edge{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;white-space:nowrap}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:20;padding:14px}
+.modal>div{background:#fff;border-radius:16px;padding:16px;max-width:560px;width:100%;max-height:85vh;overflow:auto}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--char);color:var(--gold);padding:10px 16px;border-radius:12px;font-weight:600;z-index:30}
+.gate{max-width:520px;margin:60px auto;background:#fff;border-radius:16px;padding:22px;text-align:center;line-height:1.5}
+#print{display:none}
+@media print{
+  header,nav,main,.toast,.modal{display:none!important}
+  #print{display:block;font-size:11px}
+  #print h1{font-family:var(--serif);font-size:22px;margin:0 0 4px}
+  #print h2{font-size:14px;margin:16px 0 6px;page-break-after:avoid}
+  #print table{font-size:10px}
+  #print .sheet{page-break-inside:avoid}
+  #print th{position:static}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="back" href="/custom?admin=1">←</a>
+  <div class="brand">iSofa Bazis<small>LOYIHA · RASKROY · SMETA</small></div>
+  <div class="hact">
+    <button class="btn l" onclick="newProject()">＋ Yangi</button>
+    <button class="btn l" onclick="openList()">📂 Loyihalar</button>
+    <button class="btn l" onclick="exportXlsx()">📊 Excel</button>
+    <button class="btn l" onclick="doPrint()">🖨 Chop etish</button>
+    <button class="btn g" id="saveBtn" onclick="saveProject()">💾 Saqlash</button>
+  </div>
+</header>
+<nav id="tabs"></nav>
+<main id="app"><div class="gate">Yuklanmoqda…</div></main>
+<div id="print"></div>
+
+<script>
+/* ======================== ENGINE (DOMsiz — testlanadi) ======================== */
+const T = 16;            // korpus qalinligi (LDSP 16)
+const HDF = 3;           // orqa devor / tortma tagi (DVP)
+const TYPES = {
+  base:     {uz:"Pastki shkaf",        row:"floor", w:600, h:720, d:560, doors:2, shelves:1, drawers:0, open:"hinged"},
+  sink:     {uz:"Moyka osti",          row:"floor", w:800, h:720, d:560, doors:2, shelves:0, drawers:0, open:"hinged"},
+  drawer:   {uz:"Tortmali shkaf",      row:"floor", w:600, h:720, d:560, doors:0, shelves:0, drawers:3, open:"none"},
+  wall:     {uz:"Yuqori shkaf",        row:"wall",  w:600, h:720, d:300, doors:2, shelves:2, drawers:0, open:"hinged"},
+  tall:     {uz:"Pena (baland shkaf)", row:"floor", w:600, h:2100,d:560, doors:2, shelves:4, drawers:0, open:"hinged"},
+  wardrobe: {uz:"Shkaf / garderob",    row:"floor", w:1200,h:2400,d:600, doors:2, shelves:3, drawers:0, open:"hinged", rod:1},
+  tv:       {uz:"TV tumba",            row:"floor", w:1600,h:450, d:400, doors:2, shelves:0, drawers:2, open:"hinged"},
+  komod:    {uz:"Komod / tumba",       row:"floor", w:800, h:850, d:450, doors:0, shelves:0, drawers:4, open:"none"},
+  shelf:    {uz:"Ochiq stellaj",       row:"floor", w:800, h:1800,d:300, doors:0, shelves:4, drawers:0, open:"none"},
+};
+const OPEN = {hinged:"Ochiladigan eshik", lift:"Yuqoriga ko'tariladigan (lift)", kupe:"Kupe (suriladigan)", none:"Eshiksiz"};
+const PRICE_DEF = [
+  // [kalit, nom, birlik, narx so'm] — TAXMINIY, egasi o'zinikini kiritadi
+  ["ldsp",       "LDSP 16 mm (korpus) — list",        "list", 650000],
+  ["ldsp_f",     "LDSP 16 mm (fasad uchun) — list",   "list", 650000],
+  ["hdf",        "DVP / HDF 3 mm — list",             "list", 130000],
+  ["mdf",        "MDF fasad (plyonka/bo'yalgan) — m²","m²",   480000],
+  ["akril",      "Akril / AGT fasad — m²",            "m²",   750000],
+  ["edge2",      "Kromka 2 mm — metr",                "m",    6000],
+  ["edge04",     "Kromka 0.4 mm — metr",              "m",    2000],
+  ["worktop",    "Stoleshnitsa — pog. metr",          "m",    450000],
+  ["plinth",     "Tsokol (plintus) — pog. metr",      "m",    60000],
+  ["hinge_gtv",  "Petlya GTV (dovodchikli)",          "dona", 25000],
+  ["hinge_blum", "Petlya Blum Clip top Blumotion",    "dona", 85000],
+  ["slide_gtv",  "Napravlyayushchiy GTV (sharikli, dovodchik) — juft","juft", 95000],
+  ["slide_blum", "Blum Tandembox (to'plam)",          "to'plam", 750000],
+  ["lift_gtv",   "Lift mexanizm GTV",                 "dona", 150000],
+  ["lift_blum",  "Blum Aventos HF/HK",                "dona", 950000],
+  ["kupe",       "Kupe tizimi (bitta eshikka)",       "eshik",420000],
+  ["handle",     "Ruchka",                            "dona", 30000],
+  ["leg",        "Nojka (oyoq)",                      "dona", 8000],
+  ["hanger",     "Osma (navesh) yuqori shkafga",      "dona", 9000],
+  ["support",    "Polka ushlagich",                   "dona", 500],
+  ["confirmat",  "Konfirmat / mahkamlagich",          "dona", 350],
+  ["rod",        "Shtanga (kiyim osgich) — metr",     "m",    40000],
+  ["cut",        "Raskroy xizmati — list",            "list", 35000],
+  ["edging",     "Kromkalash xizmati — metr",         "m",    3500],
+];
+const PRICE_DEFAULTS = Object.fromEntries(PRICE_DEF.map(p=>[p[0],p[3]]));
+const DEFAULT_SETTINGS = {furn:"gtv", facade:"mdf", bodyColor:"#efe9df", facadeColor:"#d9cbb3", topColor:"#5b5450",
+  plinth:100, wallBottom:1450, worktop:true, sheetL:2800, sheetW:2070, kerf:4, trim:10, grain:false,
+  labor:15, markup:30, delivery:0};
+
+function clampInt(v, lo, hi, dflt){ v = Math.round(+v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; }
+function newModule(type, id){ const t = TYPES[type]; return {id, type, name:t.uz, w:t.w, h:t.h, d:t.d, doors:t.doors,
+  shelves:t.shelves, drawers:t.drawers, open:t.open, rod:t.rod||0}; }
+function hingesFor(h){ return h <= 900 ? 2 : h <= 1600 ? 3 : h <= 2000 ? 4 : 5; }
+
+/* Bitta modul: detallar (L — tola bo'yicha), furnitura va 3D qutilar (mm, modulning chap-orqa-pastki burchagidan) */
+function buildModule(m, S){
+  const W=m.w, H=m.h, D=m.d, parts=[], hw={}, boxes=[];
+  const add = (name, mat, L, Wd, qty, edge, box) => { if (L>0 && Wd>0 && qty>0) parts.push({mod:m.id, modName:m.name, name, mat, L:Math.round(L), W:Math.round(Wd), qty, edge:edge||[0,0,0,0]}); if (box) boxes.push(...[].concat(box)); };
+  const inc = (k, n) => { if (n>0) hw[k] = (hw[k]||0) + n; };
+  const inner = W - 2*T;
+  const isWall = m.type === "wall", isBaseLike = ["base","sink","drawer"].includes(m.type);
+  // korpus
+  add("Yon devor", "body", H, D, 2, [2,0,isWall?1:0,0], [{x:0,y:0,z:0,w:T,h:H,d:D,c:"body"},{x:W-T,y:0,z:0,w:T,h:H,d:D,c:"body"}]);
+  add("Tub (pastki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:0,z:0,w:inner,h:T,d:D,c:"body"});
+  if (isBaseLike) {
+    add("Planka (ustki)", "body", inner, 100, 2, [1,0,0,0], [{x:T,y:H-T,z:D-100,w:inner,h:T,d:100,c:"body"},{x:T,y:H-T,z:0,w:inner,h:T,d:100,c:"body"}]);
+  } else {
+    add("Tom (ustki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:H-T,z:0,w:inner,h:T,d:D,c:"body"});
+  }
+  add("Orqa devor (DVP)", "hdf", H-4, W-4, 1, null, {x:2,y:2,z:-HDF,w:W-4,h:H-4,d:HDF,c:"back"});
+  inc("confirmat", 8);
+  // polkalar
+  const sh = clampInt(m.shelves,0,12,0);
+  if (sh) {
+    const boxesSh = []; const zone = (m.drawers && m.type==="tv") ? H : H;
+    for (let i=1;i<=sh;i++) boxesSh.push({x:T,y:Math.round(zone*i/(sh+1)),z:0,w:inner,h:T,d:D-20,c:"body"});
+    add("Polka", "body", inner-2, D-20, sh, [2,0,0,0], boxesSh);
+    inc("support", 4*sh);
+  }
+  // shtanga
+  if (m.rod) { inc("rod", m.rod*(inner/1000)); boxes.push({x:T,y:H-300,z:D/2-12,w:inner,h:25,d:25,c:"metal"}); }
+  // tortmalar
+  const dr = clampInt(m.drawers,0,8,0);
+  const fT = S.facade==="ldsp" ? 16 : 18;
+  const fEdge = S.facade==="ldsp" ? [2,2,2,2] : [0,0,0,0];
+  const fName = S.facade==="ldsp" ? "Fasad (LDSP)" : S.facade==="akril" ? "Fasad (akril)" : "Fasad (MDF)";
+  let drawerZoneH = 0;
+  if (dr) {
+    drawerZoneH = (m.type==="tv") ? H : (m.doors>0 ? Math.round(H*0.35) : H);
+    const fh = (drawerZoneH - 3 - 3*(dr-1)) / dr;
+    const slideL = Math.min(550, Math.max(250, Math.floor((D-40)/50)*50));
+    const boxH = Math.max(80, Math.min(200, Math.floor((fh-50)/10)*10));
+    const fronts = [];
+    for (let i=0;i<dr;i++) {
+      const y = H - drawerZoneH + 1.5 + i*(fh+3);
+      fronts.push({x:1.5,y,z:D,w:W-3,h:fh,d:fT,c:"facade",handle:1});
+      boxes.push({x:T+13,y:y+20,z:D-slideL-2,w:inner-26,h:boxH,d:slideL,c:"drawer"});
+    }
+    add("Tortma fasadi", "facade", W-3, fh, dr, fEdge, fronts);
+    if (S.furn==="blum") {
+      add("Tortma orqasi (Tandembox)", "body", inner-87, boxH-20, dr, [1,0,0,0]);
+      add("Tortma tagi (Tandembox)", "body", inner-75, slideL-24, dr, [0,0,0,0]);
+      inc("slide_blum", dr);
+    } else {
+      add("Tortma yon devori", "body", slideL, boxH, 2*dr, [1,0,0,0]);
+      add("Tortma old/orqa", "body", inner-26-2*T, boxH, 2*dr, [1,0,0,0]);
+      add("Tortma tagi (DVP)", "hdf", slideL, inner-26, dr);
+      inc("slide_gtv", dr);
+    }
+    inc("handle", dr); inc("confirmat", 8*dr);
+  }
+  // eshiklar
+  const n = clampInt(m.doors,0,6,0);
+  if (n && m.open!=="none") {
+    const doorZoneH = H - drawerZoneH - (dr ? 3 : 0);
+    if (m.open === "kupe") {
+      const dw = (W + 30*(n-1)) / n, dh = H - 40;
+      const fr = []; for (let i=0;i<n;i++) fr.push({x:i*(dw-30),y:20,z:D+(i%2?28:0),w:dw,h:dh,d:fT,c:"facade"});
+      add("Kupe eshik (to'ldirma)", "facade", dh, dw, n, fEdge, fr);
+      inc("kupe", n);
+    } else if (m.open === "lift") {
+      add("Lift fasad", "facade", W-3, doorZoneH-3, 1, fEdge, {x:1.5,y:1.5,z:D,w:W-3,h:doorZoneH-3,d:fT,c:"facade",handle:2});
+      inc(S.furn==="blum"?"lift_blum":"lift_gtv", 1); inc("handle", 1);
+    } else {
+      const dw = (W - 3 - 3*(n-1)) / n, dh = doorZoneH - 3;
+      const fr = []; for (let i=0;i<n;i++) fr.push({x:1.5+i*(dw+3),y:1.5,z:D,w:dw,h:dh,d:fT,c:"facade",handle:isWall?3:1});
+      add("Eshik", "facade", dh, dw, n, fEdge, fr);
+      inc(S.furn==="blum"?"hinge_blum":"hinge_gtv", n*hingesFor(dh)); inc("handle", n);
+    }
+  }
+  if (isWall) inc("hanger", 2);
+  else if (m.type!=="wardrobe" && m.type!=="shelf") inc("leg", W>800 ? 6 : 4);
+  return {parts, hw, boxes};
+}
+
+/* Butun loyiha: modullar joylashuvi, detallar, furnitura, stoleshnitsa, tsokol */
+function buildProject(P){
+  const S = Object.assign({}, DEFAULT_SETTINGS, P.settings||{});
+  let xFloor = 0, xWall = 0;
+  const out = {S, parts:[], hw:{}, placed:[], worktopM:0, plinthM:0, runs:[]};
+  let run = null;
+  for (const m of P.modules) {
+    const r = buildModule(m, S), t = TYPES[m.type];
+    const wallRow = t.row === "wall";
+    const x = wallRow ? xWall : xFloor;
+    const elev = wallRow ? S.wallBottom : (["wardrobe","shelf"].includes(m.type) ? 0 : S.plinth);
+    out.placed.push({m, x, elev, boxes:r.boxes});
+    if (wallRow) xWall += m.w; else xFloor += m.w;
+    out.parts.push(...r.parts);
+    for (const k in r.hw) out.hw[k] = (out.hw[k]||0) + r.hw[k];
+    const base = ["base","sink","drawer"].includes(m.type);
+    if (base) { out.plinthM += m.w/1000; if (S.worktop) { if (!run) { run = {x, w:0, d:m.d, h:S.plinth+m.h}; out.runs.push(run); } run.w += m.w; run.d=Math.max(run.d,m.d); } }
+    else if (!wallRow) run = null;
+  }
+  out.worktopM = out.runs.reduce((a,r)=>a+r.w,0)/1000;
+  out.width = Math.max(xFloor, xWall);
+  return out;
+}
+
+/* Kromka: [L1,L2,W1,W2] — 0 yo'q, 1 = 0.4 mm, 2 = 2 mm. Metr (+10% zaxira) */
+function edgeMeters(parts){
+  let e2=0, e04=0;
+  for (const p of parts) { const lens=[p.L,p.L,p.W,p.W]; p.edge.forEach((c,i)=>{ const m=lens[i]*p.qty/1000; if(c===2)e2+=m; else if(c===1)e04+=m; }); }
+  return {e2:e2*1.1, e04:e04*1.1};
+}
+function edgeText(e){ const s=c=>c===2?"2":c===1?".4":"–"; return `${s(e[0])} ${s(e[1])} | ${s(e[2])} ${s(e[3])}`; }
+
+/* Raskroy: MaxRects (eng qisqa tomon bo'yicha joylashtirish) */
+function packSheets(parts, S, allowRotate){
+  const kerf=+S.kerf||0, trim=+S.trim||0;
+  const SW = S.sheetL - 2*trim + kerf, SH = S.sheetW - 2*trim + kerf;
+  const items = [];
+  parts.forEach((p,pi)=>{ for(let i=0;i<p.qty;i++) items.push({pi, L:p.L, W:p.W, w:p.L+kerf, h:p.W+kerf}); });
+  items.sort((a,b)=> (b.w*b.h - a.w*a.h) || (Math.max(b.w,b.h)-Math.max(a.w,a.h)));
+  const sheets=[], tooBig=[];
+  const fits=(fr,w,h)=> w<=fr.w && h<=fr.h;
+  function place(sh, it){
+    let best=null;
+    for (const fr of sh.free) {
+      for (const rot of allowRotate ? [false,true] : [false]) {
+        const w = rot?it.h:it.w, h = rot?it.w:it.h;
+        if (!fits(fr,w,h)) continue;
+        const ss = Math.min(fr.w-w, fr.h-h), ls = Math.max(fr.w-w, fr.h-h);
+        if (!best || ss<best.ss || (ss===best.ss && ls<best.ls)) best={x:fr.x,y:fr.y,w,h,rot,ss,ls};
+      }
+    }
+    if (!best) return false;
+    const r={x:best.x,y:best.y,w:best.w,h:best.h};
+    const nf=[];
+    for (const fr of sh.free) {
+      if (r.x>=fr.x+fr.w || r.x+r.w<=fr.x || r.y>=fr.y+fr.h || r.y+r.h<=fr.y) { nf.push(fr); continue; }
+      if (r.x>fr.x) nf.push({x:fr.x,y:fr.y,w:r.x-fr.x,h:fr.h});
+      if (r.x+r.w<fr.x+fr.w) nf.push({x:r.x+r.w,y:fr.y,w:fr.x+fr.w-r.x-r.w,h:fr.h});
+      if (r.y>fr.y) nf.push({x:fr.x,y:fr.y,w:fr.w,h:r.y-fr.y});
+      if (r.y+r.h<fr.y+fr.h) nf.push({x:fr.x,y:r.y+r.h,w:fr.w,h:fr.y+fr.h-r.y-r.h});
+    }
+    sh.free = nf.filter((a,i)=>!nf.some((b,j)=>j!==i && a.x>=b.x && a.y>=b.y && a.x+a.w<=b.x+b.w && a.y+a.h<=b.y+b.h && (j<i || a.w!==b.w || a.h!==b.h || a.x!==b.x || a.y!==b.y)));
+    sh.items.push({pi:it.pi, x:best.x+trim, y:best.y+trim, w:best.rot?it.W:it.L, h:best.rot?it.L:it.W, rot:best.rot});
+    sh.used += it.L*it.W;
+    return true;
+  }
+  for (const it of items) {
+    const okSize = (it.w<=SW && it.h<=SH) || (allowRotate && it.h<=SW && it.w<=SH);
+    if (!okSize) { tooBig.push(it); continue; }
+    let done=false;
+    for (const sh of sheets) if (place(sh,it)) { done=true; break; }
+    if (!done) { const sh={free:[{x:0,y:0,w:SW,h:SH}], items:[], used:0}; sheets.push(sh); place(sh,it); }
+  }
+  const area = S.sheetL*S.sheetW;
+  sheets.forEach(s=>{ s.pct = Math.round(100*s.used/area); delete s.free; });
+  return {sheets, tooBig, area};
+}
+
+/* Hammasi: guruhlar, raskroy, smeta */
+function compute(P, prices){
+  const pr = Object.assign({}, PRICE_DEFAULTS, prices||{});
+  const R = buildProject(P), S = R.S;
+  const body = R.parts.filter(p=>p.mat==="body"), facade = R.parts.filter(p=>p.mat==="facade"), hdf = R.parts.filter(p=>p.mat==="hdf");
+  const rot = !S.grain;
+  const cut = {body:packSheets(body,S,rot), hdf:packSheets(hdf,S,true)};
+  if (S.facade==="ldsp") cut.facade = packSheets(facade,S,rot);
+  const facadeM2 = facade.reduce((a,p)=>a+p.L*p.W*p.qty,0)/1e6;
+  const edges = edgeMeters(R.parts);
+  const L = []; const line=(grp,name,qty,unit,price)=>{ if(qty>0) L.push({grp,name,qty,unit,price,sum:Math.round(qty*price)}); };
+  line("Material","LDSP 16 mm — korpus", cut.body.sheets.length, "list", pr.ldsp);
+  if (cut.facade) line("Material","LDSP 16 mm — fasad", cut.facade.sheets.length, "list", pr.ldsp_f);
+  else line("Material", S.facade==="akril"?"Akril/AGT fasad":"MDF fasad", +facadeM2.toFixed(2), "m²", S.facade==="akril"?pr.akril:pr.mdf);
+  line("Material","DVP / HDF 3 mm", cut.hdf.sheets.length, "list", pr.hdf);
+  line("Material","Kromka 2 mm", Math.ceil(edges.e2), "m", pr.edge2);
+  line("Material","Kromka 0.4 mm", Math.ceil(edges.e04), "m", pr.edge04);
+  if (R.worktopM) line("Material","Stoleshnitsa", +R.worktopM.toFixed(2), "m", pr.worktop);
+  if (R.plinthM) line("Material","Tsokol", +R.plinthM.toFixed(2), "m", pr.plinth);
+  const HWN = {hinge_gtv:"Petlya GTV",hinge_blum:"Petlya Blum",slide_gtv:"Napravlyayushchiy GTV (juft)",slide_blum:"Blum Tandembox",
+    lift_gtv:"Lift GTV",lift_blum:"Blum Aventos",kupe:"Kupe tizimi",handle:"Ruchka",leg:"Nojka",hanger:"Osma",support:"Polka ushlagich",
+    confirmat:"Konfirmat",rod:"Shtanga"};
+  for (const k of Object.keys(HWN)) if (R.hw[k]) line("Furnitura", HWN[k], k==="rod"?+R.hw[k].toFixed(2):R.hw[k], k==="rod"?"m":"dona", pr[k]);
+  const sheetsAll = cut.body.sheets.length + cut.hdf.sheets.length + (cut.facade?cut.facade.sheets.length:0);
+  line("Xizmat","Raskroy (kesish)", sheetsAll, "list", pr.cut);
+  line("Xizmat","Kromkalash", Math.ceil(edges.e2+edges.e04), "m", pr.edging);
+  const mat = L.reduce((a,l)=>a+l.sum,0);
+  const labor = Math.round(mat*(+S.labor||0)/100);
+  const cost = mat + labor + Math.round(+S.delivery||0);
+  const client = Math.round(cost*(1+(+S.markup||0)/100)/10000)*10000;
+  return {R, S, cut, facade, facadeM2, edges, lines:L, mat, labor, cost, client, profit:client-cost, HWN};
+}
+if (typeof module !== "undefined") module.exports = {TYPES, newModule, buildModule, buildProject, packSheets, compute, edgeMeters, hingesFor, DEFAULT_SETTINGS, PRICE_DEFAULTS};
+/* ======================== END ENGINE ======================== */
+</script>
+
+<script>
+const TG = window.Telegram && Telegram.WebApp; try{TG&&TG.ready();TG&&TG.expand();}catch(e){}
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = v => Math.round(v||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")+" so'm";
+const num = v => (+v||0).toLocaleString("ru-RU").replace(/,/g,".");
+const MATN = {body:"Korpus — LDSP 16 mm", facade:"Fasadlar", hdf:"DVP / HDF 3 mm"};
+let S = {tab:"project", P:null, prices:{}, sel:null, C:null, id:0, dirty:false};
+
+async function api(url,opt){opt=opt||{};opt.headers=Object.assign({"X-Init-Data":(TG&&TG.initData)||"","Content-Type":"application/json"},opt.headers||{});opt.credentials="same-origin";
+  const r=await fetch(url,opt);let j={};try{j=await r.json();}catch(e){}if(!r.ok){const e=new Error(j.error||"Xatolik yuz berdi");e.status=r.status;throw e;}return j;}
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200);}
+let _nid=1; const nid=()=>Date.now().toString(36)+(_nid++);
+
+function blank(){return {name:"Yangi loyiha", client:"", settings:Object.assign({},DEFAULT_SETTINGS), modules:[]};}
+function template(kind){
+  const P=blank(); const add=(t,o)=>P.modules.push(Object.assign(newModule(t,nid()),o||{}));
+  if(kind==="kitchen"){P.name="Oshxona 3 m";
+    add("tall",{w:600}); add("drawer",{w:600}); add("sink",{w:800}); add("base",{w:400,doors:1}); add("base",{w:600});
+    add("wall",{w:600}); add("wall",{w:800,open:"lift",doors:1,shelves:1}); add("wall",{w:400,doors:1}); add("wall",{w:600});}
+  if(kind==="wardrobe"){P.name="Shkaf 2 m"; add("wardrobe",{w:1000,rod:1,shelves:2}); add("wardrobe",{w:1000,rod:0,shelves:5});}
+  if(kind==="kupe"){P.name="Kupe shkaf 2.4 m"; add("wardrobe",{w:2400,doors:2,open:"kupe",shelves:4,rod:1});}
+  return P;
+}
+function recalc(){S.C=compute(S.P,S.prices);}
+function changed(){S.dirty=true;recalc();try{localStorage.setItem("bazis_draft",JSON.stringify({id:S.id,P:S.P}));}catch(e){}}
+
+/* -------------------- UI -------------------- */
+const TABS=[["project","🧩 Loyiha"],["parts","📋 Detallar"],["cut","✂️ Raskroy"],["cost","💰 Smeta"],["prices","⚙️ Narxlar"]];
+function render(){
+  $("#tabs").innerHTML=TABS.map(([k,n])=>`<button class="${S.tab===k?"on":""}" onclick="setTab('${k}')">${n}</button>`).join("");
+  const f={project:viewProject,parts:viewParts,cut:viewCut,cost:viewCost,prices:viewPrices}[S.tab];
+  $("#app").innerHTML=f();
+  if(S.tab==="project") draw3d();
+}
+function setTab(t){S.tab=t;render();window.scrollTo(0,0);}
+function seg(id,opts,val,fn){return `<div class="seg">${opts.map(([v,n])=>`<button class="${val===v?"on":""}" onclick="${fn}('${id}','${v}')">${n}</button>`).join("")}</div>`;}
+
+function viewProject(){
+  const P=S.P,st=P.settings,C=S.C;
+  return `<div class="grid"><div>
+   <div class="card"><h2>Loyiha</h2>
+    <div class="f"><label class="l">Nomi<input class="in" value="${esc(P.name)}" onchange="S.P.name=this.value;changed()"></label>
+    <label class="l">Mijoz<input class="in" value="${esc(P.client)}" placeholder="Ism, telefon" onchange="S.P.client=this.value;changed()"></label></div>
+    <div style="margin-top:10px" class="f">
+     <label class="l">Furnitura${seg("furn",[["gtv","GTV"],["blum","Blum"]],st.furn,"setSet")}</label>
+     <label class="l">Fasad${seg("facade",[["mdf","MDF"],["ldsp","LDSP"],["akril","Akril"]],st.facade,"setSet")}</label></div>
+    <div class="f3" style="margin-top:8px">
+     <label class="l">Korpus rangi<input class="in" type="color" value="${st.bodyColor}" oninput="setSet('bodyColor',this.value,1)"></label>
+     <label class="l">Fasad rangi<input class="in" type="color" value="${st.facadeColor}" oninput="setSet('facadeColor',this.value,1)"></label>
+     <label class="l">Stoleshnitsa<input class="in" type="color" value="${st.topColor}" oninput="setSet('topColor',this.value,1)"></label></div>
+    <div class="f3" style="margin-top:8px">
+     <label class="l">Tsokol, mm<input class="in" type="number" value="${st.plinth}" onchange="setSet('plinth',+this.value)"></label>
+     <label class="l">Yuqori shkaf pasti, mm<input class="in" type="number" value="${st.wallBottom}" onchange="setSet('wallBottom',+this.value)"></label>
+     <label class="l">Stoleshnitsa${seg("worktop",[["1","Bor"],["0","Yo'q"]],st.worktop?"1":"0","setSet")}</label></div>
+   </div>
+   <div class="card"><h2>Modullar <small>${P.modules.length} ta · eni ${num(C.R.width)} mm</small></h2>
+    <div class="adds">${Object.entries(TYPES).map(([k,t])=>`<button class="btn l s" onclick="addMod('${k}')">＋ ${t.uz}</button>`).join("")}</div>
+    ${P.modules.length?"":`<div class="note" style="margin-top:10px">Tayyor shablondan boshlang:
+      <div class="adds" style="margin-top:6px"><button class="btn s" onclick="useTpl('kitchen')">🍳 Oshxona 3 m</button><button class="btn s" onclick="useTpl('wardrobe')">🚪 Shkaf 2 m</button><button class="btn s" onclick="useTpl('kupe')">↔️ Kupe 2.4 m</button></div></div>`}
+    ${P.modules.map((m,i)=>modCard(m,i)).join("")}
+   </div></div>
+   <div><div class="card"><h2>3D ko'rinish <small>sichqoncha/barmoq bilan aylantiring</small></h2><div id="view"></div>
+    <div class="legend"><span>Pastki qator: pastki shkaf, pena, garderob — chapdan o'ngga</span><span>Yuqori qator: yuqori shkaflar</span></div></div>
+    ${quickTotals()}</div></div>`;
+}
+function quickTotals(){const C=S.C;return `<div class="kp"><div><span>Korpus listlari</span><b>${C.cut.body.sheets.length}</b></div><div><span>Fasad</span><b>${C.cut.facade?C.cut.facade.sheets.length+" list":C.facadeM2.toFixed(2)+" m²"}</b></div>
+  <div><span>Tannarx</span><b>${money(C.cost)}</b></div><div><span>Mijozga narx</span><b>${money(C.client)}</b></div></div>`;}
+function modCard(m,i){
+  const t=TYPES[m.type],open=S.sel===m.id;
+  const opens=m.type==="wardrobe"?["hinged","kupe","none"]:m.type==="wall"?["hinged","lift","none"]:["hinged","none"];
+  return `<div class="mod ${open?"sel":""}"><div class="mh" onclick="selMod('${m.id}')"><span>${i+1}.</span><b>${esc(m.name)}</b><span class="dim">${m.w}×${m.h}×${m.d}</span></div>
+  ${open?`<div class="mb"><div class="f"><label class="l">Nomi<input class="in" value="${esc(m.name)}" onchange="setMod('${m.id}','name',this.value)"></label>
+   <label class="l">Turi<select class="in" onchange="setMod('${m.id}','type',this.value)">${Object.entries(TYPES).map(([k,x])=>`<option value="${k}" ${k===m.type?"selected":""}>${x.uz}</option>`).join("")}</select></label></div>
+   <div class="f3" style="margin-top:6px"><label class="l">Eni, mm<input class="in" type="number" value="${m.w}" onchange="setMod('${m.id}','w',this.value)"></label>
+   <label class="l">Balandligi<input class="in" type="number" value="${m.h}" onchange="setMod('${m.id}','h',this.value)"></label>
+   <label class="l">Chuqurligi<input class="in" type="number" value="${m.d}" onchange="setMod('${m.id}','d',this.value)"></label></div>
+   <div class="f4" style="margin-top:6px"><label class="l">Eshik<input class="in" type="number" min="0" max="6" value="${m.doors}" onchange="setMod('${m.id}','doors',this.value)"></label>
+   <label class="l">Polka<input class="in" type="number" min="0" max="12" value="${m.shelves}" onchange="setMod('${m.id}','shelves',this.value)"></label>
+   <label class="l">Tortma<input class="in" type="number" min="0" max="8" value="${m.drawers}" onchange="setMod('${m.id}','drawers',this.value)"></label>
+   ${m.type==="wardrobe"?`<label class="l">Shtanga<input class="in" type="number" min="0" max="2" value="${m.rod||0}" onchange="setMod('${m.id}','rod',this.value)"></label>`:"<span></span>"}</div>
+   <label class="l" style="margin-top:6px">Eshik turi<select class="in" onchange="setMod('${m.id}','open',this.value)">${opens.map(o=>`<option value="${o}" ${o===m.open?"selected":""}>${OPEN[o]}</option>`).join("")}</select></label>
+   <div class="adds" style="margin-top:8px"><button class="btn l s" onclick="moveMod('${m.id}',-1)">↑</button><button class="btn l s" onclick="moveMod('${m.id}',1)">↓</button>
+   <button class="btn l s" onclick="dupMod('${m.id}')">⧉ Nusxa</button><button class="btn x s" onclick="delMod('${m.id}')">🗑 O'chirish</button></div></div>`:""}</div>`;
+}
+function setSet(k,v,noRender){const st=S.P.settings;if(k==="worktop")v=v==="1";st[k]=v;changed();if(noRender){draw3d();return;}render();}
+function addMod(t){const m=newModule(t,nid());S.P.modules.push(m);S.sel=m.id;changed();render();}
+function useTpl(k){const P=template(k);P.client=S.P.client;S.P=P;S.sel=null;changed();render();}
+function selMod(id){S.sel=S.sel===id?null:id;render();}
+function setMod(id,k,v){const m=S.P.modules.find(x=>x.id===id);if(!m)return;
+  if(k==="type"){const n=newModule(v,id);Object.assign(m,n,{w:m.w});}
+  else if(k==="name")m[k]=v;else if(k==="open")m[k]=v;
+  else{const lim={w:[150,3000],h:[100,2800],d:[150,900],doors:[0,6],shelves:[0,12],drawers:[0,8],rod:[0,2]}[k];m[k]=clampInt(v,lim[0],lim[1],m[k]);}
+  changed();render();}
+function moveMod(id,dir){const a=S.P.modules,i=a.findIndex(x=>x.id===id),j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];changed();render();}
+function dupMod(id){const a=S.P.modules,i=a.findIndex(x=>x.id===id);const c=Object.assign({},a[i],{id:nid()});a.splice(i+1,0,c);S.sel=c.id;changed();render();}
+function delMod(id){S.P.modules=S.P.modules.filter(x=>x.id!==id);changed();render();}
+
+/* -------- detallar -------- */
+function partRows(parts){let i=0;return parts.map(p=>`<tr><td>${++i}</td><td>${esc(p.modName)}</td><td>${esc(p.name)}</td><td class="n">${p.L}</td><td class="n">${p.W}</td><td class="n">${p.qty}</td><td class="edge">${edgeText(p.edge)}</td></tr>`).join("");}
+function viewParts(){
+  const C=S.C,R=C.R;
+  if(!R.parts.length)return `<div class="card note">Avval «Loyiha» bo'limida modul qo'shing.</div>`;
+  const grp=["body","facade","hdf"].map(k=>{const ps=R.parts.filter(p=>p.mat===k);if(!ps.length)return"";
+    const m2=ps.reduce((a,p)=>a+p.L*p.W*p.qty,0)/1e6;
+    return `<tr class="grp"><td colspan="7">${k==="facade"?MATN.facade+" — "+(C.S.facade==="ldsp"?"LDSP 16":C.S.facade==="akril"?"Akril/AGT":"MDF 18"):MATN[k]} · ${ps.reduce((a,p)=>a+p.qty,0)} dona · ${m2.toFixed(2)} m²</td></tr>${partRows(ps)}`;}).join("");
+  const hw=Object.keys(C.HWN).filter(k=>R.hw[k]).map(k=>`<tr><td>${C.HWN[k]}</td><td class="n">${k==="rod"?R.hw[k].toFixed(2)+" m":R.hw[k]+" dona"}</td></tr>`).join("");
+  return `<div class="card"><h2>Detallar ro'yxati <small>o'lchamlar mm · L — tola (uzunlik) bo'yicha</small></h2>
+   <div class="note" style="margin-bottom:8px">Kromka ustuni: <b>L1 L2 | W1 W2</b> — «2» = 2 mm, «.4» = 0.4 mm, «–» = kromkasiz.</div>
+   <div class="tw"><table><thead><tr><th>№</th><th>Modul</th><th>Detal</th><th class="n">L</th><th class="n">W</th><th class="n">Soni</th><th>Kromka</th></tr></thead><tbody>${grp}</tbody></table></div></div>
+   <div class="card"><h2>Furnitura <small>${C.S.furn==="blum"?"Blum":"GTV"}</small></h2><table><tbody>${hw}
+   ${R.worktopM?`<tr><td>Stoleshnitsa</td><td class="n">${R.worktopM.toFixed(2)} m</td></tr>`:""}${R.plinthM?`<tr><td>Tsokol</td><td class="n">${R.plinthM.toFixed(2)} m</td></tr>`:""}
+   <tr><td>Kromka 2 mm (+10%)</td><td class="n">${C.edges.e2.toFixed(1)} m</td></tr><tr><td>Kromka 0.4 mm (+10%)</td><td class="n">${C.edges.e04.toFixed(1)} m</td></tr></tbody></table></div>
+   <div class="card note">⚠️ Detal formulalari standart konstruksiya bo'yicha (korpus 16 mm, orqa DVP ustidan mixlanadi, eshik oraliqlari 3 mm, sharikli napravlyayushchiy uchun har tomondan 13 mm). Ustaxonangiz usuli boshqacha bo'lsa — ayting, formulani moslayman.</div>`;
+}
+
+/* -------- raskroy -------- */
+const PALETTE=["#e8d9bd","#d6e4d2","#dcd6ea","#f0d5cf","#d2e2ea","#efe2c4","#e2d6cf","#d9e8de"];
+function sheetSvg(sh,parts,S0,no){
+  const sc=1,W=S0.sheetL,H=S0.sheetW;
+  const items=sh.items.map((it,k)=>{const p=parts[it.pi],c=PALETTE[it.pi%PALETTE.length];const fs=Math.max(28,Math.min(70,Math.min(it.w,it.h)/4));
+    const lbl=`${p.L}×${p.W}`;const showName=it.w>350&&it.h>140;
+    return `<g><rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${c}" stroke="#6f695f" stroke-width="3"/>
+    ${it.w>120&&it.h>60?`<text x="${it.x+it.w/2}" y="${it.y+it.h/2+(showName?-fs*0.15:fs*0.35)}" font-size="${fs}" text-anchor="middle" fill="#1f1e1f" font-weight="600">${lbl}</text>`:""}
+    ${showName?`<text x="${it.x+it.w/2}" y="${it.y+it.h/2+fs*0.95}" font-size="${fs*0.62}" text-anchor="middle" fill="#4a4540">${esc(p.name.slice(0,24))}</text>`:""}</g>`;}).join("");
+  return `<div class="sheet"><b>List ${no}</b> <span class="note">· ${sh.items.length} detal · ishlatilgan ${sh.pct}% · chiqindi ${100-sh.pct}%</span>
+   <svg viewBox="-10 -10 ${W+20} ${H+20}"><rect x="0" y="0" width="${W}" height="${H}" fill="#fbf8f2" stroke="#363435" stroke-width="6"/>${items}</svg></div>`;
+}
+function cutBlock(key,title,res,parts){
+  if(!res||!parts.length)return"";
+  const avg=res.sheets.length?Math.round(res.sheets.reduce((a,s)=>a+s.pct,0)/res.sheets.length):0;
+  return `<div class="card"><h2>${title} <small>${res.sheets.length} list · o'rtacha to'lish ${avg}%</small></h2>
+   ${res.tooBig.length?`<div class="warn">⚠️ ${res.tooBig.length} ta detal listga sig'maydi (list ${S.C.S.sheetL}×${S.C.S.sheetW}). O'lchamni tekshiring.</div>`:""}
+   <div class="sheets">${res.sheets.map((sh,i)=>sheetSvg(sh,parts,S.C.S,i+1)).join("")}</div></div>`;
+}
+function viewCut(){
+  const C=S.C,st=S.P.settings;
+  const body=C.R.parts.filter(p=>p.mat==="body"),hdf=C.R.parts.filter(p=>p.mat==="hdf");
+  return `<div class="card"><h2>Raskroy sozlamalari</h2><div class="f4">
+   <label class="l">List uzunligi<input class="in" type="number" value="${st.sheetL}" onchange="setSet('sheetL',+this.value)"></label>
+   <label class="l">List eni<input class="in" type="number" value="${st.sheetW}" onchange="setSet('sheetW',+this.value)"></label>
+   <label class="l">Arra qalinligi<input class="in" type="number" value="${st.kerf}" onchange="setSet('kerf',+this.value)"></label>
+   <label class="l">Chetdan kesish<input class="in" type="number" value="${st.trim}" onchange="setSet('trim',+this.value)"></label></div>
+   <label class="l" style="margin-top:8px">Tola yo'nalishi (yog'och naqshli LDSP)${seg("grain",[["0","Aylantirsa bo'ladi"],["1","Naqsh bo'yicha (aylantirilmaydi)"]],st.grain?"1":"0","setGrain")}</label></div>
+   ${body.length?"":`<div class="card note">Avval modul qo'shing.</div>`}
+   ${cutBlock("body","Korpus — LDSP 16 mm",C.cut.body,body)}
+   ${C.cut.facade?cutBlock("facade","Fasad — LDSP 16 mm",C.cut.facade,C.facade):(C.facade.length?`<div class="card"><h2>Fasadlar <small>${C.facadeM2.toFixed(2)} m² · alohida sexga buyurtma</small></h2><div class="note">${C.S.facade==="akril"?"Akril/AGT":"MDF"} fasadlar tayyor holda buyurtma qilinadi — ro'yxati «Detallar»da.</div></div>`:"")}
+   ${cutBlock("hdf","DVP / HDF 3 mm",C.cut.hdf,hdf)}`;
+}
+function setGrain(k,v){setSet("grain",v==="1");}
+
+/* -------- smeta -------- */
+function viewCost(){
+  const C=S.C,st=S.P.settings;let g="";
+  const rows=C.lines.map(l=>{const h=l.grp!==g?`<tr class="grp"><td colspan="5">${l.grp}</td></tr>`:"";g=l.grp;
+    return h+`<tr><td>${esc(l.name)}</td><td class="n">${num(l.qty)}</td><td>${l.unit}</td><td class="n">${money(l.price)}</td><td class="n">${money(l.sum)}</td></tr>`;}).join("");
+  return `<div class="kp"><div><span>Materiallar + furnitura</span><b>${money(C.mat)}</b></div><div><span>Tannarx</span><b>${money(C.cost)}</b></div>
+   <div><span>Mijozga narx</span><b>${money(C.client)}</b></div><div><span>Foyda</span><b style="color:var(--ok)">${money(C.profit)}</b></div></div>
+   ${["body","facade","hdf"].some(k=>C.cut[k]&&C.cut[k].tooBig.length)?`<div class="warn">⚠️ Ba'zi detallar listga sig'maydi va smetaga kirmadi — «Raskroy» bo'limini tekshiring.</div>`:""}
+   <div class="card"><h2>Smeta</h2><div class="tw"><table><thead><tr><th>Nomi</th><th class="n">Miqdor</th><th>Birlik</th><th class="n">Narx</th><th class="n">Summa</th></tr></thead>
+   <tbody>${rows||`<tr><td colspan="5" class="note">Modul qo'shing.</td></tr>`}
+   <tr class="tot"><td colspan="4">Materiallar, furnitura, xizmatlar</td><td class="n">${money(C.mat)}</td></tr>
+   <tr><td colspan="3">Yig'ish va o'rnatish (ish haqi)</td><td class="n"><input class="in" style="width:70px;text-align:right" type="number" value="${st.labor}" onchange="setSet('labor',+this.value)"> %</td><td class="n">${money(C.labor)}</td></tr>
+   <tr><td colspan="3">Yetkazib berish</td><td class="n"><input class="in" style="width:120px;text-align:right" type="number" value="${st.delivery}" onchange="setSet('delivery',+this.value)"></td><td class="n">${money(+st.delivery)}</td></tr>
+   <tr class="tot"><td colspan="4">Tannarx</td><td class="n">${money(C.cost)}</td></tr>
+   <tr><td colspan="3">Ustama (foyda)</td><td class="n"><input class="in" style="width:70px;text-align:right" type="number" value="${st.markup}" onchange="setSet('markup',+this.value)"> %</td><td class="n">${money(C.profit)}</td></tr>
+   <tr class="big"><td colspan="4">Mijozga narx (10 000 ga yaxlitlangan)</td><td class="n">${money(C.client)}</td></tr></tbody></table></div>
+   <div class="note" style="margin-top:8px">Narxlar «⚙️ Narxlar» bo'limidan olinadi. Boshlang'ich narxlar taxminiy — o'zingizning xarid narxlaringizni kiriting.</div></div>`;
+}
+
+/* -------- narxlar -------- */
+function viewPrices(){
+  const pr=Object.assign({},PRICE_DEFAULTS,S.prices);
+  return `<div class="card"><h2>Narxlar <small>barcha loyihalar uchun umumiy · so'mda</small></h2>
+   <div class="warn">Boshlang'ich narxlar <b>taxminiy</b>. O'zingiz xarid qiladigan narxlarni kiriting va «Narxlarni saqlash»ni bosing.</div>
+   <div class="plist">${PRICE_DEF.map(([k,n,u])=>`<div class="prow"><span>${esc(n)}</span><input class="in" type="number" value="${pr[k]}" data-k="${k}" onchange="setPrice('${k}',this.value)"></div>`).join("")}</div>
+   <div class="adds" style="margin-top:12px"><button class="btn" onclick="savePrices()">💾 Narxlarni saqlash</button><button class="btn l" onclick="resetPrices()">Boshlang'ich narxlar</button></div></div>`;
+}
+function setPrice(k,v){S.prices[k]=Math.max(0,Math.round(+v||0));recalc();}
+async function savePrices(){try{await api("/api/admin/bazis/prices",{method:"POST",body:JSON.stringify({prices:S.prices})});toast("✓ Narxlar saqlandi");}catch(e){toast("⚠️ "+e.message);}}
+function resetPrices(){S.prices={};recalc();render();}
+
+/* -------- 3D -------- */
+let G=null;
+function draw3d(){
+  const el=$("#view");if(!el)return;
+  if(!window.THREE){el.innerHTML=`<div class="msg">3D yuklanmadi (internet sekin bo'lishi mumkin). Hisob-kitoblar ishlayveradi.</div>`;return;}
+  const P=S.P,R=S.C.R,st=S.C.S;
+  if(!R.placed.length){el.innerHTML=`<div class="msg">Modul qo'shing — 3D shu yerda ko'rinadi</div>`;if(G){G.dispose();G=null;}return;}
+  if(!G||!el.contains(G.renderer.domElement)||(!G.ctl&&THREE.OrbitControls)){
+    if(G)G.dispose();
+    const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+    el.innerHTML="";el.appendChild(renderer.domElement);
+    const scene=new THREE.Scene();scene.background=new THREE.Color("#ebe5da");
+    const cam=new THREE.PerspectiveCamera(40,1,0.05,50);
+    scene.add(new THREE.HemisphereLight(0xffffff,0xb9b0a3,0.85));const dl=new THREE.DirectionalLight(0xffffff,0.55);dl.position.set(2,4,5);scene.add(dl);
+    const ctl=THREE.OrbitControls?new THREE.OrbitControls(cam,renderer.domElement):null;if(ctl){ctl.enableDamping=true;ctl.maxPolarAngle=Math.PI*0.52;}
+    const group=new THREE.Group();scene.add(group);
+    let raf=0;const loop=()=>{raf=requestAnimationFrame(loop);ctl&&ctl.update();renderer.render(scene,cam);};loop();
+    const ro=new ResizeObserver(()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();});ro.observe(el);
+    G={renderer,scene,cam,ctl,group,fitKey:"",dispose(){cancelAnimationFrame(raf);ro.disconnect();renderer.dispose();}};
+  }
+  const grp=G.group;while(grp.children.length){const c=grp.children.pop();c.geometry&&c.geometry.dispose();}
+  const mats={body:new THREE.MeshLambertMaterial({color:st.bodyColor}),facade:new THREE.MeshLambertMaterial({color:st.facadeColor}),
+    back:new THREE.MeshLambertMaterial({color:"#cfc6b8"}),drawer:new THREE.MeshLambertMaterial({color:"#d8d0c2"}),metal:new THREE.MeshLambertMaterial({color:"#9a9a9a"}),
+    top:new THREE.MeshLambertMaterial({color:st.topColor}),plinth:new THREE.MeshLambertMaterial({color:"#4a4643"}),handle:new THREE.MeshLambertMaterial({color:"#8c8c8c"}),
+    floor:new THREE.MeshLambertMaterial({color:"#d8cfc0"}),wall:new THREE.MeshLambertMaterial({color:"#f4efe6"})};
+  const k=0.001;
+  const box=(x,y,z,w,h,d,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(w,1)*k,Math.max(h,1)*k,Math.max(d,1)*k),mat);m.position.set((x+w/2)*k,(y+h/2)*k,(z+d/2)*k);grp.add(m);return m;};
+  const W=R.width||1000;
+  box(-300,-10,-400,W+600,10,1600,mats.floor); box(-300,0,-420,W+600,2700,20,mats.wall);
+  for(const pl of R.placed){
+    for(const b of pl.boxes){const m=b.c==="facade"&&(pl.m.open==="kupe")?mats.facade:mats[b.c]||mats.body;box(pl.x+b.x,pl.elev+b.y,b.z,b.w,b.h,b.d,m);
+      if(b.handle){const hz=b.z+b.d;if(b.handle===2||b.handle===3){box(pl.x+b.x+b.w/2-60,pl.elev+b.y+(b.handle===3?20:b.h-40),hz,120,12,14,mats.handle);}
+        else if(b.h>b.w){box(pl.x+b.x+(b.x+b.w/2<pl.m.w/2?b.w-40:28),pl.elev+b.y+b.h-180,hz,12,120,14,mats.handle);}else box(pl.x+b.x+b.w/2-60,pl.elev+b.y+b.h-40,hz,120,12,14,mats.handle);}}
+    if(pl.elev>0&&pl.elev<300) box(pl.x,0,pl.m.d-70,pl.m.w,pl.elev,16,mats.plinth);
+  }
+  for(const r of R.runs) box(r.x,r.h,-5,r.w,38,r.d+40,mats.top);
+  const key=P.modules.length+":"+W;
+  if(G.fitKey!==key){G.fitKey=key;const cx=W*k/2,dist=Math.max(2.4,W*k*1.15);G.cam.position.set(cx+dist*0.35,1.5,dist);if(G.ctl){G.ctl.target.set(cx,1.0,0.25);G.ctl.update();}else G.cam.lookAt(cx,1,0.25);}
+}
+
+/* -------- saqlash / ochish -------- */
+async function saveProject(){
+  const b=$("#saveBtn");b.disabled=true;
+  try{const r=await api("/api/admin/bazis/projects",{method:"POST",body:JSON.stringify({id:S.id||0,name:S.P.name,client:S.P.client,data:S.P,total:S.C.client})});
+    S.id=r.id;S.dirty=false;toast("✓ Loyiha saqlandi");try{localStorage.setItem("bazis_draft",JSON.stringify({id:S.id,P:S.P}));}catch(e){}}
+  catch(e){toast("⚠️ "+e.message);}finally{b.disabled=false;}
+}
+async function openList(){
+  let list=[];try{list=(await api("/api/admin/bazis/projects")).projects;}catch(e){return toast("⚠️ "+e.message);}
+  const d=document.createElement("div");d.className="modal";d.onclick=e=>{if(e.target===d)d.remove();};
+  d.innerHTML=`<div><h2 style="font-family:var(--serif);margin:0 0 10px">Loyihalar</h2>${list.length?list.map(p=>`<div class="prow"><span><b>${esc(p.name)}</b><br><small class="note">${esc(p.client||"")} · ${new Date(p.updated*1000).toLocaleDateString("ru-RU")} · ${money(p.total)}</small></span>
+    <button class="btn s" onclick="loadProject(${p.id})">Ochish</button><button class="btn x s" onclick="delProject(${p.id},this)">🗑</button></div>`).join(""):`<div class="note">Hali saqlangan loyiha yo'q.</div>`}
+    <div style="margin-top:12px"><button class="btn l" onclick="this.closest('.modal').remove()">Yopish</button></div></div>`;
+  document.body.appendChild(d);
+}
+async function loadProject(id){try{const r=await api("/api/admin/bazis/projects/"+id);S.P=normalize(r.project.data);S.id=r.project.id;S.sel=null;S.dirty=false;recalc();document.querySelector(".modal")?.remove();S.tab="project";render();}catch(e){toast("⚠️ "+e.message);}}
+async function delProject(id,btn){if(!confirm("Loyihani o'chirasizmi?"))return;try{await api(`/api/admin/bazis/projects/${id}/delete`,{method:"POST"});btn.closest(".prow").remove();if(S.id===id)S.id=0;}catch(e){toast("⚠️ "+e.message);}}
+function newProject(){if(S.dirty&&!confirm("Saqlanmagan o'zgarishlar bor. Yangi loyiha boshlaysizmi?"))return;S.P=blank();S.id=0;S.sel=null;S.dirty=false;recalc();S.tab="project";render();}
+function normalize(P){P=P||blank();P.settings=Object.assign({},DEFAULT_SETTINGS,P.settings||{});P.modules=(P.modules||[]).filter(m=>TYPES[m.type]);return P;}
+
+/* -------- chop etish / Excel -------- */
+function doPrint(){
+  const C=S.C,P=S.P;const body=C.R.parts.filter(p=>p.mat==="body"),hdf=C.R.parts.filter(p=>p.mat==="hdf");
+  const old=S.tab;let html=`<h1>iSofa — ${esc(P.name)}</h1><div>${esc(P.client||"")} · ${new Date().toLocaleDateString("ru-RU")} · Furnitura: ${C.S.furn==="blum"?"Blum":"GTV"}</div>`;
+  html+=`<h2>Smeta</h2>`+viewCost().replace(/<input[^>]*value="([^"]*)"[^>]*>/g,"$1");
+  html+=`<h2>Detallar</h2>`+viewParts();
+  html+=`<h2>Raskroy</h2>`+cutBlock("body","Korpus — LDSP 16 mm",C.cut.body,body)+(C.cut.facade?cutBlock("facade","Fasad — LDSP",C.cut.facade,C.facade):"")+cutBlock("hdf","DVP / HDF 3 mm",C.cut.hdf,hdf);
+  try{if(G){html=`<img src="${G.renderer.domElement.toDataURL("image/jpeg",0.85)}" style="width:100%;max-height:320px;object-fit:contain;margin:8px 0">`+html;}}catch(e){}
+  $("#print").innerHTML=html;S.tab=old;setTimeout(()=>window.print(),200);
+}
+function exportXlsx(){
+  if(!window.XLSX)return toast("⚠️ Excel kutubxonasi yuklanmadi");
+  const C=S.C,wb=XLSX.utils.book_new();
+  const parts=[["№","Material","Modul","Detal","L, mm","W, mm","Soni","Kromka L1","Kromka L2","Kromka W1","Kromka W2"]];
+  const e=c=>c===2?"2 mm":c===1?"0.4 mm":"";let i=0;
+  for(const k of ["body","facade","hdf"])C.R.parts.filter(p=>p.mat===k).forEach(p=>parts.push([++i,k==="body"?"LDSP 16":k==="hdf"?"DVP 3":"Fasad",p.modName,p.name,p.L,p.W,p.qty,...p.edge.map(e)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(parts),"Detallar");
+  const sm=[["Guruh","Nomi","Miqdor","Birlik","Narx","Summa"],...C.lines.map(l=>[l.grp,l.name,l.qty,l.unit,l.price,l.sum]),[],
+    ["","Materiallar, furnitura, xizmatlar","","","",C.mat],["","Ish haqi ("+C.S.labor+"%)","","","",C.labor],["","Yetkazib berish","","","",+C.S.delivery||0],
+    ["","Tannarx","","","",C.cost],["","Ustama ("+C.S.markup+"%)","","","",C.profit],["","Mijozga narx","","","",C.client]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sm),"Smeta");
+  const cut=[["Material","List №","To'lish %","Detallar soni"]];
+  for(const [k,n] of [["body","LDSP korpus"],["facade","LDSP fasad"],["hdf","DVP"]])if(C.cut[k])C.cut[k].sheets.forEach((s,j)=>cut.push([n,j+1,s.pct,s.items.length]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cut),"Raskroy");
+  XLSX.writeFile(wb,`iSofa-${(S.P.name||"loyiha").replace(/[^\wА-Яа-яЁё' -]/g,"").slice(0,40)}.xlsx`);
+}
+
+/* -------- start -------- */
+async function start(){
+  try{S.prices=(await api("/api/admin/bazis/prices")).prices||{};}
+  catch(e){if(e.status===401||e.status===403){$("#app").innerHTML=`<div class="gate"><h2 style="font-family:var(--serif);margin-top:0">Kirish kerak</h2>Bu sahifa faqat do'kon admini uchun.<br><br>Telegram'da botga <b>/menyu</b> → «🧩 Bazis» tugmasini bosing.<br>Kompyuterda: botga <b>/panel</b> deb yozing, havolani oching va «🧩 Bazis»ni tanlang.</div>`;$("#tabs").innerHTML="";return;}}
+  let d=null;try{d=JSON.parse(localStorage.getItem("bazis_draft")||"null");}catch(e){}
+  S.P=normalize(d&&d.P);S.id=(d&&d.id)||0;recalc();render();
+}
+window.addEventListener("beforeunload",e=>{if(S.dirty){e.preventDefault();e.returnValue="";}});
+start();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" onload="S.tab==='project'&&S.P&&draw3d()"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+</body>
+</html>
