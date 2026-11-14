@@ -2416,7 +2416,7 @@ async def ads_new_lead_once():
             pass
 
 
-LEAD_TGT_VER = "1"
+LEAD_TGT_VER = "2"
 LEAD_ADSET_1113 = "52545416321250"  # «Toshkent — IG+FB forma» (2026-11-13)
 
 
@@ -2429,13 +2429,31 @@ async def ads_lead_targeting_once():
     shop.set_setting("ads_leadtgt", LEAD_TGT_VER)
     try:
         await meta._ready()
-        regions = await meta.tashkent_regions()
-        if not regions:
-            raise soc.MetaError("Toshkent hududlari topilmadi")
-        await meta.ads_post(LEAD_ADSET_1113, targeting=await _fix_targeting(
-            {}, {"regions": regions, "location_types": ["home"]}, age=(30, 65)))
+        regions, seen = [], {}
+        for q in ("Tashkent", "Toshkent", "Ташкент"):
+            try:
+                d = await meta.ads_get("search", type="adgeolocation", q=q, country_code="UZ",
+                                       location_types=json.dumps(["region"]))
+            except soc.MetaError as e:
+                log.warning("LEADTGT search %s: %s", q, e)
+                continue
+            for x in d.get("data") or []:
+                seen[x.get("key")] = x.get("name")
+                n = (x.get("name") or "").lower()
+                if x.get("type") == "region" and any(w in n for w in ("tashkent", "toshkent", "ташкент")) \
+                        and x["key"] not in [r["key"] for r in regions]:
+                    regions.append({"key": x["key"]})
+        log.info("LEADTGT qidiruv: %s", seen)
+        if regions:
+            geo = {"regions": regions, "location_types": ["home"]}
+        else:  # zaxira: Toshkent markazidan 60 km — shahar va viloyatning asosiy qismi
+            geo = {"custom_locations": [{"latitude": 41.3111, "longitude": 69.2797, "radius": 60,
+                                         "distance_unit": "kilometer"}], "location_types": ["home"]}
+        await meta.ads_post(LEAD_ADSET_1113, targeting=await _fix_targeting({}, geo, age=(30, 65)))
         t = (await meta.ads_get(LEAD_ADSET_1113, fields="targeting")).get("targeting") or {}
-        names = ", ".join(r.get("name", r.get("key", "")) for r in (t.get("geo_locations") or {}).get("regions") or [])
+        g = t.get("geo_locations") or {}
+        names = ", ".join(r.get("name", r.get("key", "")) for r in g.get("regions") or []) or \
+            ", ".join(f"Toshkent markazidan {c.get('radius')} km" for c in g.get("custom_locations") or []) or str(g)
         log.info("LEADTGT ok: %s, yosh %s-%s, %s", names, t.get("age_min"), t.get("age_max"),
                  (t.get("geo_locations") or {}).get("location_types"))
         text = ("🎯 <b>Lid reklamasi auditoriyasi o'zgardi</b>\n"
