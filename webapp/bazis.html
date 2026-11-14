@@ -31,7 +31,8 @@ main{max-width:1800px;margin:0 auto;padding:12px 14px calc(40px + var(--tg-safe-
 .card h2{margin:0 0 10px;font-family:var(--serif);font-size:22px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .card h2 small{font-family:Montserrat,sans-serif;font-size:12px;color:var(--hint);font-weight:500}
 .grid{display:grid;grid-template-columns:minmax(330px,440px) 1fr;gap:12px;align-items:start}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.grid>div:last-child{position:sticky;top:76px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.grid>div:last-child{position:static}}
 .f{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .f3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .f4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -44,6 +45,9 @@ input[type=color].in{height:36px;padding:3px;cursor:pointer}
 .seg button.on{background:var(--char);color:var(--gold)}
 .adds{display:flex;flex-wrap:wrap;gap:6px}
 .mod{border:1.5px solid var(--line);border-radius:12px;padding:9px;margin-top:8px}
+.chk{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:10px;padding:6px 9px;font-size:12.5px;cursor:pointer;background:#fff}
+.chk input[type=checkbox]{width:16px;height:16px;accent-color:#363435}
+.v3d{position:absolute;right:10px;top:10px;z-index:2;display:flex;gap:6px}
 .mod.sel{border-color:#c9a85c;background:#fffcf3}
 .mh{display:flex;align-items:center;gap:6px;cursor:pointer}
 .mh b{flex:1;font-size:13px}
@@ -113,18 +117,41 @@ tr.grp td{background:var(--soft);font-weight:700}
 /* ======================== ENGINE (DOMsiz — testlanadi) ======================== */
 const T = 16;            // korpus qalinligi (LDSP 16)
 const HDF = 3;           // orqa devor / tortma tagi (DVP)
+/* row: floor | wall. top: stoleshnitsa ostida. carcass: korpusi bor. legs: nojka */
 const TYPES = {
-  base:     {uz:"Pastki shkaf",        row:"floor", w:600, h:720, d:560, doors:2, shelves:1, drawers:0, open:"hinged"},
-  sink:     {uz:"Moyka osti",          row:"floor", w:800, h:720, d:560, doors:2, shelves:0, drawers:0, open:"hinged"},
-  drawer:   {uz:"Tortmali shkaf",      row:"floor", w:600, h:720, d:560, doors:0, shelves:0, drawers:3, open:"none"},
-  wall:     {uz:"Yuqori shkaf",        row:"wall",  w:600, h:720, d:300, doors:2, shelves:2, drawers:0, open:"hinged"},
-  tall:     {uz:"Pena (baland shkaf)", row:"floor", w:600, h:2100,d:560, doors:2, shelves:4, drawers:0, open:"hinged"},
-  wardrobe: {uz:"Shkaf / garderob",    row:"floor", w:1200,h:2400,d:600, doors:2, shelves:3, drawers:0, open:"hinged", rod:1},
-  tv:       {uz:"TV tumba",            row:"floor", w:1600,h:450, d:400, doors:2, shelves:0, drawers:2, open:"hinged"},
-  komod:    {uz:"Komod / tumba",       row:"floor", w:800, h:850, d:450, doors:0, shelves:0, drawers:4, open:"none"},
-  shelf:    {uz:"Ochiq stellaj",       row:"floor", w:800, h:1800,d:300, doors:0, shelves:4, drawers:0, open:"none"},
+  base:      {uz:"Pastki shkaf",          row:"floor", top:1, carcass:1, legs:1, w:600, h:720, d:560, doors:2, shelves:1, drawers:0, open:"hinged"},
+  sink:      {uz:"Moyka osti",            row:"floor", top:1, carcass:1, legs:1, w:800, h:720, d:560, doors:2, shelves:0, drawers:0, open:"hinged", extras:["sink","mixer"]},
+  drawer:    {uz:"Tortmali shkaf",        row:"floor", top:1, carcass:1, legs:1, w:600, h:720, d:560, doors:0, shelves:0, drawers:3, open:"none"},
+  oven:      {uz:"Duxovka shkafi",        row:"floor", top:1, carcass:1, legs:1, w:600, h:720, d:560, doors:0, shelves:0, drawers:1, open:"none", extras:["oven","hob"]},
+  dishwasher:{uz:"Idish yuvish mashinasi",row:"floor", top:1, carcass:0, legs:0, w:600, h:720, d:560, doors:1, shelves:0, drawers:0, open:"flap", extras:["dishwasher"]},
+  stove:     {uz:"Gaz plita (alohida)",   row:"floor", top:0, carcass:0, legs:0, w:600, h:850, d:600, doors:0, shelves:0, drawers:0, open:"none", extras:["stove"]},
+  fridge:    {uz:"Muzlatgich joyi",       row:"floor", top:0, carcass:0, legs:0, w:600, h:1850,d:650, doors:0, shelves:0, drawers:0, open:"none", extras:["fridge"]},
+  wall:      {uz:"Yuqori shkaf",          row:"wall",  top:0, carcass:1, legs:0, w:600, h:720, d:300, doors:2, shelves:2, drawers:0, open:"hinged"},
+  hood:      {uz:"Vytyajka shkafi",       row:"wall",  top:0, carcass:1, legs:0, w:600, h:360, d:300, doors:1, shelves:0, drawers:0, open:"lift", extras:["hood"], alignTop:1},
+  tall:      {uz:"Pena (baland shkaf)",   row:"floor", top:0, carcass:1, legs:1, w:600, h:2100,d:560, doors:2, shelves:4, drawers:0, open:"hinged"},
+  wardrobe:  {uz:"Shkaf / garderob",      row:"floor", top:0, carcass:1, legs:0, w:1200,h:2400,d:600, doors:2, shelves:3, drawers:0, open:"hinged", rod:1},
+  tv:        {uz:"TV tumba",              row:"floor", top:0, carcass:1, legs:1, w:1600,h:450, d:400, doors:2, shelves:0, drawers:2, open:"hinged"},
+  komod:     {uz:"Komod / tumba",         row:"floor", top:0, carcass:1, legs:1, w:800, h:850, d:450, doors:0, shelves:0, drawers:4, open:"none"},
+  shelf:     {uz:"Ochiq stellaj",         row:"floor", top:0, carcass:1, legs:0, w:800, h:1800,d:300, doors:0, shelves:4, drawers:0, open:"none"},
 };
-const OPEN = {hinged:"Ochiladigan eshik", lift:"Yuqoriga ko'tariladigan (lift)", kupe:"Kupe (suriladigan)", none:"Eshiksiz"};
+const OPEN = {hinged:"Ochiladigan eshik", lift:"Yuqoriga ko'tariladigan (lift)", kupe:"Kupe (suriladigan)", flap:"Pastga ochiladigan", none:"Eshiksiz"};
+/* Qo'shimchalar va texnika: t — qaysi modullarda, p — narx kaliti, m — metr bo'yicha (eniga qarab) */
+const EXTRAS = {
+  sink:      {uz:"Moyka (rakovina)",            t:["sink","base"],                 p:"x_sink"},
+  mixer:     {uz:"Smesitel (kran)",             t:["sink","base"],                 p:"x_mixer"},
+  trash:     {uz:"Musor chelagi (ichki)",       t:["sink","base"],                 p:"x_trash"},
+  cargo:     {uz:"Butilochnitsa (cargo)",       t:["base","drawer"],               p:"x_cargo"},
+  hob:       {uz:"Gaz panel (varochnaya)",      t:["base","oven","drawer"],        p:"x_hob"},
+  oven:      {uz:"Duxovka (o'rnatma)",          t:["oven","tall"],                 p:"x_oven"},
+  micro:     {uz:"Mikroto'lqinli pech",         t:["tall","wall"],                 p:"x_micro"},
+  dishwasher:{uz:"Idish yuvish mashinasi",      t:["dishwasher"],                  p:"x_dw"},
+  stove:     {uz:"Gaz plita",                   t:["stove"],                       p:"x_stove"},
+  fridge:    {uz:"Muzlatgich",                  t:["fridge"],                      p:"x_fridge"},
+  dryer:     {uz:"Sushka (idish quritgich)",    t:["wall"],                        p:"x_dryer"},
+  hood:      {uz:"Vytyajka",                    t:["hood","wall"],                 p:"x_hood"},
+  led:       {uz:"LED yoritgich (shkaf ostiga)",t:["wall","hood"],                 p:"x_led", m:1},
+  rail:      {uz:"Reling (osma tayoq)",         t:["wall","hood","base","sink"],   p:"x_rail", m:1},
+};
 const PRICE_DEF = [
   // [kalit, nom, birlik, narx so'm] — TAXMINIY, egasi o'zinikini kiritadi
   ["ldsp",       "LDSP 16 mm (korpus) — list",        "list", 650000],
@@ -132,6 +159,7 @@ const PRICE_DEF = [
   ["hdf",        "DVP / HDF 3 mm — list",             "list", 130000],
   ["mdf",        "MDF fasad (plyonka/bo'yalgan) — m²","m²",   480000],
   ["akril",      "Akril / AGT fasad — m²",            "m²",   750000],
+  ["glass_door", "Oynali fasad (ramka + oyna) — m²",  "m²",   900000],
   ["edge2",      "Kromka 2 mm — metr",                "m",    6000],
   ["edge04",     "Kromka 0.4 mm — metr",              "m",    2000],
   ["worktop",    "Stoleshnitsa — pog. metr",          "m",    450000],
@@ -142,6 +170,7 @@ const PRICE_DEF = [
   ["slide_blum", "Blum Tandembox (to'plam)",          "to'plam", 750000],
   ["lift_gtv",   "Lift mexanizm GTV",                 "dona", 150000],
   ["lift_blum",  "Blum Aventos HF/HK",                "dona", 950000],
+  ["flap",       "Pastga ochiladigan fasad mexanizmi","dona", 60000],
   ["kupe",       "Kupe tizimi (bitta eshikka)",       "eshik",420000],
   ["handle",     "Ruchka",                            "dona", 30000],
   ["leg",        "Nojka (oyoq)",                      "dona", 8000],
@@ -149,6 +178,20 @@ const PRICE_DEF = [
   ["support",    "Polka ushlagich",                   "dona", 500],
   ["confirmat",  "Konfirmat / mahkamlagich",          "dona", 350],
   ["rod",        "Shtanga (kiyim osgich) — metr",     "m",    40000],
+  ["x_sink",     "Moyka (rakovina)",                  "dona", 900000],
+  ["x_mixer",    "Smesitel (kran)",                   "dona", 450000],
+  ["x_trash",    "Musor chelagi (ichki)",             "dona", 250000],
+  ["x_cargo",    "Butilochnitsa (cargo)",             "dona", 900000],
+  ["x_dryer",    "Sushka (idish quritgich)",          "dona", 350000],
+  ["x_led",      "LED yoritgich — metr",              "m",    120000],
+  ["x_rail",     "Reling — metr",                     "m",    90000],
+  ["x_hob",      "Gaz panel — agar biz olsak (0 = mijozniki)",   "dona", 0],
+  ["x_oven",     "Duxovka — agar biz olsak (0 = mijozniki)",     "dona", 0],
+  ["x_micro",    "Mikroto'lqinli pech — agar biz olsak",         "dona", 0],
+  ["x_dw",       "Idish yuvish mashinasi — agar biz olsak",      "dona", 0],
+  ["x_stove",    "Gaz plita — agar biz olsak",                   "dona", 0],
+  ["x_fridge",   "Muzlatgich — agar biz olsak",                  "dona", 0],
+  ["x_hood",     "Vytyajka — agar biz olsak",                    "dona", 0],
   ["cut",        "Raskroy xizmati — list",            "list", 35000],
   ["edging",     "Kromkalash xizmati — metr",         "m",    3500],
 ];
@@ -159,52 +202,61 @@ const DEFAULT_SETTINGS = {furn:"gtv", facade:"mdf", bodyColor:"#efe9df", facadeC
 
 function clampInt(v, lo, hi, dflt){ v = Math.round(+v); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt; }
 function newModule(type, id){ const t = TYPES[type]; return {id, type, name:t.uz, w:t.w, h:t.h, d:t.d, doors:t.doors,
-  shelves:t.shelves, drawers:t.drawers, open:t.open, rod:t.rod||0}; }
+  shelves:t.shelves, drawers:t.drawers, open:t.open, rod:t.rod||0, glass:0, extras:(t.extras||[]).slice()}; }
 function hingesFor(h){ return h <= 900 ? 2 : h <= 1600 ? 3 : h <= 2000 ? 4 : 5; }
+function extrasFor(type){ return Object.keys(EXTRAS).filter(k=>EXTRAS[k].t.includes(type)); }
 
-/* Bitta modul: detallar (L — tola bo'yicha), furnitura va 3D qutilar (mm, modulning chap-orqa-pastki burchagidan) */
+/* Bitta modul: detallar (L — tola bo'yicha), furnitura, qo'shimchalar va 3D qutilar
+   (mm, modulning chap-orqa-pastki burchagidan). Fasad qutilarida «a» — ochilish turi (3D animatsiya uchun). */
 function buildModule(m, S){
-  const W=m.w, H=m.h, D=m.d, parts=[], hw={}, boxes=[];
+  const t = TYPES[m.type], W=m.w, H=m.h, D=m.d, parts=[], hw={}, boxes=[], ex={};
+  const X = new Set((m.extras||[]).filter(k=>EXTRAS[k] && EXTRAS[k].t.includes(m.type)));
   const add = (name, mat, L, Wd, qty, edge, box) => { if (L>0 && Wd>0 && qty>0) parts.push({mod:m.id, modName:m.name, name, mat, L:Math.round(L), W:Math.round(Wd), qty, edge:edge||[0,0,0,0]}); if (box) boxes.push(...[].concat(box)); };
   const inc = (k, n) => { if (n>0) hw[k] = (hw[k]||0) + n; };
   const inner = W - 2*T;
-  const isWall = m.type === "wall", isBaseLike = ["base","sink","drawer"].includes(m.type);
-  // korpus
-  add("Yon devor", "body", H, D, 2, [2,0,isWall?1:0,0], [{x:0,y:0,z:0,w:T,h:H,d:D,c:"body"},{x:W-T,y:0,z:0,w:T,h:H,d:D,c:"body"}]);
-  add("Tub (pastki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:0,z:0,w:inner,h:T,d:D,c:"body"});
-  if (isBaseLike) {
-    add("Planka (ustki)", "body", inner, 100, 2, [1,0,0,0], [{x:T,y:H-T,z:D-100,w:inner,h:T,d:100,c:"body"},{x:T,y:H-T,z:0,w:inner,h:T,d:100,c:"body"}]);
-  } else {
-    add("Tom (ustki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:H-T,z:0,w:inner,h:T,d:D,c:"body"});
-  }
-  add("Orqa devor (DVP)", "hdf", H-4, W-4, 1, null, {x:2,y:2,z:-HDF,w:W-4,h:H-4,d:HDF,c:"back"});
-  inc("confirmat", 8);
-  // polkalar
-  const sh = clampInt(m.shelves,0,12,0);
-  if (sh) {
-    const boxesSh = []; const zone = (m.drawers && m.type==="tv") ? H : H;
-    for (let i=1;i<=sh;i++) boxesSh.push({x:T,y:Math.round(zone*i/(sh+1)),z:0,w:inner,h:T,d:D-20,c:"body"});
-    add("Polka", "body", inner-2, D-20, sh, [2,0,0,0], boxesSh);
-    inc("support", 4*sh);
-  }
-  // shtanga
-  if (m.rod) { inc("rod", m.rod*(inner/1000)); boxes.push({x:T,y:H-300,z:D/2-12,w:inner,h:25,d:25,c:"metal"}); }
-  // tortmalar
-  const dr = clampInt(m.drawers,0,8,0);
+  const isWall = t.row === "wall";
   const fT = S.facade==="ldsp" ? 16 : 18;
   const fEdge = S.facade==="ldsp" ? [2,2,2,2] : [0,0,0,0];
-  const fName = S.facade==="ldsp" ? "Fasad (LDSP)" : S.facade==="akril" ? "Fasad (akril)" : "Fasad (MDF)";
+  const glass = !!m.glass;
+  const doorMat = glass ? "glass" : "facade", doorEdge = glass ? [0,0,0,0] : fEdge, doorC = glass ? "glassdoor" : "facade";
+  // korpus
+  if (t.carcass) {
+    add("Yon devor", "body", H, D, 2, [2,0,isWall?1:0,0], [{x:0,y:0,z:0,w:T,h:H,d:D,c:"body"},{x:W-T,y:0,z:0,w:T,h:H,d:D,c:"body"}]);
+    add("Tub (pastki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:0,z:0,w:inner,h:T,d:D,c:"body"});
+    if (t.top) add("Planka (ustki)", "body", inner, 100, 2, [1,0,0,0], [{x:T,y:H-T,z:D-100,w:inner,h:T,d:100,c:"body"},{x:T,y:H-T,z:0,w:inner,h:T,d:100,c:"body"}]);
+    else add("Tom (ustki)", "body", inner, D, 1, [2,0,0,0], {x:T,y:H-T,z:0,w:inner,h:T,d:D,c:"body"});
+    add("Orqa devor (DVP)", "hdf", H-4, W-4, 1, null, {x:2,y:2,z:-HDF,w:W-4,h:H-4,d:HDF,c:"back"});
+    inc("confirmat", 8);
+  }
+  // polkalar
+  const sh = t.carcass ? clampInt(m.shelves,0,12,0) : 0;
+  if (sh) {
+    const bx = []; for (let i=1;i<=sh;i++) bx.push({x:T,y:Math.round(H*i/(sh+1)),z:0,w:inner,h:T,d:D-20,c:"body"});
+    add("Polka", "body", inner-2, D-20, sh, [2,0,0,0], bx); inc("support", 4*sh);
+  }
+  if (m.rod && t.carcass) { inc("rod", m.rod*(inner/1000)); boxes.push({x:T,y:H-300,z:D/2-12,w:inner,h:25,d:25,c:"metal"}); }
+  // duxovka shkafi: tepada duxovka nishasi (600), pastda tortma
+  const ovenNiche = m.type==="oven" && X.has("oven") ? Math.min(600, H-100) : 0;
+  if (ovenNiche) {
+    add("Polka (duxovka ostida)", "body", inner, D, 1, [2,0,0,0], {x:T,y:H-ovenNiche-T,z:0,w:inner,h:T,d:D,c:"body"});
+    boxes.push({x:T+2,y:H-ovenNiche+2,z:D-560,w:inner-4,h:ovenNiche-6,d:560,c:"appl"},
+               {x:T+2,y:H-ovenNiche+2,z:D,w:inner-4,h:ovenNiche-6,d:4,c:"ovendoor",a:{k:"flap",key:"oven"}});
+  }
+  // tortmalar
+  const dr = t.carcass ? clampInt(m.drawers,0,8,0) : 0;
   let drawerZoneH = 0;
   if (dr) {
-    drawerZoneH = (m.type==="tv") ? H : (m.doors>0 ? Math.round(H*0.35) : H);
+    const hasDoors = m.doors>0 && m.open!=="none";
+    drawerZoneH = ovenNiche ? H-ovenNiche-T : !hasDoors ? H : Math.round(H*(m.type==="tv" ? 0.5 : 0.35));
+    const bottomZone = !!ovenNiche;
     const fh = (drawerZoneH - 3 - 3*(dr-1)) / dr;
     const slideL = Math.min(550, Math.max(250, Math.floor((D-40)/50)*50));
-    const boxH = Math.max(80, Math.min(200, Math.floor((fh-50)/10)*10));
+    const boxH = Math.max(60, Math.min(200, Math.floor((fh-50)/10)*10));
     const fronts = [];
     for (let i=0;i<dr;i++) {
-      const y = H - drawerZoneH + 1.5 + i*(fh+3);
-      fronts.push({x:1.5,y,z:D,w:W-3,h:fh,d:fT,c:"facade",handle:1});
-      boxes.push({x:T+13,y:y+20,z:D-slideL-2,w:inner-26,h:boxH,d:slideL,c:"drawer"});
+      const y = (bottomZone ? 0 : H - drawerZoneH) + 1.5 + i*(fh+3), key = "dr"+i;
+      fronts.push({x:1.5,y,z:D,w:W-3,h:fh,d:fT,c:"facade",handle:1,a:{k:"slide",key,dist:slideL*0.85}});
+      boxes.push({x:T+13,y:y+20,z:D-slideL-2,w:inner-26,h:boxH,d:slideL,c:"drawer",a:{k:"slide",key,dist:slideL*0.85}});
     }
     add("Tortma fasadi", "facade", W-3, fh, dr, fEdge, fronts);
     if (S.furn==="blum") {
@@ -221,46 +273,80 @@ function buildModule(m, S){
   }
   // eshiklar
   const n = clampInt(m.doors,0,6,0);
-  if (n && m.open!=="none") {
-    const doorZoneH = H - drawerZoneH - (dr ? 3 : 0);
-    if (m.open === "kupe") {
-      const dw = (W + 30*(n-1)) / n, dh = H - 40;
-      const fr = []; for (let i=0;i<n;i++) fr.push({x:i*(dw-30),y:20,z:D+(i%2?28:0),w:dw,h:dh,d:fT,c:"facade"});
-      add("Kupe eshik (to'ldirma)", "facade", dh, dw, n, fEdge, fr);
-      inc("kupe", n);
-    } else if (m.open === "lift") {
-      add("Lift fasad", "facade", W-3, doorZoneH-3, 1, fEdge, {x:1.5,y:1.5,z:D,w:W-3,h:doorZoneH-3,d:fT,c:"facade",handle:2});
-      inc(S.furn==="blum"?"lift_blum":"lift_gtv", 1); inc("handle", 1);
-    } else {
-      const dw = (W - 3 - 3*(n-1)) / n, dh = doorZoneH - 3;
-      const fr = []; for (let i=0;i<n;i++) fr.push({x:1.5+i*(dw+3),y:1.5,z:D,w:dw,h:dh,d:fT,c:"facade",handle:isWall?3:1});
-      add("Eshik", "facade", dh, dw, n, fEdge, fr);
-      inc(S.furn==="blum"?"hinge_blum":"hinge_gtv", n*hingesFor(dh)); inc("handle", n);
+  if (m.type === "dishwasher") {
+    add("Fasad (idish yuvish mashinasi)", "facade", W-3, H-3, 1, fEdge, {x:1.5,y:1.5,z:D,w:W-3,h:H-3,d:fT,c:"facade",handle:2,a:{k:"flap",key:"dw"}});
+    inc("handle", 1);
+  } else if (n && m.open!=="none" && t.carcass) {
+    const doorZoneH = H - (ovenNiche ? H : drawerZoneH) - (dr ? 3 : 0);
+    if (doorZoneH > 50) {
+      if (m.open === "kupe") {
+        const dw = (W + 30*(n-1)) / n, dh = H - 40;
+        const fr = []; for (let i=0;i<n;i++) fr.push({x:i*(dw-30),y:20,z:D+(i%2?28:0),w:dw,h:dh,d:fT,c:doorC,a:{k:"kupe",key:"k"+i,dist:(i < n/2 ? 1 : -1)*(dw-60)}});
+        add(glass?"Kupe eshik (oynali)":"Kupe eshik (to'ldirma)", doorMat, dh, dw, n, doorEdge, fr);
+        inc("kupe", n);
+      } else if (m.open === "lift" || m.open === "flap") {
+        const k = m.open==="lift" ? "lift" : "flap";
+        add(glass?"Fasad (oynali)":"Fasad ("+(k==="lift"?"lift":"pastga ochiladi")+")", doorMat, W-3, doorZoneH-3, 1, doorEdge,
+            {x:1.5,y:1.5,z:D,w:W-3,h:doorZoneH-3,d:fT,c:doorC,handle:k==="lift"?3:2,a:{k,key:"f0"}});
+        inc(k==="lift" ? (S.furn==="blum"?"lift_blum":"lift_gtv") : "flap", 1); inc("handle", 1);
+      } else {
+        const dw = (W - 3 - 3*(n-1)) / n, dh = doorZoneH - 3;
+        const fr = []; for (let i=0;i<n;i++) fr.push({x:1.5+i*(dw+3),y:1.5,z:D,w:dw,h:dh,d:fT,c:doorC,handle:isWall?3:1,
+          a:{k:"hinge",key:"d"+i,side:(n===1 ? (m.hinge==="R"?"R":"L") : (i < n/2 ? "L" : "R"))}});
+        add(glass?"Eshik (oynali)":"Eshik", doorMat, dh, dw, n, doorEdge, fr);
+        inc(S.furn==="blum"?"hinge_blum":"hinge_gtv", n*hingesFor(dh)); inc("handle", n);
+      }
     }
   }
-  if (isWall) inc("hanger", 2);
-  else if (m.type!=="wardrobe" && m.type!=="shelf") inc("leg", W>800 ? 6 : 4);
-  return {parts, hw, boxes};
+  if (isWall && t.carcass) inc("hanger", 2);
+  else if (t.legs) inc("leg", W>800 ? 6 : 4);
+  // qo'shimchalar va texnika
+  for (const k of X) {
+    const e = EXTRAS[k];
+    ex[k] = (ex[k]||0) + (e.m ? W/1000 : 1);
+    if (k==="sink") boxes.push({x:W/2-Math.min(W-200,500)/2,y:H,z:D-500,w:Math.min(W-200,500),h:6,d:440,c:"steel",top:1});
+    if (k==="mixer") boxes.push({x:W/2-20,y:H,z:D-560,w:40,h:260,d:40,c:"chrome",top:1},{x:W/2-15,y:H+230,z:D-560,w:30,h:30,d:170,c:"chrome",top:1});
+    if (k==="hob") { const hw2=Math.min(W-60,580); boxes.push({x:W/2-hw2/2,y:H,z:D-540,w:hw2,h:8,d:500,c:"black",top:1});
+      for (const [bx,bz] of [[0.28,0.3],[0.72,0.3],[0.28,0.72],[0.72,0.72]]) boxes.push({x:W/2-hw2/2+hw2*bx-45,y:H+8,z:D-540+500*bz-45,w:90,h:10,d:90,c:"metal",top:1}); }
+    if (k==="trash") boxes.push({x:W-T-260,y:T+5,z:D-320,w:220,h:350,d:280,c:"plastic"});
+    if (k==="cargo") boxes.push({x:T+20,y:T+40,z:60,w:Math.min(inner-40,200),h:H-160,d:D-120,c:"metal",wire:1});
+    if (k==="dryer") boxes.push({x:T+15,y:Math.round(H*0.18),z:20,w:inner-30,h:12,d:D-60,c:"metal",wire:1},{x:T+15,y:Math.round(H*0.55),z:20,w:inner-30,h:12,d:D-60,c:"metal",wire:1});
+    if (k==="led") boxes.push({x:20,y:-6,z:D-60,w:W-40,h:6,d:12,c:"led"});
+    if (k==="rail") boxes.push(isWall ? {x:30,y:-260,z:-HDF-20,w:W-60,h:14,d:14,c:"chrome",wall:1} : {x:30,y:H+180,z:-HDF-60,w:W-60,h:14,d:14,c:"chrome",top:1});
+    if (k==="hood") boxes.push({x:W/2-Math.min(W,600)/2,y:-140,z:D-330,w:Math.min(W,600),h:140,d:330,c:"steel"});
+    if (k==="micro") boxes.push({x:T+10,y:Math.round(H*0.45),z:D-380,w:Math.min(inner-20,480),h:280,d:360,c:"appl"});
+    if (k==="oven" && m.type==="tall") boxes.push({x:T+2,y:Math.round(H*0.30),z:D-560,w:inner-4,h:595,d:560,c:"appl"},{x:T+2,y:Math.round(H*0.30),z:D,w:inner-4,h:595,d:4,c:"ovendoor",a:{k:"flap",key:"toven"}});
+    if (k==="dishwasher") boxes.push({x:20,y:80,z:20,w:W-40,h:H-90,d:D-40,c:"steel"});
+    if (k==="stove") { boxes.push({x:0,y:0,z:0,w:W,h:H,d:D,c:"steel"},{x:0,y:H,z:0,w:W,h:6,d:D,c:"black"},
+        {x:30,y:120,z:D,w:W-60,h:H-330,d:4,c:"ovendoor",a:{k:"flap",key:"so"}});
+      for (const [bx,bz] of [[0.28,0.3],[0.72,0.3],[0.28,0.72],[0.72,0.72]]) boxes.push({x:W*bx-45,y:H+6,z:D*bz-45,w:90,h:12,d:90,c:"metal"}); }
+    if (k==="fridge") boxes.push({x:0,y:0,z:0,w:W,h:H,d:D-30,c:"white"},
+        {x:2,y:Math.round(H*0.38)+2,z:D-30,w:W-4,h:H-Math.round(H*0.38)-4,d:30,c:"white",handle:1,a:{k:"hinge",key:"fr1",side:"R"}},
+        {x:2,y:2,z:D-30,w:W-4,h:Math.round(H*0.38)-4,d:30,c:"white",handle:1,a:{k:"hinge",key:"fr2",side:"R"}});
+  }
+  return {parts, hw, boxes, ex};
 }
 
-/* Butun loyiha: modullar joylashuvi, detallar, furnitura, stoleshnitsa, tsokol */
+/* Butun loyiha: modullar joylashuvi, detallar, furnitura, qo'shimchalar, stoleshnitsa, tsokol */
 function buildProject(P){
   const S = Object.assign({}, DEFAULT_SETTINGS, P.settings||{});
   let xFloor = 0, xWall = 0;
-  const out = {S, parts:[], hw:{}, placed:[], worktopM:0, plinthM:0, runs:[]};
+  const out = {S, parts:[], hw:{}, ex:{}, placed:[], worktopM:0, plinthM:0, runs:[]};
   let run = null;
   for (const m of P.modules) {
     const r = buildModule(m, S), t = TYPES[m.type];
     const wallRow = t.row === "wall";
     const x = wallRow ? xWall : xFloor;
-    const elev = wallRow ? S.wallBottom : (["wardrobe","shelf"].includes(m.type) ? 0 : S.plinth);
+    const elev = wallRow ? (t.alignTop ? S.wallBottom + 720 - m.h : S.wallBottom) : (t.legs || t.top ? S.plinth : 0);
     out.placed.push({m, x, elev, boxes:r.boxes});
     if (wallRow) xWall += m.w; else xFloor += m.w;
     out.parts.push(...r.parts);
     for (const k in r.hw) out.hw[k] = (out.hw[k]||0) + r.hw[k];
-    const base = ["base","sink","drawer"].includes(m.type);
-    if (base) { out.plinthM += m.w/1000; if (S.worktop) { if (!run) { run = {x, w:0, d:m.d, h:S.plinth+m.h}; out.runs.push(run); } run.w += m.w; run.d=Math.max(run.d,m.d); } }
-    else if (!wallRow) run = null;
+    for (const k in r.ex) out.ex[k] = (out.ex[k]||0) + r.ex[k];
+    if (t.top) {
+      if (t.legs) out.plinthM += m.w/1000;
+      if (S.worktop) { if (!run) { run = {x, w:0, d:m.d, h:S.plinth+m.h}; out.runs.push(run); } run.w += m.w; run.d=Math.max(run.d,m.d); run.h=Math.max(run.h,S.plinth+m.h); }
+    } else if (!wallRow) run = null;
   }
   out.worktopM = out.runs.reduce((a,r)=>a+r.w,0)/1000;
   out.width = Math.max(xFloor, xWall);
@@ -326,6 +412,7 @@ function compute(P, prices){
   const pr = Object.assign({}, PRICE_DEFAULTS, prices||{});
   const R = buildProject(P), S = R.S;
   const body = R.parts.filter(p=>p.mat==="body"), facade = R.parts.filter(p=>p.mat==="facade"), hdf = R.parts.filter(p=>p.mat==="hdf");
+  const glassParts = R.parts.filter(p=>p.mat==="glass"), glassM2 = glassParts.reduce((a,p)=>a+p.L*p.W*p.qty,0)/1e6;
   const rot = !S.grain;
   const cut = {body:packSheets(body,S,rot), hdf:packSheets(hdf,S,true)};
   if (S.facade==="ldsp") cut.facade = packSheets(facade,S,rot);
@@ -335,6 +422,7 @@ function compute(P, prices){
   line("Material","LDSP 16 mm — korpus", cut.body.sheets.length, "list", pr.ldsp);
   if (cut.facade) line("Material","LDSP 16 mm — fasad", cut.facade.sheets.length, "list", pr.ldsp_f);
   else line("Material", S.facade==="akril"?"Akril/AGT fasad":"MDF fasad", +facadeM2.toFixed(2), "m²", S.facade==="akril"?pr.akril:pr.mdf);
+  line("Material","Oynali fasad (ramka + oyna)", +glassM2.toFixed(2), "m²", pr.glass_door);
   line("Material","DVP / HDF 3 mm", cut.hdf.sheets.length, "list", pr.hdf);
   line("Material","Kromka 2 mm", Math.ceil(edges.e2), "m", pr.edge2);
   line("Material","Kromka 0.4 mm", Math.ceil(edges.e04), "m", pr.edge04);
@@ -342,8 +430,10 @@ function compute(P, prices){
   if (R.plinthM) line("Material","Tsokol", +R.plinthM.toFixed(2), "m", pr.plinth);
   const HWN = {hinge_gtv:"Petlya GTV",hinge_blum:"Petlya Blum",slide_gtv:"Napravlyayushchiy GTV (juft)",slide_blum:"Blum Tandembox",
     lift_gtv:"Lift GTV",lift_blum:"Blum Aventos",kupe:"Kupe tizimi",handle:"Ruchka",leg:"Nojka",hanger:"Osma",support:"Polka ushlagich",
-    confirmat:"Konfirmat",rod:"Shtanga"};
+    confirmat:"Konfirmat",rod:"Shtanga",flap:"Pastga ochiladigan mexanizm"};
   for (const k of Object.keys(HWN)) if (R.hw[k]) line("Furnitura", HWN[k], k==="rod"?+R.hw[k].toFixed(2):R.hw[k], k==="rod"?"m":"dona", pr[k]);
+  for (const k of Object.keys(EXTRAS)) if (R.ex[k]) { const e = EXTRAS[k], q = e.m ? +R.ex[k].toFixed(2) : R.ex[k];
+    if (pr[e.p] > 0) line(["hob","oven","micro","dishwasher","stove","fridge","hood"].includes(k) ? "Texnika" : "Qo'shimchalar", e.uz, q, e.m ? "m" : "dona", pr[e.p]); }
   const sheetsAll = cut.body.sheets.length + cut.hdf.sheets.length + (cut.facade?cut.facade.sheets.length:0);
   line("Xizmat","Raskroy (kesish)", sheetsAll, "list", pr.cut);
   line("Xizmat","Kromkalash", Math.ceil(edges.e2+edges.e04), "m", pr.edging);
@@ -351,9 +441,9 @@ function compute(P, prices){
   const labor = Math.round(mat*(+S.labor||0)/100);
   const cost = mat + labor + Math.round(+S.delivery||0);
   const client = Math.round(cost*(1+(+S.markup||0)/100)/10000)*10000;
-  return {R, S, cut, facade, facadeM2, edges, lines:L, mat, labor, cost, client, profit:client-cost, HWN};
+  return {R, S, cut, facade, facadeM2, glassParts, glassM2, edges, lines:L, mat, labor, cost, client, profit:client-cost, HWN, pr};
 }
-if (typeof module !== "undefined") module.exports = {TYPES, newModule, buildModule, buildProject, packSheets, compute, edgeMeters, hingesFor, DEFAULT_SETTINGS, PRICE_DEFAULTS};
+if (typeof module !== "undefined") module.exports = {TYPES, EXTRAS, extrasFor, newModule, buildModule, buildProject, packSheets, compute, edgeMeters, hingesFor, DEFAULT_SETTINGS, PRICE_DEFAULTS};
 /* ======================== END ENGINE ======================== */
 </script>
 
@@ -379,7 +469,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const money = v => Math.round(v||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")+" so'm";
 const num = v => (+v||0).toLocaleString("ru-RU").replace(/,/g,".");
-const MATN = {body:"Korpus — LDSP 16 mm", facade:"Fasadlar", hdf:"DVP / HDF 3 mm"};
+const MATN = {body:"Korpus — LDSP 16 mm", facade:"Fasadlar", glass:"Oynali fasadlar", hdf:"DVP / HDF 3 mm"};
 let S = {tab:"project", P:null, prices:{}, sel:null, C:null, id:0, dirty:false};
 
 async function api(url,opt){opt=opt||{};opt.headers=Object.assign({"X-Init-Data":(TG&&TG.initData)||"","Content-Type":"application/json"},opt.headers||{});opt.credentials="same-origin";
@@ -391,8 +481,8 @@ function blank(){return {name:"Yangi loyiha", client:"", settings:Object.assign(
 function template(kind){
   const P=blank(); const add=(t,o)=>P.modules.push(Object.assign(newModule(t,nid()),o||{}));
   if(kind==="kitchen"){P.name="Oshxona 3 m";
-    add("tall",{w:600}); add("drawer",{w:600}); add("sink",{w:800}); add("base",{w:400,doors:1}); add("base",{w:600});
-    add("wall",{w:600}); add("wall",{w:800,open:"lift",doors:1,shelves:1}); add("wall",{w:400,doors:1}); add("wall",{w:600});}
+    add("fridge"); add("drawer",{w:600}); add("sink",{w:800,extras:["sink","mixer","trash"]}); add("dishwasher"); add("oven",{w:600}); add("base",{w:400,doors:1,extras:["cargo"],shelves:0});
+    add("wall",{w:600,doors:2,glass:1}); add("wall",{w:600,extras:["dryer","led"]}); add("wall",{w:800,doors:2,extras:["led"]}); add("hood",{w:600}); add("wall",{w:400,doors:1,extras:["led"]});}
   if(kind==="wardrobe"){P.name="Shkaf 2 m"; add("wardrobe",{w:1000,rod:1,shelves:2}); add("wardrobe",{w:1000,rod:0,shelves:5});}
   if(kind==="kupe"){P.name="Kupe shkaf 2.4 m"; add("wardrobe",{w:2400,doors:2,open:"kupe",shelves:4,rod:1});}
   return P;
@@ -431,40 +521,48 @@ function viewProject(){
    </div>
    <div class="card"><h2>Modullar <small>${P.modules.length} ta · eni ${num(C.R.width)} mm</small></h2>
     <div class="adds">${Object.entries(TYPES).map(([k,t])=>`<button class="btn l s" onclick="addMod('${k}')">＋ ${t.uz}</button>`).join("")}</div>
+    <div class="note" style="margin-top:6px">Modulni bosing — o'lcham, oynali fasad, moyka, sushka, plita va boshqa qo'shimchalar ochiladi.</div>
     ${P.modules.length?"":`<div class="note" style="margin-top:10px">Tayyor shablondan boshlang:
       <div class="adds" style="margin-top:6px"><button class="btn s" onclick="useTpl('kitchen')">🍳 Oshxona 3 m</button><button class="btn s" onclick="useTpl('wardrobe')">🚪 Shkaf 2 m</button><button class="btn s" onclick="useTpl('kupe')">↔️ Kupe 2.4 m</button></div></div>`}
     ${P.modules.map((m,i)=>modCard(m,i)).join("")}
    </div></div>
-   <div><div class="card"><h2>3D ko'rinish <small>sichqoncha/barmoq bilan aylantiring</small></h2><div id="view"></div>
+   <div><div class="card"><h2>3D ko'rinish <small>aylantiring · eshik/tortmani ikki marta bosing — ochiladi</small></h2><div id="view"></div>
+    <div class="adds" style="margin-top:8px"><button class="btn l s" onclick="openAll(1)">🚪 Hammasini ochish</button><button class="btn l s" onclick="openAll(0)">Yopish</button><button class="btn l s" onclick="G&&(G.fitKey='');draw3d()">🎯 Markazga</button></div>
     <div class="legend"><span>Pastki qator: pastki shkaf, pena, garderob — chapdan o'ngga</span><span>Yuqori qator: yuqori shkaflar</span></div></div>
     ${quickTotals()}</div></div>`;
 }
 function quickTotals(){const C=S.C;return `<div class="kp"><div><span>Korpus listlari</span><b>${C.cut.body.sheets.length}</b></div><div><span>Fasad</span><b>${C.cut.facade?C.cut.facade.sheets.length+" list":C.facadeM2.toFixed(2)+" m²"}</b></div>
   <div><span>Tannarx</span><b>${money(C.cost)}</b></div><div><span>Mijozga narx</span><b>${money(C.client)}</b></div></div>`;}
+const OPENS={wardrobe:["hinged","kupe","none"],wall:["hinged","lift","none"],hood:["lift","hinged","none"],tv:["hinged","flap","none"],tall:["hinged","none"],
+  base:["hinged","none"],sink:["hinged","none"],drawer:["none","hinged"],komod:["none","hinged"],shelf:["none","hinged"],oven:["none"],dishwasher:["flap"],stove:["none"],fridge:["none"]};
 function modCard(m,i){
-  const t=TYPES[m.type],open=S.sel===m.id;
-  const opens=m.type==="wardrobe"?["hinged","kupe","none"]:m.type==="wall"?["hinged","lift","none"]:["hinged","none"];
-  return `<div class="mod ${open?"sel":""}"><div class="mh" onclick="selMod('${m.id}')"><span>${i+1}.</span><b>${esc(m.name)}</b><span class="dim">${m.w}×${m.h}×${m.d}</span></div>
+  const t=TYPES[m.type],open=S.sel===m.id,exs=extrasFor(m.type),X=new Set(m.extras||[]);
+  const opens=OPENS[m.type]||["hinged","none"];
+  const tags=(m.extras||[]).filter(k=>EXTRAS[k]&&EXTRAS[k].t.includes(m.type)).map(k=>EXTRAS[k].uz.split(" (")[0]);
+  if(m.glass)tags.unshift("oynali");
+  const num3=(k,lab,mn,mx)=>`<label class="l">${lab}<input class="in" type="number" min="${mn}" max="${mx}" value="${m[k]||0}" onchange="setMod('${m.id}','${k}',this.value)"></label>`;
+  return `<div class="mod ${open?"sel":""}"><div class="mh" onclick="selMod('${m.id}')"><span>${i+1}.</span><b>${esc(m.name)}${tags.length?` <small class="note">· ${esc(tags.join(", "))}</small>`:""}</b><span class="dim">${m.w}×${m.h}×${m.d}</span></div>
   ${open?`<div class="mb"><div class="f"><label class="l">Nomi<input class="in" value="${esc(m.name)}" onchange="setMod('${m.id}','name',this.value)"></label>
    <label class="l">Turi<select class="in" onchange="setMod('${m.id}','type',this.value)">${Object.entries(TYPES).map(([k,x])=>`<option value="${k}" ${k===m.type?"selected":""}>${x.uz}</option>`).join("")}</select></label></div>
-   <div class="f3" style="margin-top:6px"><label class="l">Eni, mm<input class="in" type="number" value="${m.w}" onchange="setMod('${m.id}','w',this.value)"></label>
-   <label class="l">Balandligi<input class="in" type="number" value="${m.h}" onchange="setMod('${m.id}','h',this.value)"></label>
-   <label class="l">Chuqurligi<input class="in" type="number" value="${m.d}" onchange="setMod('${m.id}','d',this.value)"></label></div>
-   <div class="f4" style="margin-top:6px"><label class="l">Eshik<input class="in" type="number" min="0" max="6" value="${m.doors}" onchange="setMod('${m.id}','doors',this.value)"></label>
-   <label class="l">Polka<input class="in" type="number" min="0" max="12" value="${m.shelves}" onchange="setMod('${m.id}','shelves',this.value)"></label>
-   <label class="l">Tortma<input class="in" type="number" min="0" max="8" value="${m.drawers}" onchange="setMod('${m.id}','drawers',this.value)"></label>
-   ${m.type==="wardrobe"?`<label class="l">Shtanga<input class="in" type="number" min="0" max="2" value="${m.rod||0}" onchange="setMod('${m.id}','rod',this.value)"></label>`:"<span></span>"}</div>
-   <label class="l" style="margin-top:6px">Eshik turi<select class="in" onchange="setMod('${m.id}','open',this.value)">${opens.map(o=>`<option value="${o}" ${o===m.open?"selected":""}>${OPEN[o]}</option>`).join("")}</select></label>
+   <div class="f3" style="margin-top:6px">${num3("w","Eni, mm",150,3000)}${num3("h","Balandligi",100,2800)}${num3("d","Chuqurligi",150,900)}</div>
+   ${t.carcass?`<div class="f4" style="margin-top:6px">${m.type==="oven"?"<span></span>":num3("doors","Eshik",0,6)}${num3("shelves","Polka",0,12)}${num3("drawers","Tortma",0,8)}
+     ${m.type==="wardrobe"?num3("rod","Shtanga",0,2):"<span></span>"}</div>`:""}
+   ${t.carcass&&opens.length>1?`<label class="l" style="margin-top:6px">Eshik turi<select class="in" onchange="setMod('${m.id}','open',this.value)">${opens.map(o=>`<option value="${o}" ${o===m.open?"selected":""}>${OPEN[o]}</option>`).join("")}</select></label>`:""}
+   ${t.carcass&&m.doors>0&&m.open!=="none"?`<div class="adds" style="margin-top:8px">
+     <label class="chk"><input type="checkbox" ${m.glass?"checked":""} onchange="setMod('${m.id}','glass',this.checked?1:0)"> 🪟 Oynali fasad</label>
+     ${m.doors==1&&m.open==="hinged"?`<label class="chk">Petlya: <select class="in" style="width:auto;padding:4px" onchange="setMod('${m.id}','hinge',this.value)"><option value="L" ${m.hinge!=="R"?"selected":""}>chapda</option><option value="R" ${m.hinge==="R"?"selected":""}>o'ngda</option></select></label>`:""}</div>`:""}
+   ${exs.length?`<div class="note" style="margin-top:10px;font-weight:600">Qo'shimchalar va texnika</div><div class="adds" style="margin-top:4px">${exs.map(k=>`<label class="chk"><input type="checkbox" ${X.has(k)?"checked":""} onchange="toggleExtra('${m.id}','${k}',this.checked)"> ${esc(EXTRAS[k].uz)}</label>`).join("")}</div>`:""}
    <div class="adds" style="margin-top:8px"><button class="btn l s" onclick="moveMod('${m.id}',-1)">↑</button><button class="btn l s" onclick="moveMod('${m.id}',1)">↓</button>
    <button class="btn l s" onclick="dupMod('${m.id}')">⧉ Nusxa</button><button class="btn x s" onclick="delMod('${m.id}')">🗑 O'chirish</button></div></div>`:""}</div>`;
 }
+function toggleExtra(id,k,on){const m=S.P.modules.find(x=>x.id===id);if(!m)return;const X=new Set(m.extras||[]);on?X.add(k):X.delete(k);m.extras=[...X];changed();render();}
 function setSet(k,v,noRender){const st=S.P.settings;if(k==="worktop")v=v==="1";st[k]=v;changed();if(noRender){draw3d();return;}render();}
 function addMod(t){const m=newModule(t,nid());S.P.modules.push(m);S.sel=m.id;changed();render();}
 function useTpl(k){const P=template(k);P.client=S.P.client;S.P=P;S.sel=null;changed();render();}
 function selMod(id){S.sel=S.sel===id?null:id;render();}
 function setMod(id,k,v){const m=S.P.modules.find(x=>x.id===id);if(!m)return;
   if(k==="type"){const n=newModule(v,id);Object.assign(m,n,{w:m.w});}
-  else if(k==="name")m[k]=v;else if(k==="open")m[k]=v;
+  else if(k==="name"||k==="open"||k==="hinge")m[k]=v;else if(k==="glass")m.glass=v?1:0;
   else{const lim={w:[150,3000],h:[100,2800],d:[150,900],doors:[0,6],shelves:[0,12],drawers:[0,8],rod:[0,2]}[k];m[k]=clampInt(v,lim[0],lim[1],m[k]);}
   changed();render();}
 function moveMod(id,dir){const a=S.P.modules,i=a.findIndex(x=>x.id===id),j=i+dir;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];changed();render();}
@@ -476,15 +574,16 @@ function partRows(parts){let i=0;return parts.map(p=>`<tr><td>${++i}</td><td>${e
 function viewParts(){
   const C=S.C,R=C.R;
   if(!R.parts.length)return `<div class="card note">Avval «Loyiha» bo'limida modul qo'shing.</div>`;
-  const grp=["body","facade","hdf"].map(k=>{const ps=R.parts.filter(p=>p.mat===k);if(!ps.length)return"";
+  const grp=["body","facade","glass","hdf"].map(k=>{const ps=R.parts.filter(p=>p.mat===k);if(!ps.length)return"";
     const m2=ps.reduce((a,p)=>a+p.L*p.W*p.qty,0)/1e6;
-    return `<tr class="grp"><td colspan="7">${k==="facade"?MATN.facade+" — "+(C.S.facade==="ldsp"?"LDSP 16":C.S.facade==="akril"?"Akril/AGT":"MDF 18"):MATN[k]} · ${ps.reduce((a,p)=>a+p.qty,0)} dona · ${m2.toFixed(2)} m²</td></tr>${partRows(ps)}`;}).join("");
+    return `<tr class="grp"><td colspan="7">${k==="glass"?"Oynali fasadlar — sexga buyurtma (ramka + oyna)":k==="facade"?MATN.facade+" — "+(C.S.facade==="ldsp"?"LDSP 16":C.S.facade==="akril"?"Akril/AGT":"MDF 18"):MATN[k]} · ${ps.reduce((a,p)=>a+p.qty,0)} dona · ${m2.toFixed(2)} m²</td></tr>${partRows(ps)}`;}).join("");
   const hw=Object.keys(C.HWN).filter(k=>R.hw[k]).map(k=>`<tr><td>${C.HWN[k]}</td><td class="n">${k==="rod"?R.hw[k].toFixed(2)+" m":R.hw[k]+" dona"}</td></tr>`).join("");
   return `<div class="card"><h2>Detallar ro'yxati <small>o'lchamlar mm · L — tola (uzunlik) bo'yicha</small></h2>
    <div class="note" style="margin-bottom:8px">Kromka ustuni: <b>L1 L2 | W1 W2</b> — «2» = 2 mm, «.4» = 0.4 mm, «–» = kromkasiz.</div>
    <div class="tw"><table><thead><tr><th>№</th><th>Modul</th><th>Detal</th><th class="n">L</th><th class="n">W</th><th class="n">Soni</th><th>Kromka</th></tr></thead><tbody>${grp}</tbody></table></div></div>
-   <div class="card"><h2>Furnitura <small>${C.S.furn==="blum"?"Blum":"GTV"}</small></h2><table><tbody>${hw}
+   <div class="card"><h2>Furnitura, qo'shimchalar va texnika <small>${C.S.furn==="blum"?"Blum":"GTV"}</small></h2><table><tbody>${hw}
    ${R.worktopM?`<tr><td>Stoleshnitsa</td><td class="n">${R.worktopM.toFixed(2)} m</td></tr>`:""}${R.plinthM?`<tr><td>Tsokol</td><td class="n">${R.plinthM.toFixed(2)} m</td></tr>`:""}
+   ${Object.keys(EXTRAS).filter(k=>R.ex[k]).map(k=>`<tr><td>${esc(EXTRAS[k].uz)}${C.pr[EXTRAS[k].p]>0?"":` <small class="note">(narx kiritilmagan — mijozniki)</small>`}</td><td class="n">${EXTRAS[k].m?R.ex[k].toFixed(2)+" m":R.ex[k]+" dona"}</td></tr>`).join("")}
    <tr><td>Kromka 2 mm (+10%)</td><td class="n">${C.edges.e2.toFixed(1)} m</td></tr><tr><td>Kromka 0.4 mm (+10%)</td><td class="n">${C.edges.e04.toFixed(1)} m</td></tr></tbody></table></div>
    <div class="card note">⚠️ Detal formulalari standart konstruksiya bo'yicha (korpus 16 mm, orqa DVP ustidan mixlanadi, eshik oraliqlari 3 mm, sharikli napravlyayushchiy uchun har tomondan 13 mm). Ustaxonangiz usuli boshqacha bo'lsa — ayting, formulani moslayman.</div>`;
 }
@@ -557,13 +656,14 @@ function resetPrices(){S.prices={};recalc();render();}
 
 /* -------- 3D -------- */
 let G=null;
+const ANIM={hinge:1.65,lift:1.35,flap:1.45};
 function draw3d(){
   const el=$("#view");if(!el)return;
   if(!window.THREE){el.innerHTML=`<div class="msg">3D yuklanmadi (internet sekin bo'lishi mumkin). Hisob-kitoblar ishlayveradi.</div>`;return;}
   const P=S.P,R=S.C.R,st=S.C.S;
   if(!R.placed.length){el.innerHTML=`<div class="msg">Modul qo'shing — 3D shu yerda ko'rinadi</div>`;if(G){G.dispose();G=null;}return;}
   if(!G||!el.contains(G.renderer.domElement)||(!G.ctl&&THREE.OrbitControls)){
-    if(G)G.dispose();
+    const keep=G?G.state:{};if(G)G.dispose();
     const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
     el.innerHTML="";el.appendChild(renderer.domElement);
     const scene=new THREE.Scene();scene.background=new THREE.Color("#ebe5da");
@@ -571,29 +671,66 @@ function draw3d(){
     scene.add(new THREE.HemisphereLight(0xffffff,0xb9b0a3,0.85));const dl=new THREE.DirectionalLight(0xffffff,0.55);dl.position.set(2,4,5);scene.add(dl);
     const ctl=THREE.OrbitControls?new THREE.OrbitControls(cam,renderer.domElement):null;if(ctl){ctl.enableDamping=true;ctl.maxPolarAngle=Math.PI*0.52;}
     const group=new THREE.Group();scene.add(group);
-    let raf=0;const loop=()=>{raf=requestAnimationFrame(loop);ctl&&ctl.update();renderer.render(scene,cam);};loop();
+    let raf=0;const loop=()=>{raf=requestAnimationFrame(loop);
+      for(const g of G.anims){const u=g.userData.anim;const tg=G.state[u.key]?1:0;if(Math.abs(tg-u.cur)>0.001){u.cur+=(tg-u.cur)*0.16;applyAnim(g);}}
+      ctl&&ctl.update();renderer.render(scene,cam);};
     const ro=new ResizeObserver(()=>{const w=el.clientWidth,h=el.clientHeight;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix();});ro.observe(el);
-    G={renderer,scene,cam,ctl,group,fitKey:"",dispose(){cancelAnimationFrame(raf);ro.disconnect();renderer.dispose();}};
+    const cv=renderer.domElement;
+    const pick=(cx,cy)=>{if(!THREE.Raycaster)return;const r=cv.getBoundingClientRect();const v=new THREE.Vector2(((cx-r.left)/r.width)*2-1,-((cy-r.top)/r.height)*2+1);
+      const rc=new THREE.Raycaster();rc.setFromCamera(v,cam);const hits=rc.intersectObjects(group.children,true);
+      for(const h of hits){let o=h.object;while(o&&o!==group){if(o.userData&&o.userData.anim){const k=o.userData.anim.key;G.state[k]=!G.state[k];return;}o=o.parent;}}};
+    cv.addEventListener("dblclick",e=>pick(e.clientX,e.clientY));
+    let lastTap=0,lx=0,ly=0;cv.addEventListener("pointerup",e=>{if(e.pointerType==="mouse")return;const now=Date.now();
+      if(now-lastTap<350&&Math.abs(e.clientX-lx)<30&&Math.abs(e.clientY-ly)<30){pick(e.clientX,e.clientY);lastTap=0;}else{lastTap=now;lx=e.clientX;ly=e.clientY;}});
+    G={renderer,scene,cam,ctl,group,fitKey:"",state:keep,anims:[],dispose(){cancelAnimationFrame(raf);ro.disconnect();renderer.dispose();}};
+    loop();
   }
-  const grp=G.group;while(grp.children.length){const c=grp.children.pop();c.geometry&&c.geometry.dispose();}
-  const mats={body:new THREE.MeshLambertMaterial({color:st.bodyColor}),facade:new THREE.MeshLambertMaterial({color:st.facadeColor}),
-    back:new THREE.MeshLambertMaterial({color:"#cfc6b8"}),drawer:new THREE.MeshLambertMaterial({color:"#d8d0c2"}),metal:new THREE.MeshLambertMaterial({color:"#9a9a9a"}),
-    top:new THREE.MeshLambertMaterial({color:st.topColor}),plinth:new THREE.MeshLambertMaterial({color:"#4a4643"}),handle:new THREE.MeshLambertMaterial({color:"#8c8c8c"}),
-    floor:new THREE.MeshLambertMaterial({color:"#d8cfc0"}),wall:new THREE.MeshLambertMaterial({color:"#f4efe6"})};
+  const grp=G.group;
+  const clear=o=>{while(o.children.length){const c=o.children.pop();clear(c);c.geometry&&c.geometry.dispose();}};clear(grp);G.anims=[];
+  const L=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+  const mats={body:L(st.bodyColor),facade:L(st.facadeColor),back:L("#cfc6b8"),drawer:L("#d8d0c2"),metal:L("#9a9a9a"),top:L(st.topColor),
+    plinth:L("#4a4643"),handle:L("#8c8c8c"),floor:L("#d8cfc0"),wall:L("#f4efe6"),steel:L("#b9bdc1"),chrome:L("#d7dadd"),black:L("#1d1d1f"),
+    appl:L("#2c2c2e"),ovendoor:L("#151517",{transparent:true,opacity:0.85}),white:L("#f3f3f1"),plastic:L("#7a7a7a"),led:L("#fff3b8",{emissive:0x6b5a20}),
+    glass:L("#a9c8cf",{transparent:true,opacity:0.32})};
   const k=0.001;
-  const box=(x,y,z,w,h,d,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(w,1)*k,Math.max(h,1)*k,Math.max(d,1)*k),mat);m.position.set((x+w/2)*k,(y+h/2)*k,(z+d/2)*k);grp.add(m);return m;};
+  const mesh=(parent,x,y,z,w,h,d,mat)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(w,1)*k,Math.max(h,1)*k,Math.max(d,1)*k),mat);m.position.set((x+w/2)*k,(y+h/2)*k,(z+d/2)*k);parent.add(m);return m;};
   const W=R.width||1000;
-  box(-300,-10,-400,W+600,10,1600,mats.floor); box(-300,0,-420,W+600,2700,20,mats.wall);
+  mesh(grp,-300,-10,-400,W+600,10,1600,mats.floor);mesh(grp,-300,0,-420,W+600,2700,20,mats.wall);
+  const groups={};
   for(const pl of R.placed){
-    for(const b of pl.boxes){const m=b.c==="facade"&&(pl.m.open==="kupe")?mats.facade:mats[b.c]||mats.body;box(pl.x+b.x,pl.elev+b.y,b.z,b.w,b.h,b.d,m);
-      if(b.handle){const hz=b.z+b.d;if(b.handle===2||b.handle===3){box(pl.x+b.x+b.w/2-60,pl.elev+b.y+(b.handle===3?20:b.h-40),hz,120,12,14,mats.handle);}
-        else if(b.h>b.w){box(pl.x+b.x+(b.x+b.w/2<pl.m.w/2?b.w-40:28),pl.elev+b.y+b.h-180,hz,12,120,14,mats.handle);}else box(pl.x+b.x+b.w/2-60,pl.elev+b.y+b.h-40,hz,120,12,14,mats.handle);}}
-    if(pl.elev>0&&pl.elev<300) box(pl.x,0,pl.m.d-70,pl.m.w,pl.elev,16,mats.plinth);
+    const topLift=st.worktop&&TYPES[pl.m.type].top?38:0;
+    for(const b of pl.boxes){
+      const x0=pl.x+b.x,y0=pl.elev+b.y+(b.top?topLift:0),z0=b.z;
+      let par=grp,ox=0,oy=0,oz=0;
+      if(b.a){const key=pl.m.id+":"+b.a.key;let g=groups[key];
+        if(!g){g=new THREE.Group();const a=b.a;let px=0,py=0,pz=0;
+          if(a.k==="hinge"){px=a.side==="L"?x0:x0+b.w;pz=z0+b.d;}else if(a.k==="lift"){py=y0+b.h;pz=z0+b.d;}else if(a.k==="flap"){py=y0;pz=z0+b.d;}
+          g.position.set(px*k,py*k,pz*k);g.userData.anim={key,k:a.k,side:a.side,dist:a.dist||0,cur:G.state[key]?1:0,base:{x:px*k,y:py*k,z:pz*k}};
+          groups[key]=g;grp.add(g);G.anims.push(g);applyAnim(g);}
+        par=g;ox=g.userData.anim.base.x/k;oy=g.userData.anim.base.y/k;oz=g.userData.anim.base.z/k;}
+      const X=x0-ox,Y=y0-oy,Z=z0-oz;
+      if(b.c==="glassdoor"){const f=Math.min(55,b.w/5,b.h/5);mesh(par,X,Y,Z,b.w,f,b.d,mats.facade);mesh(par,X,Y+b.h-f,Z,b.w,f,b.d,mats.facade);
+        mesh(par,X,Y+f,Z,f,b.h-2*f,b.d,mats.facade);mesh(par,X+b.w-f,Y+f,Z,f,b.h-2*f,b.d,mats.facade);mesh(par,X+f,Y+f,Z+b.d/2-2,b.w-2*f,b.h-2*f,4,mats.glass);}
+      else mesh(par,X,Y,Z,b.w,b.h,b.d,mats[b.c]||mats.body);
+      if(b.handle){const hz=Z+b.d;
+        if(b.handle===2)mesh(par,X+b.w/2-60,Y+b.h-40,hz,120,12,14,mats.handle);
+        else if(b.handle===3)mesh(par,X+b.w/2-60,Y+20,hz,120,12,14,mats.handle);
+        else if(b.h>b.w){const side=b.a&&b.a.k==="hinge"?b.a.side:"L";mesh(par,X+(side==="L"?b.w-40:28),Y+(pl.elev>1000?20:b.h-180),hz,12,120,14,mats.handle);}
+        else mesh(par,X+b.w/2-60,Y+b.h-40,hz,120,12,14,mats.handle);}
+    }
+    if(pl.elev>0&&pl.elev<300&&TYPES[pl.m.type].legs)mesh(grp,pl.x,0,pl.m.d-70,pl.m.w,pl.elev,16,mats.plinth);
   }
-  for(const r of R.runs) box(r.x,r.h,-5,r.w,38,r.d+40,mats.top);
+  for(const r of R.runs)mesh(grp,r.x,r.h,-5,r.w,38,r.d+40,mats.top);
   const key=P.modules.length+":"+W;
   if(G.fitKey!==key){G.fitKey=key;const cx=W*k/2,dist=Math.max(2.4,W*k*1.15);G.cam.position.set(cx+dist*0.35,1.5,dist);if(G.ctl){G.ctl.target.set(cx,1.0,0.25);G.ctl.update();}else G.cam.lookAt(cx,1,0.25);}
 }
+function applyAnim(g){const u=g.userData.anim,c=u.cur;
+  if(u.k==="hinge")g.rotation.y=(u.side==="L"?-1:1)*c*ANIM.hinge;
+  else if(u.k==="lift")g.rotation.x=-c*ANIM.lift;
+  else if(u.k==="flap")g.rotation.x=c*ANIM.flap;
+  else if(u.k==="slide")g.position.z=u.base.z+c*u.dist*0.001;
+  else if(u.k==="kupe")g.position.x=u.base.x+c*u.dist*0.001;}
+function openAll(v){if(!G)return;for(const g of G.anims)G.state[g.userData.anim.key]=!!v;}
 
 /* -------- saqlash / ochish -------- */
 async function saveProject(){
@@ -613,7 +750,7 @@ async function openList(){
 async function loadProject(id){try{const r=await api("/api/admin/bazis/projects/"+id);S.P=normalize(r.project.data);S.id=r.project.id;S.sel=null;S.dirty=false;recalc();document.querySelector(".modal")?.remove();S.tab="project";render();}catch(e){toast("⚠️ "+e.message);}}
 async function delProject(id,btn){if(!confirm("Loyihani o'chirasizmi?"))return;try{await api(`/api/admin/bazis/projects/${id}/delete`,{method:"POST"});btn.closest(".prow").remove();if(S.id===id)S.id=0;}catch(e){toast("⚠️ "+e.message);}}
 function newProject(){if(S.dirty&&!confirm("Saqlanmagan o'zgarishlar bor. Yangi loyiha boshlaysizmi?"))return;S.P=blank();S.id=0;S.sel=null;S.dirty=false;recalc();S.tab="project";render();}
-function normalize(P){P=P||blank();P.settings=Object.assign({},DEFAULT_SETTINGS,P.settings||{});P.modules=(P.modules||[]).filter(m=>TYPES[m.type]);return P;}
+function normalize(P){P=P||blank();P.settings=Object.assign({},DEFAULT_SETTINGS,P.settings||{});P.modules=(P.modules||[]).filter(m=>TYPES[m.type]);P.modules.forEach(m=>{if(!Array.isArray(m.extras))m.extras=[];});return P;}
 
 /* -------- chop etish / Excel -------- */
 function doPrint(){
