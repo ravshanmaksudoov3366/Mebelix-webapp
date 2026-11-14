@@ -2416,7 +2416,7 @@ async def ads_new_lead_once():
             pass
 
 
-LEAD_TGT_VER = "2"
+LEAD_TGT_VER = "3"
 LEAD_ADSET_1113 = "52545416321250"  # «Toshkent — IG+FB forma» (2026-11-13)
 
 
@@ -2443,16 +2443,29 @@ async def ads_lead_targeting_once():
                 if x.get("type") == "region" and any(w in n for w in ("tashkent", "toshkent", "ташкент")) \
                         and x["key"] not in [r["key"] for r in regions]:
                     regions.append({"key": x["key"]})
+        cities = []
+        try:
+            d = await meta.ads_get("search", type="adgeolocation", q="Tashkent", country_code="UZ",
+                                   location_types=json.dumps(["city"]))
+            for x in d.get("data") or []:
+                seen["city:" + str(x.get("key"))] = f"{x.get('name')} / {x.get('region')}"
+            c = next((x for x in d.get("data") or [] if x.get("type") == "city"), None)
+            if c:
+                cities.append({"key": c["key"], "radius": 15, "distance_unit": "kilometer"})
+        except soc.MetaError as e:
+            log.warning("LEADTGT city: %s", e)
         log.info("LEADTGT qidiruv: %s", seen)
         if regions:
             geo = {"regions": regions, "location_types": ["home"]}
+            if cities:
+                geo["cities"] = cities
         else:  # zaxira: Toshkent markazidan 60 km — shahar va viloyatning asosiy qismi
             geo = {"custom_locations": [{"latitude": 41.3111, "longitude": 69.2797, "radius": 60,
                                          "distance_unit": "kilometer"}], "location_types": ["home"]}
         await meta.ads_post(LEAD_ADSET_1113, targeting=await _fix_targeting({}, geo, age=(30, 65)))
         t = (await meta.ads_get(LEAD_ADSET_1113, fields="targeting")).get("targeting") or {}
         g = t.get("geo_locations") or {}
-        names = ", ".join(r.get("name", r.get("key", "")) for r in g.get("regions") or []) or \
+        names = ", ".join(r.get("name", r.get("key", "")) for r in (g.get("cities") or []) + (g.get("regions") or [])) or \
             ", ".join(f"Toshkent markazidan {c.get('radius')} km" for c in g.get("custom_locations") or []) or str(g)
         log.info("LEADTGT ok: %s, yosh %s-%s, %s", names, t.get("age_min"), t.get("age_max"),
                  (t.get("geo_locations") or {}).get("location_types"))
