@@ -2416,6 +2416,41 @@ async def ads_new_lead_once():
             pass
 
 
+LEAD_TGT_VER = "1"
+LEAD_ADSET_1113 = "52545416321250"  # «Toshkent — IG+FB forma» (2026-11-13)
+
+
+async def ads_lead_targeting_once():
+    """Egasining buyrug'i (2026-11-14): lidlar sifatsiz — hudud faqat Toshkent shahri va Toshkent viloyati
+    (u yerda YASHAYDIGANLAR), yosh 30+. Byudjet, e'lon va formaga tegmaydi."""
+    await asyncio.sleep(60)
+    if not soc.configured() or shop.settings().get("ads_leadtgt") == LEAD_TGT_VER:
+        return
+    shop.set_setting("ads_leadtgt", LEAD_TGT_VER)
+    try:
+        await meta._ready()
+        regions = await meta.tashkent_regions()
+        if not regions:
+            raise soc.MetaError("Toshkent hududlari topilmadi")
+        await meta.ads_post(LEAD_ADSET_1113, targeting=await _fix_targeting(
+            {}, {"regions": regions, "location_types": ["home"]}, age=(30, 65)))
+        t = (await meta.ads_get(LEAD_ADSET_1113, fields="targeting")).get("targeting") or {}
+        names = ", ".join(r.get("name", r.get("key", "")) for r in (t.get("geo_locations") or {}).get("regions") or [])
+        log.info("LEADTGT ok: %s, yosh %s-%s, %s", names, t.get("age_min"), t.get("age_max"),
+                 (t.get("geo_locations") or {}).get("location_types"))
+        text = ("🎯 <b>Lid reklamasi auditoriyasi o'zgardi</b>\n"
+                f"Hudud: {esc(names)} — faqat shu yerda yashaydiganlar.\n"
+                f"Yosh: {t.get('age_min')}–{t.get('age_max')}+.\nByudjet va e'lon o'sha.")
+    except Exception as e:  # noqa: BLE001
+        log.exception("LEADTGT")
+        text = f"⚠️ Lid reklamasi auditoriyasini o'zgartirib bo'lmadi: {esc(str(e)[:300])}"
+    for aid in ADMIN_IDS:
+        try:
+            await bot.send_message(aid, text)
+        except TelegramAPIError:
+            pass
+
+
 async def ads_watch_loop():
     """Reklama nazoratchisi: har 30 daqiqada (kechasi ham) hisob holati, to'xtab qolgan va rad etilgan reklamalar,
     «$15 va 0 lid» qoidasi, kechki hisobot. Byudjet, to'lov va kartaga hech qachon tegmaydi."""
@@ -4973,6 +5008,7 @@ async def main():
         app_tasks.append(asyncio.create_task(ads_watch_loop()))
         app_tasks.append(asyncio.create_task(ads_diag_once()))
         app_tasks.append(asyncio.create_task(ads_new_lead_once()))
+        app_tasks.append(asyncio.create_task(ads_lead_targeting_once()))
         if shop.settings().get("ads_watch_alert_v") != "1":
             shop.set_setting("ads_watch_mode", "alert")
             shop.set_setting("ads_watch_on", "1")
