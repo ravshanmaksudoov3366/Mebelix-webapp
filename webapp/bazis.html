@@ -12,7 +12,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg2);color:var(--text);font-family:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px}
 button,input,select{font-family:inherit;font-size:inherit;color:var(--text)}
-header{background:var(--char);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header{background:var(--char);padding:calc(10px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px)) 14px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 .brand{display:flex;flex-direction:column;color:var(--gold);font-size:21px;font-weight:600;line-height:1}
 .brand small{font-size:8px;letter-spacing:1.6px;color:#cdb57a;margin-top:3px;font-weight:500}
 .back{border:1px solid #5a5758;color:var(--gold);border-radius:12px;padding:7px 10px;font-size:12.5px;font-weight:600;text-decoration:none}
@@ -23,10 +23,10 @@ header{background:var(--char);padding:10px 14px;display:flex;align-items:center;
 .btn.s{padding:6px 9px;font-size:12px;border-radius:9px}
 .btn.x{background:#fff;color:var(--bad);border:1.5px solid #ecd2cc}
 header .btn.l{background:transparent;color:#f6f2ea;border-color:#5a5758}
-nav{display:flex;gap:6px;padding:10px 14px 0;overflow-x:auto;max-width:1400px;margin:0 auto}
+nav{display:flex;gap:6px;padding:10px 14px 0;overflow-x:auto;max-width:1800px;margin:0 auto}
 nav button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
 nav button.on{background:var(--char);color:var(--gold);border-color:var(--char)}
-main{max-width:1400px;margin:0 auto;padding:12px 14px 40px}
+main{max-width:1800px;margin:0 auto;padding:12px 14px calc(40px + var(--tg-safe-area-inset-bottom,0px))}
 .card{background:#fff;border-radius:var(--r);padding:14px;margin-bottom:12px}
 .card h2{margin:0 0 10px;font-family:var(--serif);font-size:22px;font-weight:600;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .card h2 small{font-family:Montserrat,sans-serif;font-size:12px;color:var(--hint);font-weight:500}
@@ -49,7 +49,7 @@ input[type=color].in{height:36px;padding:3px;cursor:pointer}
 .mh b{flex:1;font-size:13px}
 .mh .dim{color:var(--hint);font-size:12px}
 .mb{margin-top:8px}
-#view{width:100%;height:520px;border-radius:12px;background:#ebe5da;position:relative;overflow:hidden;touch-action:none}
+#view{width:100%;height:max(520px,calc(100vh - 330px));border-radius:12px;background:#ebe5da;position:relative;overflow:hidden;touch-action:none}
 @media(max-width:900px){#view{height:340px}}
 #view .msg{position:absolute;inset:0;display:grid;place-items:center;color:var(--hint);text-align:center;padding:20px}
 .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--hint);margin-top:8px}
@@ -97,6 +97,7 @@ tr.grp td{background:var(--soft);font-weight:700}
   <a class="back" href="/custom?admin=1">←</a>
   <div class="brand">iSofa Bazis<small>LOYIHA · RASKROY · SMETA</small></div>
   <div class="hact">
+    <button class="btn l" id="fsBtn" onclick="toggleFull()" style="display:none">⛶ Ekran</button>
     <button class="btn l" onclick="newProject()">＋ Yangi</button>
     <button class="btn l" onclick="openList()">📂 Loyihalar</button>
     <button class="btn l" onclick="exportXlsx()">📊 Excel</button>
@@ -357,7 +358,23 @@ if (typeof module !== "undefined") module.exports = {TYPES, newModule, buildModu
 </script>
 
 <script>
-const TG = window.Telegram && Telegram.WebApp; try{TG&&TG.ready();TG&&TG.expand();}catch(e){}
+const TG = window.Telegram && Telegram.WebApp && Telegram.WebApp.initData ? Telegram.WebApp : null;
+const canFull = () => !!(TG && TG.requestFullscreen && TG.isVersionAtLeast && TG.isVersionAtLeast("8.0"));
+try{
+  if(TG){TG.ready();TG.expand();
+    if(TG.disableVerticalSwipes)TG.disableVerticalSwipes();   // 3D aylantirganda oyna yopilib ketmasin
+    if(canFull()&&!TG.isFullscreen)TG.requestFullscreen();     // Bazis ochilganda — to'liq ekran
+    TG.onEvent&&TG.onEvent("fullscreenChanged",fsLabel);
+    TG.onEvent&&TG.onEvent("fullscreenFailed",fsLabel);}
+}catch(e){}
+function fsLabel(){const b=document.getElementById("fsBtn");if(!b)return;
+  const on=TG?!!TG.isFullscreen:!!document.fullscreenElement;
+  b.style.display=(canFull()||document.fullscreenEnabled)?"":"none";b.textContent=on?"⤡ Kichraytirish":"⛶ To'liq ekran";}
+function toggleFull(){try{
+  if(canFull()){TG.isFullscreen?TG.exitFullscreen():TG.requestFullscreen();}
+  else if(document.fullscreenElement)document.exitFullscreen();else document.documentElement.requestFullscreen();
+}catch(e){}setTimeout(fsLabel,300);}
+document.addEventListener("fullscreenchange",fsLabel);
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const money = v => Math.round(v||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g," ")+" so'm";
@@ -632,6 +649,7 @@ async function start(){
   let d=null;try{d=JSON.parse(localStorage.getItem("bazis_draft")||"null");}catch(e){}
   S.P=normalize(d&&d.P);S.id=(d&&d.id)||0;recalc();render();
 }
+fsLabel();
 window.addEventListener("beforeunload",e=>{if(S.dirty){e.preventDefault();e.returnValue="";}});
 start();
 </script>
